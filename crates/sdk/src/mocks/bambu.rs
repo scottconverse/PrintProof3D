@@ -105,6 +105,7 @@ impl BambuMqttMock {
                     let mut buffer = [0; 1024];
                     let mut telemetry_spawned = false;
                     
+                    #[allow(clippy::while_let_loop)]
                     loop {
                         let n = match stream.read(&mut buffer) {
                             Ok(bytes) => bytes,
