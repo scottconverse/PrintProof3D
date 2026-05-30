@@ -1,0 +1,16 @@
+{
+  "name": "Polylactic Acid",
+  "abbreviations": ["PLA"],
+  "min_nozzle_temp": 190.0,
+  "max_nozzle_temp": 220.0,
+  "min_bed_temp": 50.0,
+  "max_bed_temp": 60.0,
+  "cooling_fan_speed_pct": 100.0,
+  "warp_risk": "low",
+  "bridge_difficulty": "low",
+  "overhang_difficulty": "low",
+  "enclosure_recommended": false,
+  "dryness_sensitive": false,
+  "bed_adhesion_notes": "Requires clean PEI sheet",
+  "min_feature_size_mm": 0.4
+}

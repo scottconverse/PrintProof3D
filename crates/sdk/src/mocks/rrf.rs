@@ -6,20 +6,22 @@ use std::sync::Arc;
 
 pub struct RrfMockServer {
     running: Arc<AtomicBool>,
-    port: u16,
+    pub port: u16,
 }
 
 impl RrfMockServer {
-    pub fn start(port: u16) -> Self {
+    pub fn start() -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
+        
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        listener.set_nonblocking(true).unwrap();
 
         thread::spawn(move || {
-            let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
-            listener.set_nonblocking(true).unwrap();
-
             while running_clone.load(Ordering::Relaxed) {
                 if let Ok((mut stream, _)) = listener.accept() {
+                    stream.set_nonblocking(false).unwrap();
                     let mut buffer = [0; 1024];
                     if let Ok(bytes_read) = stream.read(&mut buffer) {
                         let request = String::from_utf8_lossy(&buffer[..bytes_read]);

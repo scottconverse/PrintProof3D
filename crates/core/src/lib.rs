@@ -146,8 +146,22 @@ impl PrinterProfile {
                 }
             }
         }
+        match (&self.bed_shape, &self.build_volume) {
+            (BedShape::Circular, BuildVolume::Rectangular { .. }) => {
+                return Err("Circular bed shape requires Cylindrical build volume".to_string());
+            }
+            (BedShape::Rectangular, BuildVolume::Cylindrical { .. }) => {
+                return Err("Rectangular bed shape requires Rectangular build volume".to_string());
+            }
+            _ => {}
+        }
         if self.default_nozzle_diameter <= 0.0 {
             return Err("Default nozzle diameter must be positive".to_string());
+        }
+        for dia in &self.nozzle_diameters {
+            if *dia <= 0.0 {
+                return Err("All nozzle diameters must be positive".to_string());
+            }
         }
         if !self.nozzle_diameters.contains(&self.default_nozzle_diameter) {
             return Err("Default nozzle diameter must be present in nozzle_diameters options".to_string());
@@ -408,6 +422,18 @@ mod tests {
         let mut bad_temp = profile.clone();
         bad_temp.max_hotend_temp = 600.0;
         assert!(bad_temp.validate().is_err());
+
+        let mut bad_bed_vol = profile.clone();
+        bad_bed_vol.bed_shape = BedShape::Circular; // Circular bed + Rectangular volume -> invalid
+        assert!(bad_bed_vol.validate().is_err());
+
+        let mut bad_bed_vol2 = profile.clone();
+        bad_bed_vol2.build_volume = BuildVolume::Cylindrical { diameter: 200.0, z: 200.0 }; // Rectangular bed + Cylindrical volume -> invalid
+        assert!(bad_bed_vol2.validate().is_err());
+
+        let mut bad_nozzle = profile.clone();
+        bad_nozzle.nozzle_diameters = vec![0.4, -0.2]; // Negative nozzle diameter -> invalid
+        assert!(bad_nozzle.validate().is_err());
     }
 
     #[test]

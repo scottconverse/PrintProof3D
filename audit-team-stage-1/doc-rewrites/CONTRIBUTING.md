@@ -30,13 +30,26 @@ Running the tests automatically regenerates the files in `PrintProof3D/schemas/`
 
 ## Pre-push Hook Setup
 
-The repository includes a pre-push Git hook to gate invalid updates. Ensure it is executable:
+To enforce compilation and test coverage checks locally before pushing, we recommend setting up a Git pre-push hook:
+
+Create a file named `.git/hooks/pre-push` (without any extension) and add the following content:
+
+```bash
+#!/bin/sh
+# Pre-push test runner hook
+echo "Running pre-push build and tests..."
+cargo test --workspace
+if [ $? -ne 0 ]; then
+    echo "Error: Tests failed. Push aborted."
+    exit 1
+fi
+```
+
+Make the hook executable:
 
 ```bash
 chmod +x .git/hooks/pre-push
 ```
-
-This hook executes `cargo test` to verify compilations and unit test runs before pushing to remote repository branches.
 
 ---
 

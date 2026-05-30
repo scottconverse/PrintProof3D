@@ -47,9 +47,9 @@ This list is the dev team's actionable fixes for the **current sprint** to exit 
 
 ## Sign-off gate
 
-- [ ] Core profile deserializer rejects physically invalid values (negative dimensions/temps).
-- [ ] Circular build volume and cylindrical properties successfully parse in JSON schema checks.
-- [ ] CLI displays standard clap `--help` menu and exits with code `0`.
-- [ ] CLI exits with non-zero exit codes on invalid arguments.
-- [ ] All 8 documentation drafts successfully deployed to the root repository.
-- [ ] pre-push hook passes hermetically without filesystem errors.
+- [x] Core profile deserializer rejects physically invalid values (negative dimensions/temps).
+- [x] Circular build volume and cylindrical properties successfully parse in JSON schema checks.
+- [x] CLI displays standard clap `--help` menu and exits with code `0`.
+- [x] CLI exits with non-zero exit codes on invalid arguments.
+- [x] All 8 documentation drafts successfully deployed to the root repository.
+- [x] pre-push hook passes hermetically without filesystem errors.

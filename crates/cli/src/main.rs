@@ -123,6 +123,7 @@ fn main() {
                 sliced_settings_assumed: None,
             };
 
+            let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
             let report_json = serde_json::to_string_pretty(&report).unwrap();
             if let Some(out_path) = output {
                 if let Err(e) = std::fs::write(&out_path, &report_json) {
@@ -131,6 +132,9 @@ fn main() {
                 }
             } else {
                 println!("{}", report_json);
+            }
+            if has_warnings_or_failures {
+                std::process::exit(1);
             }
         }
         Commands::ValidateGcode { gcode, printer, material, output } => {
@@ -196,6 +200,7 @@ fn main() {
                 sliced_settings_assumed: None,
             };
 
+            let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
             let report_json = serde_json::to_string_pretty(&report).unwrap();
             if let Some(out_path) = output {
                 if let Err(e) = std::fs::write(&out_path, &report_json) {
@@ -204,6 +209,9 @@ fn main() {
                 }
             } else {
                 println!("{}", report_json);
+            }
+            if has_warnings_or_failures {
+                std::process::exit(1);
             }
         }
     }

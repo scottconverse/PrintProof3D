@@ -9,254 +9,232 @@
 
 ## TL;DR
 
-The Stage 1 workspace has a clean layout and compiles successfully. However, the implementation is currently in a "skeleton" phase. The `core` crate contains the data models and auto-schema generation, while the other four crates (`printability`, `adapters`, `sdk`, `cli`) consist of stub files with dummy functions. 
+This Stage 1 workspace update shows progress in resolving previous design deficiencies. Key improvements include defining stable core traits for printer adapters (`PrinterAdapter`) and validators (`ModelValidator`, `GcodeValidator`), introducing cylindrical bed support via the `BuildVolume` tagged enum, and adding dynamic port allocation for mock servers in tests.
 
-The audit highlights a **Critical** safety concern regarding the lack of range/bounds validation for user-uploaded printer/material profile files (which could specify negative dimensions or hazardous temperatures). It also reveals **Major** architectural debt: the lack of common traits/interfaces for printer adapters and validators will lead to high coupling as implementation begins, and executing schema auto-generation inside unit tests creates workspace side-effects.
+However, several critical and major issues remain unresolved or only partially addressed:
+- Range and bounds validation (`.validate()`) is manual and not automatically run during profile deserialization, meaning invalid profiles can still be loaded in memory.
+- State invariants in validation reports are similarly checked manually rather than enforced during construction.
+- The schema auto-generation code remains embedded as a cargo unit test, creating side-effects on the filesystem when running `cargo test`.
+- Unsanitized path-traversal strings can still load into `ModelMetadata` if parsed outside the CLI.
+- The mock servers for Bambu FTP and MQTT introduce blocking TCP stream reads that run synchronously on the mock thread, causing deadlocks, preventing clean server shutdowns, and causing parallel test processes to leak threads.
+- The Bambu FTP mock's passive mode now spawns a data connection thread, but it remains hardcoded to port 10240 and lacks timeouts, leading to potential port collisions and thread leaks.
 
 ---
 
 ## Severity roll-up (engineering)
 
-| Severity | Count |
-|---|---|
-| Blocker | 0 |
-| Critical | 1 |
-| Major | 3 |
-| Minor | 2 |
-| Nit | 2 |
+| Severity | Count (Active) | Status Roll-up |
+|---|---|---|
+| Blocker | 0 | 0 Active |
+| Critical | 2 | 2 Partially Resolved |
+| Major | 3 | 2 Resolved, 1 Partially Resolved, 2 Unresolved |
+| Minor | 2 | 1 Resolved, 1 Partially Resolved, 1 Unresolved |
+| Nit | 2 | 2 Unresolved |
+| **Total** | **9** | **3 Fully Resolved, 4 Partially Resolved, 5 Unresolved** |
 
 ---
 
 ## What's working
 
-- **Workspace Architecture**: The Cargo workspace is well-structured, allowing `core`, `printability`, `adapters`, `sdk`, and `cli` to build together seamlessly.
-- **Serialization and Schemas**: The data models in `crates/core` correctly derive `Serialize`, `Deserialize`, and `JsonSchema`, enabling roundtrip validation checks.
-- **Pre-Push Validation**: The pre-push hook configuration is correctly established to gate broken builds/tests prior to commits.
-- **Test Coverage for Core**: Basic roundtrip serialization unit tests are present and passing for `PrinterProfile`, `MaterialProfile`, and `ValidationReport`.
+- **Workspace Architecture**: The Cargo workspace compiles cleanly, with all sub-crates (`core`, `printability`, `adapters`, `sdk`, `cli`) integrated.
+- **Trait-Based Interfaces**: Stable traits like `PrinterAdapter`, `ModelValidator`, and `GcodeValidator` are defined, preventing coupling.
+- **Circular Bed Support**: The `BuildVolume` tagged enum (`Rectangular` vs `Cylindrical`) correctly supports cylindrical/delta beds.
+- **Mock Port Allocation**: Mock servers bind to port `0` and use `local_addr().unwrap().port()` for dynamic port assignment, resolving test port collision issues.
+- **Buffer Index Verification**: The Bambu MQTT mock now validates buffer length (`if n >= 4`) before indexing, resolving out-of-bounds reads.
 
 ---
 
 ## What couldn't be assessed
 
-- **Runtime Connection Adapters**: Code for connecting to Moonraker, OctoPrint, or Marlin serial consists entirely of stub functions returning mock strings; real I/O and communication could not be evaluated.
-- **Mesh and G-Code Checking**: The boundary checkers and mesh checks are stubs (`check_model() -> &'static str { "ok" }`). No physical STL loading or G-code parsing could be evaluated.
-- **CLI and MCP Server**: The CLI entry point simply prints a version number and has no argument parser or MCP server implementation.
+- **Production Network Connections**: Live connection protocols to external hosts (Moonraker, OctoPrint, Marlin) remain unimplemented stubs.
+- **Physical Slicing/Validation Engines**: Mesh validation and G-code analysis engines remain mock stubs.
+- **Model Context Protocol (MCP) Server**: No MCP server implementation for integration with LLM agents was visible.
 
 ---
+
+Finds...
 
 ## Findings
 
-### [ENG-001] — Critical — Correctness & Security — Lack of safety and range validation on Profile deserialization
+### [ENG-001] — Critical — Correctness & Security — Profile Range/Bounds Validation is Manual and Not Automatic on Deserialization (PARTIALLY RESOLVED)
 
 **Evidence**
-`crates/core/src/lib.rs:56-85` (`PrinterProfile`) and `96-111` (`MaterialProfile`) define properties such as nozzle diameters, temperatures, and layer heights:
-```rust
-pub struct PrinterProfile {
-    ...
-    pub nozzle_diameters: Vec<f32>,
-    pub default_nozzle_diameter: f32,
-    pub min_layer_height: f32,
-    pub max_layer_height: f32,
-    pub max_hotend_temp: f32,
-    pub max_bed_temp: f32,
-    ...
-}
-```
-There is no validation check applied during deserialization or instantiation to ensure:
-1. Coordinates and nozzle dimensions are positive (e.g. `default_nozzle_diameter` or `max_layer_height` are not zero or negative).
-2. Temperatures are within physically safe limits (e.g., preventing a hotend limit of 10,000°C or negative bed temperatures).
-3. Logical relationships hold (e.g., `min_layer_height <= max_layer_height`, and `default_nozzle_diameter` is present in the `nozzle_diameters` array).
+- `crates/core/src/lib.rs:128-186` (`PrinterProfile::validate()`)
+- `crates/core/src/lib.rs:230-256` (`MaterialProfile::validate()`)
 
 **Why this matters**
-These profiles represent untrusted inputs (user uploads or third-party database syncs). Without strict bounds sanitization:
-1. Division-by-zero errors or panic indexing can occur inside slicing/verification calculations if nozzle size or layer heights are set to zero/negative values.
-2. Underflow/overflow bugs could bypass print-safety checks.
-3. In extreme cases, if downstream hardware controllers rely on these values without validation, sending extreme temperature targets to a printer can cause hardware damage or thermal runaway hazards.
+While validation checks have been implemented via `.validate()` and are called inside the CLI binary, they are not automatically run during deserialization. If downstream systems or external tools deserialize profiles using `serde_json::from_str` or `from_reader` without explicitly calling `.validate()` afterwards, invalid values (like negative dimensions or 600°C nozzle limits) will still load into memory. In addition, the maximum temperature checks (500°C for hotend, 200°C for bed) remain hardcoded, and the validations are not checked at the serialization/deserialization boundary.
 
 **Blast radius**
-- **Adjacent code**: `crates/core/src/lib.rs` (schema structs), and any future printability validation logic.
-- **Shared state**: Deserialized models in memory.
+- **Adjacent code**: `crates/core` schema structs and third-party consumers.
 - **User-facing**: Profile configuration JSONs.
-- **Migration**: Update struct schemas with validation annotations or introduce custom deserialization invariants.
-- **Tests to update**: Add validation tests with malformed inputs in `crates/core/src/lib.rs`.
-- **Related findings**: ENG-007.
 
 **Fix path**
-Implement a validation check (e.g. by implementing the `Validate` trait or custom deserializers) that checks all physical dimensions and temperatures against sane bounds (e.g. `nozzle_diameter > 0.0`, `max_hotend_temp <= 500.0`, `min_layer_height <= max_layer_height`, and `nozzle_diameters.contains(&default_nozzle_diameter)`). Reject deserialization if these rules are violated.
+Implement a custom `serde::Deserialize` or a validation wrapper (such as using a crate like `validator` or implementing `TryFrom` / helper structs) that forces validation during JSON parsing, preventing invalid configurations from ever being instantiated in memory.
 
 ---
 
-### [ENG-002] — Major — Architecture — Lack of Abstraction Traits for Printer Adapters and Printability Validators
+### [ENG-002] — Major — Architecture — Lack of Abstraction Traits for Printer Adapters and Printability Validators (RESOLVED)
 
 **Evidence**
-- `crates/adapters/src/lib.rs:3-5` defines a static list of strings and no traits:
-```rust
-pub fn list_adapters() -> Vec<&'static str> {
-    vec!["moonraker", "octoprint", "marlin"]
-}
-```
-- `crates/printability/src/lib.rs:3-5` defines a static stub:
-```rust
-pub fn check_model() -> &'static str {
-    "ok"
-}
-```
+- `crates/adapters/src/lib.rs:32-43` (`PrinterAdapter` trait)
+- `crates/printability/src/lib.rs:9-25` (`ModelValidator` and `GcodeValidator` traits)
 
-**Why this matters**
-Currently, there are no common traits defining how connection adapters or printability validators should behave. As developers start writing Klipper, OctoPrint, and Marlin implementations, they will likely create diverging API interfaces. This lack of common abstraction layers will lead to highly coupled code in the SDK and CLI crates, making future support for additional protocols difficult and forcing major refactorings.
-
-**Blast radius**
-- **Adjacent code**: `crates/adapters`, `crates/printability`, `crates/sdk`, and `crates/cli`.
-- **User-facing**: The developer experience for implementing or extending PrintProof3D.
-- **Migration**: Massive refactoring risk if implementation proceeds without interface definition.
-- **Tests to update**: Introduce mock adapter tests once traits are defined.
-
-**Fix path**
-Define clear interfaces using Rust traits. For example, in `crates/adapters`, define a `PrinterAdapter` trait:
-```rust
-#[async_trait]
-pub trait PrinterAdapter {
-    async fn connect(&mut self) -> Result<(), AdapterError>;
-    async fn upload_file(&self, path: &Path) -> Result<(), AdapterError>;
-    async fn get_status(&self) -> Result<PrinterStatus, AdapterError>;
-}
-```
-And in `crates/printability`, define a `ModelValidator` or `GcodeValidator` trait.
+**Status**
+Fully resolved. The traits now form a stable interface layer.
 
 ---
 
-### [ENG-003] — Major — Performance / Correctness — Schema Auto-Generation executed inside Unit Tests creates Workspace Side-Effects
+### [ENG-003] — Major — Performance / Correctness — Schema Auto-Generation executed inside Unit Tests creates Workspace Side-Effects (UNRESOLVED)
 
 **Evidence**
-`crates/core/src/lib.rs:269-291` (`generate_schemas`) uses `cargo test` execution to write schema files directly to the root repository folder:
-```rust
-    #[test]
-    fn generate_schemas() {
-        ...
-        let schema_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schemas");
-        create_dir_all(&schema_dir).unwrap();
-        ...
-```
+- `crates/core/src/lib.rs:493-516` (`generate_schemas` unit test)
 
 **Why this matters**
-Unit tests are expected to be hermetic, side-effect-free, and safe to execute concurrently in any environment.
-1. Writing files to the workspace workspace directory during a test run breaks test hermeticity.
-2. In restricted or read-only CI/CD execution environments, this test will fail due to lack of write permissions.
-3. If multiple tests or workspace builds are executed in parallel, it can lead to file lock contention or race conditions on the schema files.
+Running `cargo test` still writes schema files directly to the root `../../schemas` directory. This creates file side-effects during testing, violates test hermeticity, causes file lock contention in parallel testing environments, and will fail in read-only CI pipelines.
 
 **Blast radius**
 - **Adjacent code**: `crates/core/src/lib.rs` (unit tests).
 - **Shared state**: The `/schemas` directory at the workspace root.
-- **User-facing**: Developer local environment and CI/CD pipelines.
-- **Migration**: Move the generator logic out of the test harness.
 
 **Fix path**
-Remove the file-writing logic from the unit test. Instead, create a dedicated cargo binary target (e.g., a generator script under `crates/core/src/bin/generate_schemas.rs`) or use a `cargo-xtask` layout so that schema generation is an explicit developer action rather than a side-effect of running unit tests.
+Move the schema generation code into a dedicated binary target (e.g. `crates/core/src/bin/generate_schemas.rs`) or a `cargo xtask` script so that it is invoked explicitly by developers rather than running as a side-effect of `cargo test`.
 
 ---
 
-### [ENG-004] — Major — Correctness — Missing State Invariant Enforcement in Validation Reports
+### [ENG-004] — Major — Correctness — Missing State Invariant Enforcement in Validation Reports (PARTIALLY RESOLVED)
 
 **Evidence**
-`ValidationReport` in `crates/core/src/lib.rs:156-164` exposes all fields publicly without logical validation constraints:
-```rust
-pub struct ValidationReport {
-    pub status: ValidationStatus,
-    ...
-    pub issues: Vec<ValidationIssue>,
-    ...
-}
-```
+- `crates/core/src/lib.rs:364-376` (`ValidationReport::validate()`)
 
 **Why this matters**
-Because the fields are fully public and there is no constructor or validation helper, a report can be constructed or deserialized with inconsistent state. For example, a report can have its `status` set to `ValidationStatus::Pass` while containing multiple issues of severity `IssueSeverity::Blocker` or `Critical`. If downstream integration software (e.g. print queues) relies on the `status` field to allow or deny a print job, this invariant bypass could allow unsafe prints to start.
+A validation check `.validate()` was added to enforce that a report with `Blocker` or `Critical` issues cannot have `ValidationStatus::Pass`. However, as with ENG-001, this validation must be manually invoked by developers. A developer could still instantiate or deserialize a report with inconsistent state without triggering an error, and the fields of `ValidationReport` remain public.
 
 **Blast radius**
 - **Adjacent code**: `crates/core/src/lib.rs` (struct definitions).
-- **Shared state**: Serialized validation reports stored or transmitted across services.
-- **Migration**: Transition the fields to be read-only/private and instantiate reports via constructor logic.
-- **Tests to update**: Unit tests in `crates/core` verifying that reports with blockers cannot pass validation.
 
 **Fix path**
-Provide an invariant-enforcing constructor or a `.validate()` method on `ValidationReport` that enforces correctness. For example, assert that if `issues` contains any issue with a severity of `Blocker` or `Critical`, the `status` must be `ValidationStatus::Fail`.
+Transition `ValidationReport` fields to be private or access-controlled, and enforce this constraint inside a constructor function or custom deserializer.
 
 ---
 
-### [ENG-005] — Minor — Security — Unsanitized User-Controlled Filenames in ModelMetadata / Path Traversal Risk
+### [ENG-005] — Minor — Security — Unsanitized User-Controlled Filenames in ModelMetadata / Path Traversal Risk (PARTIALLY RESOLVED)
 
 **Evidence**
-`ModelMetadata` in `crates/core/src/lib.rs:132-136` stores a user-supplied model filename directly:
-```rust
-pub struct ModelMetadata {
-    pub file_name: String,
-    ...
-}
-```
+- `crates/cli/src/main.rs:117` and `194`
 
 **Why this matters**
-`file_name` is taken directly from the uploaded model. If downstream code (such as the adapter or CLI) writes validation reports to disk or stores cache files using this filename without sanitizing path characters, an attacker could supply a filename containing path traversal sequences (e.g., `../../etc/passwd` or `..\..\System32\...`), leading to an Arbitrary File Write / Path Traversal vulnerability.
+The CLI has been updated to extract the base name of files using `.file_name()`, which successfully prevents path traversal when invoking the CLI. However, if `ModelMetadata` is deserialized from JSON in other contexts, the `file_name` field remains a raw, unvalidated `String` that could contain directory traversal elements (`../`).
 
 **Fix path**
-Ensure that whenever `file_name` is used in filesystem operations, it is sanitized to remove path separators (`/`, `\`) and traversal sequences (`..`). Alternatively, store the sanitized path in the struct or enforce sanitization at the input boundary.
+Sanitize the `file_name` property directly within the struct validation method or during deserialization.
 
 ---
 
-### [ENG-006] — Minor — Performance — High Memory Allocation Overhead on Validation Issues
+### [ENG-006] — Minor — Performance — High Memory Allocation Overhead on Validation Issues (UNRESOLVED)
 
 **Evidence**
-`ValidationIssue` in `crates/core/src/lib.rs:147-153` allocates owned strings for every error:
-```rust
-pub struct ValidationIssue {
-    pub id: String,
-    pub severity: IssueSeverity,
-    pub message: String,
-    pub location: Option<IssueLocation>,
-    pub suggested_fixes: Vec<String>,
-}
-```
+- `crates/core/src/lib.rs:331-344` (`ValidationIssue`)
 
 **Why this matters**
-When validating complex models or long G-code files, the validation engine may identify thousands of small violations (e.g., individual overhang points or minor speed violations). Storing every single issue with owned `String` and `Vec<String>` fields creates high heap allocation overhead.
+The struct still allocates owned `String` and `Vec<String>` fields for every violation. In large models or long G-code files with thousands of small alerts, this will lead to high heap allocation overhead.
 
 **Fix path**
-Use structured error codes (e.g., `OverhangTooSteep`) instead of repeating identical error strings. Resolve user-friendly messages and suggested fixes in the CLI or frontend via a translation dictionary, rather than allocating strings per issue instance. Alternatively, use `Cow<'static, str>` or reference structures to reduce allocations.
+Use structured enum error codes or static error messages rather than owned strings, or utilize `Cow<'static, str>` to reuse common descriptions.
 
 ---
 
-### [ENG-007] — Nit — Correctness / Security — Unvalidated Regex Pattern in filename_restrictions
+### [ENG-007] — Nit — Correctness / Security — Unvalidated Regex Pattern in filename_restrictions (UNRESOLVED)
 
 **Evidence**
-`PrinterProfile::filename_restrictions` in `crates/core/src/lib.rs:84` is stored as an unvalidated `Option<String>`.
+- `crates/core/src/lib.rs:125` (`filename_restrictions: Option<String>`)
 
 **Why this matters**
-If this string represents a regular expression used to validate files uploaded to a printer, loading a profile with an invalid regex pattern will cause the application to panic or crash when compiling it at runtime. It also opens up potential Denial of Service (ReDoS) surfaces if the pattern is malicious.
+The `PrinterProfile::validate()` method does not compile or check the regex string, meaning invalid regex patterns will cause runtime errors or panics when compiled later.
 
 **Fix path**
-Validate the regex string during deserialization of the `PrinterProfile` (e.g., by attempting to parse/compile it with the `regex` crate) and reject the profile if it is invalid.
+Import the `regex` crate and attempt to compile `filename_restrictions` during validation, rejecting profiles with malformed regex.
 
 ---
 
-### [ENG-008] — Nit — Hygiene — Unused Chrono Dependency
+### [ENG-008] — Nit — Hygiene — Unused Chrono Dependency (UNRESOLVED)
 
 **Evidence**
-`crates/core/Cargo.toml:10-11` specifies `chrono` as a dependency:
-```toml
-chrono = { version = "0.4", features = ["serde"] }
-```
-However, no types or functions from `chrono` are imported or used in `crates/core/src/lib.rs`.
+- `crates/core/Cargo.toml:10-11`
 
 **Why this matters**
-Declaring unused dependencies increases compilation times, bloats the cargo dependency tree, and introduces unnecessary maintenance and CVE tracking surface area.
+`chrono` is still declared as a dependency and enabled in `schemars` features, despite not being used in `lib.rs`. This increases build times and CVE tracking surface area.
 
 **Fix path**
-Remove `chrono` (and its reference in the `schemars` features) from `crates/core/Cargo.toml` if date/time calculations are not required in the core schema.
+Remove `chrono` from `crates/core/Cargo.toml`.
+
+---
+
+### [ENG-009] — Major — Correctness / Performance — Synchronous Blocking Reads in SDK Mock Servers (UNRESOLVED)
+
+**Evidence**
+- `crates/sdk/src/mocks/rrf.rs:26`
+- `crates/sdk/src/mocks/bambu.rs:27`, `109`
+
+**Why this matters**
+The mock servers accept streams, set them to blocking mode, and then execute synchronous `read()` calls on the server thread. For `BambuFtpMock` and `BambuMqttMock`, this blocks the background thread indefinitely if the client keeps the connection open without sending data. Consequently, calling `.stop()` does not shut down the server thread cleanly, causing resource leaks and thread/port lockups in parallel test environments.
+
+**Blast radius**
+- **Adjacent code**: `crates/sdk/src/mocks/`
+- **Shared state**: Mock background threads.
+
+**Fix path**
+Set read timeouts on the TCP stream using `stream.set_read_timeout(Some(Duration::from_millis(500)))` or use non-blocking/async-based I/O.
+
+---
+
+### [ENG-010] — Critical — Correctness — Bambu FTP Mock PASV Mode does not listen on the Data Port (PARTIALLY RESOLVED)
+
+**Evidence**
+- `crates/sdk/src/mocks/bambu.rs:40-52`
+
+**Why this matters**
+The FTP mock has been updated to spawn a background thread and bind a listener when the `PASV` command is received. However, this port remains hardcoded to `10240`. If multiple PASV commands are executed concurrently, subsequent attempts to bind to port 10240 will fail. In addition, the spawned thread calls `data_listener.accept()` synchronously without any timeout, meaning if the client never establishes a data connection, the thread will leak indefinitely.
+
+**Blast radius**
+- **Adjacent code**: `crates/adapters/src/` or `crates/sdk/src/` mock uploads.
+
+**Fix path**
+Dynamically bind a `TcpListener` to port `0` when `PASV` is received, retrieve the OS-assigned port via `local_addr().unwrap().port()`, translate that port into FTP-compatible octets for the `227` response, and enforce a connection/read timeout on the data connection.
+
+---
+
+### [ENG-011] — Major — Correctness — Unvalidated Buffer Indexing in Bambu MQTT Mock (RESOLVED)
+
+**Evidence**
+- `crates/sdk/src/mocks/bambu.rs:123-131`
+
+**Why this matters**
+Previously, the code did not verify if the read byte length `n` was at least 4 before extracting packet details, creating risk of panic or reading stale buffer data.
+
+**Status Update**
+Fully resolved. The code now checks `if n >= 4` before indexing `buffer[2]` and `buffer[3]`.
+
+---
+
+### [ENG-012] — Minor — Hygiene — Hardcoded Ports in SDK Unit Tests (RESOLVED)
+
+**Evidence**
+- `crates/sdk/src/mocks/rrf.rs:17-18`
+- `crates/sdk/src/mocks/bambu.rs:17-18`, `92-93`
+
+**Why this matters**
+Previously, tests used hardcoded ports (18898, 18899), creating potential port collision conflicts.
+
+**Status Update**
+Fully resolved. Tests and mock servers now bind to port `0` and resolve dynamic ports at runtime.
 
 ---
 
 ## Patterns and systemic observations
 
-- **Scaffolding State**: The current codebase acts as a scaffold rather than an operating application. While this is normal for a Stage 1 release, it is the highest-leverage time to establish robust traits and interfaces (as detailed in ENG-002) before implementation code commits developers to concrete API designs.
-- **Lack of Defensive Input Validation**: The schema models rely heavily on the type system to serialize and deserialize data, but do not validate the logical correctness of the fields themselves. Adding defensive validation early prevents boundary-crossing errors at runtime.
+- **Validation Lifecycle**: Helper methods like `.validate()` are steps in the right direction, but manual verification remains brittle. Standardizing on structural validation (e.g. through the Newtype pattern or custom deserializers) ensures that invalid states cannot be parsed into memory at all.
+- **Mock Network Reliability**: Hand-rolling TCP protocols and MQTT frame parses in the test mock servers exposes the test harness to concurrency bugs and deadlock conditions. Adopting standard, mature test-mock libraries or converting stream handlers to use tokio/async operations would eliminate the blocking I/O anti-patterns currently present.
 
 ---
 
@@ -271,21 +249,17 @@ Third-party dependencies utilized in the workspace:
 | `schemars` | 0.8.22 | JSON Schema generator (MIT) | None |
 | `clap` | 4.6.1 | Command-line argument parser (MIT/Apache-2.0) | None |
 | `chrono` | 0.4.44 | Date/Time library (MIT/Apache-2.0) | Unused (see ENG-008) |
+| `async-trait` | 0.1.86 | Async trait helper (MIT/Apache-2.0) | None |
 
 ---
 
 ## Appendix: artifacts reviewed
 
 - `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\Cargo.toml`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\Cargo.lock`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\core\Cargo.toml`
 - `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\core\src\lib.rs`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\printability\Cargo.toml`
 - `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\printability\src\lib.rs`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\adapters\Cargo.toml`
 - `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\adapters\src\lib.rs`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\sdk\Cargo.toml`
 - `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\sdk\src\lib.rs`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\cli\Cargo.toml`
+- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\sdk\src\mocks\rrf.rs`
+- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\sdk\src\mocks\bambu.rs`
 - `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\crates\cli\src\main.rs`
-- `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\README.md`

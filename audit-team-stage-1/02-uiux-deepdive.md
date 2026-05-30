@@ -1,139 +1,89 @@
-# UI/UX Deep-Dive — PrintProof3D
+# UI/UX & DX Deep-Dive — PrintProof3D
 
 **Audit date:** 2026-05-30
 **Role:** Senior UI/UX Designer
-**Scope audited:** The PrintProof3D data models, JSON schemas, CLI stub, and SDK adapters.
+**Scope audited:** PrintProof3D core data models, JSON schemas, CLI implementation, documentation examples, and SDK adapters.
 **Auditor posture:** Balanced
 
 ---
 
 ## TL;DR
 
-The PrintProof3D Stage 1 codebase is a well-structured Rust workspace that compiles cleanly, generates JSON schemas automatically, and defines core profiles. However, from a UX/DX perspective, the interface surfaces—consisting of the Command Line Interface (CLI) and the JSON schemas that power frontend profile editors and 3D previewers—suffer from several critical and major gaps. 
-First, the CLI is currently a non-functional stub that lacks argument parsing, help descriptions, and output formatting, representing a **Critical** CLI UX blocker. 
-Second, the data models exhibit **Major** information architecture and usability issues: circular print beds are forced into rectangular coordinate volumes, custom bed shapes are restricted to raw text strings (preventing visual 3D bed rendering), and spatial validation errors are located via a single point `(x, y, z)` rather than bounding boxes or toolpath segments, which renders 3D visualization of issues (like overhangs) virtually impossible. 
-Finally, the copy is marred by semantic confusion, notably using a three-level "Difficulty" enum (`Easy`, `Medium`, `Hard`) to describe `warp_risk`, which results in the nonsensical classification of "Easy warp risk." 
-Addressing these schema-level and CLI-level gaps now, before the engine is integrated, is vital to ensure that downstream clients can render accessible, intuitive, and modern 3D printing interfaces.
+PrintProof3D has successfully resolved the most critical Developer Experience (DX) and onboarding blockers identified in the initial Stage 1 audit. Notably, CLI argument parsing using `clap` is operational, the CLI subcommands `validate-model` and `validate-gcode` now match the documentation, the library usage and configuration examples in the manual and README are fully corrected and compile/parse properly, and the CLI now exits with a non-zero code on validation warnings or failures (ensuring pipeline integrations function correctly). 
+
+However, several Major and Minor DX issues remain active. These include custom bed shapes being restricted to freeform text strings (preventing visual 3D rendering), the assumed slicer settings being modeled as a freeform JSON blob (blocking structured UI displays), and a nomenclature mismatch across protocols and adapters. Additionally, a new Minor inconsistency has been identified in the user manual's description of the planned MCP server subcommand.
 
 ---
 
-## Severity roll-up (UX)
+## Severity roll-up (UX/DX)
 
-| Severity | Count |
-|---|---|
-| Blocker | 0 |
-| Critical | 1 |
-| Major | 5 |
-| Minor | 3 |
-| Nit | 1 |
+| Severity | Count | Status Change (vs Previous) |
+|---|---|---|
+| Blocker | 0 | Unchanged |
+| Critical | 0 | -3 (All resolved) |
+| Major | 2 | -2 (UX-008, UX-009 resolved) |
+| Minor | 3 | +1 (UX-014 added, UX-007 and UX-010 active) |
+| Nit | 0 | Unchanged |
+| **Total Outstanding** | **5** | **-5 total active findings** |
 
 ---
 
 ## What's working
 
-- **Robust serialization and schema generation:** The core serialization definitions in `crates/core` are cleanly defined, derive serialization/deserialization correctly, and dynamically export JSON schemas during tests. This ensures that frontend clients have access to up-to-date schema definitions for validation.
-- **Strong model verification foundations:** The mock serialization tests in `crates/core/src/lib.rs` are detailed, verifying that all fields round-trip correctly, preventing data loss or parsing errors at the API boundary.
-- **Logical profile structures:** The separating of printer-specific capabilities (nozzle sizes, temperature boundaries, enclosure presence, connectivity protocols) and material-specific attributes (extrusion temperatures, cooling, warp risk) is a clean and standard domain model separation.
-- **Clean protocol enum lists:** The `ProtocolFamily` and `FirmwareFlavor` enums provide a broad list of common 3D printing standards (Klipper, OctoPrint, Prusa, Marlin, RepRapFirmware, Bambu, etc.), which facilitates building direct connection lists in UI dropdowns.
+- **Corrected Onboarding Commands:** The `README.md` and `USER_MANUAL.md` documentation has been updated to use the correct `validate-model` and `validate-gcode` subcommands, resolving immediate quickstart failures.
+- **Valid Library Usage Examples:** The code snippets in the README properly instantiate the `BuildVolume` enum, allowing developers to copy-paste Rust code that compiles successfully.
+- **Valid Presets and Schemas:** Material preset files and examples now use `"low"` risk levels instead of the outdated and syntax-invalid `"easy"` option, preventing JSON parsing crashes.
+- **CLI Exit Code Gating:** The CLI now correctly returns a non-zero exit code (`1`) when a validation report contains warnings or failures, enabling integration into Git hook pipelines.
+- **Build Volume & Bed Shape Invariant Validation:** `PrinterProfile::validate()` now checks for geometric incompatibilities (such as circular bed shapes paired with rectangular volumes) and rejects invalid profiles.
+- **Clap CLI Parser Deployed:** Running the CLI now provides structured argument parsing, subcommands, and basic error reporting, replacing the non-functional stub.
+- **Cylindrical Build Volumes:** Delta-style cylindrical printers can now be modeled natively via `BuildVolume::Cylindrical`.
+- **Rich Spatial Validation Locations:** Frontends can now draw red bounding boxes or highlight specific mesh facets using the new `LocationGeometry` tagged enum.
+- **Improved Material Copy:** Material warp risks are now classified under a clear `RiskLevel` (`low`, `medium`, `high`) rather than the confusing `Difficulty` enum.
 
 ---
 
 ## What couldn't be assessed
 
-- **Interactive visual rendering of validation reports:** Since there is currently no graphical client or frontend attached to this engine, the visual look-and-feel of the reports, their layout, colors, and interactive states could only be analyzed from the perspective of schema capabilities, rather than an active Web/Tauri runtime.
-- **CLI progress indicators and terminal interactivity:** Since the CLI has no interactive behavior implemented, terminal scroll, spinner animations during mesh calculation, and progress bars could not be evaluated.
-- **Actual execution times of printability checks:** The printability check is currently a mock returning `"ok"`. Long-running checks for complex STL meshes (e.g. checking a 500,000 polygon STL for manifold errors) will require background progress/loading states in the CLI and API, which cannot yet be verified.
+- **Actual Execution Times of Printability Checks:** The printability check is still a mock returning a passing report with empty issues. Heavy files (e.g., 500k polygon STLs) will require background loading states, which cannot be tested yet.
+- **Tauri / Web Frontend States:** Visual styling and interactive layout of validation reports could not be tested directly due to the lack of a graphical client.
 
 ---
 
 ## First impressions
 
-- **CLI Interface:** Running `printproof3d` displays a single static line: `PrintProof3D CLI version 0.1.0`. There are no instructions, no interactive command help, and no response to flags like `-h` or `--help`. For a developer trying to evaluate the tool, the entry point is a dead end.
-- **Schemas and Data Models:** Reading the schemas reveals a clean initial draft, but immediate UX roadblocks appear for a designer planning a web frontend. How do we draw a Delta printer's round build volume? How do we show the user where an overhang is if we only have a single coordinate point? Why is ABS's warp risk labeled "Easy"? The developer experience (DX) and subsequent user interface (UI) will suffer due to these schema-level constraints.
+- **CLI Interface:** Running `printproof3d --help` now provides a standard, descriptive help menu. Executing the quickstart commands now runs successfully.
+- **Onboarding and Configuration:** The user manual and README are highly detailed, and the copy-paste JSON configurations and code examples are now fully aligned with the Rust struct changes, preventing immediate syntax and compiler crashes for developers trying to adopt the SDK.
 
 ---
 
 ## Journey walkthroughs
 
 ### Journey 1: Slicer Developer integrates PrintProof3D validation into a 3D Web UI
-1. The developer downloads the exported schemas from `/schemas` to auto-generate TypeScript types for their React 3D viewer.
-2. **Gap:** The developer inspects `IssueLocation` and discovers it only provides `x`, `y`, `z` as optional floats and a `region` string. They realize they cannot draw a highlighting box or highlight specific mesh faces in Three.js/Babylon.js because the exact bounds of the issue are not defined in the schema. (See **UX-005**).
-3. **Gap:** The developer tries to parse `sliced_settings_assumed` to display a "Parameters Used for Analysis" table. They find it is typed as a freeform, undocumented JSON object, meaning they must guess the keys or hardcode undocumented values. (See **UX-004**).
+1. The developer downloads the exported schemas. They see that `IssueLocation` has `geometry: Option<LocationGeometry>`, which lets them successfully render points, bounding boxes, or highlight specific triangles in Three.js!
+2. However, they check `sliced_settings_assumed` and find it is still a freeform, undocumented JSON object. They must guess the keys or hardcode values to show an assumed slicing parameters card.
+3. The developer copies the example material profile from the `USER_MANUAL.md` to bootstrap their default preset. This time, the preset parses successfully because the manual correctly uses `"warp_risk": "low"`.
 
-### Journey 2: Printer Operator configures a Delta (circular bed) printer profile
-1. The operator opens the printer profile setup screen in the UI.
-2. They select "Circular" as the bed shape.
-3. The UI requests the build volume. Because `BuildVolume` strictly defines `x`, `y`, `z`, the user has to input the bounding box width/depth for `x` and `y` (e.g. `220` and `220` for a 220mm diameter bed).
-4. **Gap:** The user is confused by the request for `x` and `y` dimensions for a circular printer, as they think in terms of `radius` or `diameter`.
-5. **Gap:** When the 3D model is loaded, the UI renders a rectangular bounding box prism on screen. The user tries to place a print near the corners of this box, only to receive validation warnings that it is out-of-bounds, as the circular bed cut-off is not visually represented in the workspace. (See **UX-002**).
+### Journey 2: Printer Operator configures a Delta printer profile
+1. The operator configures a Cylindrical build volume, which works perfectly.
+2. However, they select "Custom" for their non-standard triangular bed shape. The schema forces them to input a raw string `Custom("triangular")` which provides no vertex data to draw in their 3D scene.
+
+### Journey 3: DevOps Engineer integrates PrintProof3D into a Git pre-commit hook
+1. The engineer runs `printproof3d validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json` as shown in the README, and the command executes successfully.
+2. If they run it on an invalid profile, the validation fails, and the CLI exits with code `1`, causing the pre-commit hook script to register the failure and successfully block the push.
 
 ---
 
 ## Findings
 
-### [UX-001] — Critical — Pattern / Journey / CLI UX — CLI binary is a non-functional stub lacking argument parsing, help commands, and formatted outputs
-
-**Evidence**
-`crates/cli/src/main.rs:1-6`:
-```rust
-fn main() {
-    println!("PrintProof3D CLI version 0.1.0");
-}
-```
-The dependency `clap` is declared in `crates/cli/Cargo.toml` but completely unused in `main.rs`.
-
-**Why this matters**
-As a CLI tool, the terminal user interface *is* the primary product interface at this stage. Currently, developers and operators have no way to run validation commands, pass profile paths, or get feedback. There is no help interface (`--help` or `-h`) or version information query, which violates basic CLI usability standards. This is a dead end for any user attempting to evaluate the tool.
-
-**Blast radius**
-- The `crates/cli` crate.
-- User-facing: Anyone attempting to run the CLI gets a static string with no way to progress.
-
-**Fix path**
-Implement CLI commands using `clap`. At a minimum, support:
-- `printproof3d validate --file <file> --printer <profile> --material <profile>`
-- `--help` and `-h` flags with clear command descriptions.
-- `--format <json|text>` to allow machine-readable script integration and human-readable terminal output.
-- Return exit codes: `0` (Success/Pass), `1` (Warnings/Fail issues found), `2` (CLI syntax or runtime errors).
-
----
-
-### [UX-002] — Major — Information Architecture / Journey — Circular Build Volume is represented as a Rectangular Box in `BuildVolume`
-
-**Evidence**
-`crates/core/src/lib.rs:49-53`:
-```rust
-pub struct BuildVolume {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-```
-This rectangular structure is utilized in `PrinterProfile::build_volume` and `ModelMetadata::bounding_box` regardless of the `BedShape` (rectangular or circular).
-
-**Why this matters**
-Delta printers and polar coordinates systems use cylindrical build volumes defined by diameter/radius and height. Requiring users to define circular volumes as `x`, `y`, `z` Cartesian coordinates forces them to calculate equivalent bounding boxes (introducing potential error). Furthermore, in a 3D visualization, rendering a cylindrical volume as a rectangular box leads to visual confusion, as the user might believe they can print in the corners when in reality the print head cannot reach them, leading to collision or print failure.
-
-**Blast radius**
-- `BuildVolume`, `PrinterProfile`, and `ModelMetadata` structs, and the corresponding JSON schemas.
-
-**Fix path**
-Refactor `BuildVolume` to support both rectangular and cylindrical volumes using a tagged enum:
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum BuildVolume {
-    Rectangular { x: f32, y: f32, z: f32 },
-    Cylindrical { radius: f32, height: f32 },
-}
-```
-
----
+> **Finding ID prefix:** `UX-`
+> **Categories:** Visual hierarchy / Copy / State / Accessibility / Responsive / Journey / Pattern / Motion / IA
 
 ### [UX-003] — Major — Information Architecture / Pattern — Custom bed shapes are defined by a raw `String` preventing visual 3D rendering
 
+*Status:* **Active**
+
 **Evidence**
-`crates/core/src/lib.rs:11-15`:
+- File: `crates/core/src/lib.rs:L12-16`
 ```rust
 pub enum BedShape {
     Rectangular,
@@ -143,17 +93,22 @@ pub enum BedShape {
 ```
 
 **Why this matters**
-A modern 3D printer UI renders the print bed visually to orient models. A raw `String` (e.g. `Custom("triangular")` or `Custom("belt")`) does not provide enough geometric metadata for a 3D viewer. This leaves the user with a blank or default rectangular grid, creating a layout disconnect.
+A modern 3D printer UI renders the print bed visually to orient models. A raw `String` (e.g. `Custom("triangular")`) does not provide enough geometric metadata for a 3D viewer. This leaves the user with a default rectangular grid, creating a layout disconnect.
 
 **Blast radius**
-- `BedShape` enum in `core` and its schema.
+- `BedShape` enum in `crates/core/src/lib.rs` and its schema.
+- User-facing: 3D frontend viewer integrations (Tauri or Web UI) will lack geometry representation.
 
 **Fix path**
-Replace `Custom(String)` with a struct that defines the boundary as a list of 2D coordinates (vertices) or links to a 3D model file (STL/OBJ) for the print bed:
+Replace `Custom(String)` with a struct defining 2D boundary points or a 3D mesh model link:
 ```rust
-Custom {
-    boundary_points: Vec<(f32, f32)>,
-    mesh_file_path: Option<String>,
+pub enum BedShape {
+    Rectangular,
+    Circular,
+    Custom {
+        boundary_points: Vec<(f32, f32)>,
+        mesh_file_path: Option<String>,
+    },
 }
 ```
 
@@ -161,94 +116,177 @@ Custom {
 
 ### [UX-004] — Major — State / Pattern — `sliced_settings_assumed` is a freeform JSON value, blocking structured UI displays
 
+*Status:* **Active**
+
 **Evidence**
-`crates/core/src/lib.rs:163`:
+- File: `crates/core/src/lib.rs:L361`
 ```rust
 pub sliced_settings_assumed: Option<serde_json::Value>,
 ```
-And in `validation_report.schema.json:26`, it is defined as `true`.
 
 **Why this matters**
-Slicer settings (such as speeds, retraction, temperatures, and layer height) are critical parameters that determine whether a print will succeed. By typing this as a freeform JSON blob, the engine provides no schema guarantees. Frontend developers cannot build structured, interactive "Assumed Slicing Settings" cards or comparison tables. Users are left with a raw JSON dump, reducing visibility into what settings the engine assumed for its printability checks.
+Slicer settings determine print success. By using a freeform JSON blob, there are no schema guarantees, meaning frontend developers cannot build structured, interactive comparison tables. Users are left with a raw JSON dump in the UI.
 
 **Blast radius**
-- `ValidationReport` struct and its JSON schema.
+- `ValidationReport` struct and its schema.
+- User-facing: Any UI rendering comparison cards or assumed parameters.
 
 **Fix path**
-Define a structured `SlicedSettings` struct in `core` containing common slicing parameters (e.g., `layer_height`, `nozzle_temp`, `bed_temp`, `print_speed`, `retraction_length`, `supports_enabled`) and use it in place of `serde_json::Value`.
+Define a structured `SlicedSettings` struct in `crates/core` with common slicing parameters (e.g. `layer_height`, `infill_density`, `print_speed`) and use it instead of `serde_json::Value`.
 
 ---
 
-### [UX-005] — Major — Accessibility / Visual hierarchy — `IssueLocation` uses a single 3D point (`x`, `y`, `z`) which is insufficient for highlighting spatial printability issues in a 3D viewer
+### [UX-007] — Minor — Copy / Consistency — Nomenclature mismatch between protocol names, firmware flavors, and adapter identifiers
+
+*Status:* **Active**
 
 **Evidence**
-`crates/core/src/lib.rs:139-144`:
-```rust
-pub struct IssueLocation {
-    pub region: String,
-    pub x: Option<f32>,
-    pub y: Option<f32>,
-    pub z: Option<f32>,
-}
-```
+- `crates/core/src/lib.rs:L21-24`:
+  ```rust
+  pub enum ProtocolFamily {
+      Klipper,
+      MarlinSerial,
+      // ...
+  }
+  ```
+- `crates/adapters/src/lib.rs:L7`:
+  ```rust
+  pub fn list_adapters() -> Vec<&'static str> {
+      vec!["moonraker", "octoprint", "marlin"]
+  }
+  ```
 
 **Why this matters**
-Validation issues like overhangs, bed adhesion failures, or bridging spans are 3D features, not infinitesimal points. A single coordinate point `(x, y, z)` does not specify the dimensions or scale of the issue. When a frontend 3D viewer attempts to highlight the issue (e.g. wrapping it in a red bounding box or highlighting the affected mesh triangles), a single point is insufficient. Users will see a point in space but won't know the boundaries of the problem area.
-
-**Blast radius**
-- `ValidationIssue`, `IssueLocation` structs and schemas.
-
-**Fix path**
-Extend `IssueLocation` to include an optional bounding box (`bounding_box: Option<BuildVolume>`) or toolpath segment range, or mesh face indices. E.g.
-```rust
-pub struct IssueLocation {
-    pub region: String,
-    pub x: Option<f32>,
-    pub y: Option<f32>,
-    pub z: Option<f32>,
-    pub bounding_box: Option<BuildVolume>,
-    pub affected_facets: Option<Vec<u32>>,
-}
-```
-
----
-
-### [UX-006] — Major — Copy / Semantics — MaterialProfile "warp_risk" uses the confusing `Difficulty` enum instead of a risk-based enum
-
-**Evidence**
-`crates/core/src/lib.rs:104`:
-```rust
-pub warp_risk: Difficulty,
-```
-where `Difficulty` is `Easy`, `Medium`, `Hard`.
-
-**Why this matters**
-"Easy warp risk" is semantically contradictory and confusing. Does "Easy" mean the material is easy to print without warping (low risk), or does it mean warping happens easily (high risk)? For a user configuring or viewing material profiles, this ambiguity can lead to print failures (e.g. printing ABS without an enclosure because they thought "Easy" warp risk meant low risk).
-
-**Blast radius**
-- `MaterialProfile` struct and its JSON schema `material_profile.schema.json`.
-
-**Fix path**
-Create a dedicated `RiskLevel` enum (e.g., `Low`, `Medium`, `High`) or rename the field to `warp_resistance` or `warp_risk` with a proper enum like `Low`, `Medium`, `High`. For example, `pub warp_risk: RiskLevel,` where `RiskLevel` is `Low`, `Medium`, `High`.
-
----
-
-### [UX-007] — Minor — Copy / Consistency — Nomenclature mismatch between `ProtocolFamily::Klipper` in printer profiles and `"moonraker"` in connection adapters
-
-**Evidence**
-- `crates/core/src/lib.rs` line 20: `Klipper` is defined as a `ProtocolFamily`.
-- `crates/adapters/src/lib.rs` line 4: `"moonraker"` is returned as an available adapter name.
-
-**Why this matters**
-Klipper is the firmware, and Moonraker is the HTTP API wrapper. A user setting up their printer might select `Klipper` as the connection type, but the SDK expects `moonraker` as the adapter name. This inconsistency makes it harder for a user or developer to map printer profile configurations to connection adapters.
+A user selecting `Klipper` as their protocol will not see a direct mapping to the connection adapter named `"moonraker"`, and selecting `MarlinSerial` maps to `"marlin"`. This causes confusion when writing integrations.
 
 **Blast radius**
 - `ProtocolFamily` enum and adapter listings.
 
 **Fix path**
-Standardize the naming. Either include `moonraker` in the `ProtocolFamily` enum (since Klipper connection is technically via Moonraker API), or map the Klipper variant to the Moonraker adapter name under the hood, or rename the adapter to `klipper` for parity.
+Standardize naming. Either rename `ProtocolFamily::Klipper` to `ProtocolFamily::Moonraker`, or rename the adapter from `"moonraker"` to `"klipper"`. Similarly, align `MarlinSerial` and `"marlin"`.
 
 ---
 
-## Conclusion
-All UI/UX findings have been documented, and fixing these data schemas and CLI parameters is the first critical step before building out engine features or graphical UI dashboards.
+### [UX-010] — Minor — CLI DX — Arbitrary and non-intuitive short flag `-a` for `--material`
+
+*Status:* **Active**
+
+**Evidence**
+- `crates/cli/src/main.rs:L30` and `L48`:
+  ```arg
+  #[arg(long, short = 'a')]
+  material: PathBuf,
+  ```
+
+**Why this matters**
+The short argument `-a` for `--material` has poor discoverability. Developers expecting standard options like `-f` (filament) or `-t` (maTerial) will find `-a` unintuitive.
+
+**Blast radius**
+- `crates/cli/src/main.rs` argument parsing.
+
+**Fix path**
+Either remove the short flag `-a` (relying solely on `--material`) or rename it to `-f` (for filament) or `-t` (for material).
+
+---
+
+### [UX-014] — Minor — Copy / DX — Misleading user manual mention of inactive `mcp` subcommand
+
+*Status:* **Active (New)**
+
+**Evidence**
+- `USER_MANUAL.md:L117-121`:
+  ```markdown
+  > [!NOTE]
+  > MCP server integration is a planned Stage 2 feature. In the current Stage 1 release, the server protocol logic and its subcommands (such as `printproof3d mcp`) are mock interfaces and not active.
+  ```
+- In `crates/cli/src/main.rs`, the `Commands` enum does not contain an `mcp` subcommand.
+
+**Why this matters**
+The manual claims the `printproof3d mcp` subcommand is an inactive/mock interface. A user attempting to execute `printproof3d mcp` will receive a CLI parsing error from `clap` (`error: unrecognized subcommand 'mcp'`) instead of an informative notice, causing confusion.
+
+**Blast radius**
+- `USER_MANUAL.md` and `audit-team-stage-1/doc-rewrites/USER_MANUAL.md`.
+
+**Fix path**
+Either add a mock `mcp` subcommand in `crates/cli/src/main.rs` that returns a friendly notice ("MCP server integration is planned for Stage 2. This subcommand is not yet active."), or update the user manual to clarify that the subcommand is completely omitted from the CLI binary in this stage.
+
+---
+
+## Resolved Historical Findings
+
+### [UX-001] — RESOLVED — CLI binary is a non-functional stub
+*Status:* **Resolved** in `crates/cli/src/main.rs` by implementing a clap-based argument parser with subcommands `validate-model` and `validate-gcode`. It now prints usage help and validates paths.
+
+### [UX-002] — RESOLVED — Circular Build Volume is represented as a Rectangular Box in `BuildVolume`
+*Status:* **Resolved** in `crates/core/src/lib.rs` by refactoring `BuildVolume` into a tagged enum containing `Rectangular` and `Cylindrical` variants.
+
+### [UX-005] — RESOLVED — `IssueLocation` uses a single 3D point (`x`, `y`, `z`) which is insufficient
+*Status:* **Resolved** in `crates/core/src/lib.rs` by adding `geometry: Option<LocationGeometry>`, supporting `Point`, `BoundingBox`, and `Triangles` variants for precise highlights.
+
+### [UX-006] — RESOLVED — MaterialProfile "warp_risk" uses confusing Difficulty enum
+*Status:* **Resolved** in `crates/core/src/lib.rs` by refactoring the field to use the `RiskLevel` enum (with `Low`, `Medium`, `High` values), eliminating the confusing `"easy"` warp risk classification.
+
+### [UX-008] — RESOLVED — No compatibility validation between `bed_shape` and `build_volume` shape
+*Status:* **Resolved** in `crates/core/src/lib.rs` by enforcing compatibility rules in `PrinterProfile::validate()` (ensuring Circular beds require Cylindrical build volumes, and Rectangular beds require Rectangular build volumes).
+
+### [UX-009] — RESOLVED — CLI exits with success code (0) even when validation fails or warnings are found
+*Status:* **Resolved** in `crates/cli/src/main.rs` by returning exit code `1` when warnings or failures are present in the report.
+
+### [UX-011] — RESOLVED — CLI subcommand name mismatch (`validate` vs `validate-model` / `validate-gcode`)
+*Status:* **Resolved** in `README.md` and `USER_MANUAL.md` (and doc-rewrites) by correcting the documented commands to match the actual subcommands.
+
+### [UX-012] — RESOLVED — Outdated library usage example for `BuildVolume` in README.md
+*Status:* **Resolved** in `README.md` (and doc-rewrites) by updating the Rust snippet to use the new `BuildVolume::Rectangular` enum variant structure.
+
+### [UX-013] — RESOLVED — Outdated example configurations in USER_MANUAL.md
+*Status:* **Resolved** in `USER_MANUAL.md` (and doc-rewrites) by changing the material configuration parameters to match the new `RiskLevel` enum (e.g. using `"low"` instead of `"easy"`).
+
+---
+
+## States audit matrix
+
+| Component / page | Default | Loading | Empty | Error | Partial | Notes |
+|---|---|---|---|---|---|---|
+| CLI `validate-model` | ✓ | ✗ | — | ✓ | — | No status/loading feedback for large meshes |
+| CLI `validate-gcode` | ✓ | ✗ | — | ✓ | — | No status/loading feedback for large G-code |
+| Printer Profile Schema | ✓ | — | ✗ | ✓ | — | Empty profile has no default fallback |
+| Material Profile Schema | ✓ | — | ✗ | ✓ | — | Empty profile has no default fallback |
+
+*Key:* ✓ = Handled / Present; ✗ = Unhandled / Missing; — = Not Applicable.
+
+---
+
+## Accessibility snapshot
+
+- **Keyboard navigation:** Not Applicable (CLI terminal utility).
+- **Focus visibility:** Not Applicable.
+- **Color contrast:** Plain text JSON stdout/stderr is returned. Colors are not hardcoded, preventing low contrast conflicts with dark/light shell themes.
+- **Screen reader labeling:** CLI standard output stream is accessible, but reading large, flat JSON reports in terminal output can be challenging for screen readers compared to formatted text outputs.
+- **Reduced motion:** Not Applicable.
+- **Touch target size:** Not Applicable.
+
+---
+
+## Patterns and systemic observations
+
+1. **Nomenclature Inconsistency:** Protocol names, firmware flavors, and adapter identifiers span multiple crates (`core` and `adapters`) and use varying identifiers (e.g. `Klipper` vs `"moonraker"`, `MarlinSerial` vs `"marlin"`). Establishing a unified nomenclature dictionary is key before scaling Stage 2 integrations.
+2. **Schema Rigidity:** Using `serde_json::Value` (for assumed settings) or `String` (for custom bed shapes) weakens the schema contracts. Strongly typing these parameters will allow third-party client integrations to build robust visual interfaces.
+
+---
+
+## Appendix: surfaces reviewed
+
+- **Crate source files:**
+  - `crates/core/src/lib.rs` (Data models, schemas, and validators)
+  - `crates/cli/src/main.rs` (Clap subcommands, exit code logic, and file loader)
+  - `crates/printability/src/lib.rs` (Validators traits)
+  - `crates/adapters/src/lib.rs` (Adapter listings)
+- **Documentation:**
+  - `README.md`
+  - `USER_MANUAL.md`
+  - `audit-team-stage-1/doc-rewrites/README.md`
+  - `audit-team-stage-1/doc-rewrites/USER_MANUAL.md`
+- **Schemas:**
+  - `schemas/printer_profile.schema.json`
+  - `schemas/material_profile.schema.json`
+  - `schemas/validation_report.schema.json`

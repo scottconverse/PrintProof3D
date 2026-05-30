@@ -1,6 +1,6 @@
 # PrintProof3D User Manual
 
-This manual provides detailed instructions on how to configure profiles, validate models, and use the PrintProof3D CLI and MCP interfaces.
+This manual provides detailed instructions on how to configure profiles, validate models, and use the PrintProof3D CLI.
 
 ## 1. Profile Configuration
 
@@ -15,7 +15,12 @@ Example printer profile (`profiles/prusa_mk4.json`):
   "manufacturer": "Prusa",
   "model": "MK4",
   "protocol_family": "prusa_link",
-  "build_volume": { "x": 250.0, "y": 210.0, "z": 220.0 },
+  "build_volume": {
+    "type": "rectangular",
+    "x": 250.0,
+    "y": 210.0,
+    "z": 220.0
+  },
   "bed_shape": "rectangular",
   "nozzle_diameters": [0.25, 0.4, 0.6, 0.8],
   "default_nozzle_diameter": 0.4,
@@ -52,9 +57,9 @@ Example material profile (`profiles/pla.json`):
   "min_bed_temp": 50.0,
   "max_bed_temp": 60.0,
   "cooling_fan_speed_pct": 100.0,
-  "warp_risk": "easy",
-  "bridge_difficulty": "easy",
-  "overhang_difficulty": "easy",
+  "warp_risk": "low",
+  "bridge_difficulty": "low",
+  "overhang_difficulty": "low",
   "enclosure_recommended": false,
   "dryness_sensitive": false,
   "bed_adhesion_notes": "Requires clean PEI sheet",
@@ -68,11 +73,11 @@ Example material profile (`profiles/pla.json`):
 
 PrintProof3D supports validation for STL models (geometric/mesh analysis) and G-code (static path and command safety analysis).
 
-### validating via CLI
+### Validating via CLI
 
-Run the `validate` command:
+Run the `validate-model` command to inspect a mesh:
 ```bash
-printproof3d validate \
+printproof3d validate-model \
   --model fixtures/tetrahedron.stl \
   --printer profiles/prusa_mk4.json \
   --material profiles/pla.json
@@ -82,31 +87,34 @@ This returns a JSON report indicating validation status:
 ```json
 {
   "status": "pass",
-  "target_printer_profile": "Prusa MK4",
+  "target_printer_profile": "Prusa_MK4",
   "target_material_profile": "Polylactic Acid",
   "model": {
     "file_name": "tetrahedron.stl",
     "units": "mm",
-    "bounding_box": { "x": 10.0, "y": 10.0, "z": 10.0 }
+    "bounding_box": {
+      "type": "rectangular",
+      "x": 50.0,
+      "y": 50.0,
+      "z": 50.0
+    }
   },
   "issues": [],
-  "confidence_level": "high"
+  "confidence_level": "high",
+  "sliced_settings_assumed": null
 }
+```
+
+To validate a G-code file:
+```bash
+printproof3d validate-gcode \
+  --gcode fixtures/cube_safe.gcode \
+  --printer profiles/prusa_mk4.json
 ```
 
 ---
 
-## 3. Model Context Protocol (MCP) Server
+## 3. Model Context Protocol (MCP) Server (Planned)
 
-PrintProof3D integrates an MCP server, allowing LLMs to invoke tools for profile validation and print analysis.
-
-### Launching the Server
-```bash
-printproof3d mcp
-```
-
-### Available Tools
-- `validate_print`: Takes model paths and profile details to run compatibility checks.
-- `list_supported_printers`: Lists built-in printer presets.
-- `check_adapters`: Checks connectivity to active OctoPrint or Moonraker targets.
-```
+> [!NOTE]
+> MCP server integration is a planned Stage 2 feature. In the current Stage 1 release, the server protocol logic and its subcommands (such as `printproof3d mcp`) are mock interfaces and not active.

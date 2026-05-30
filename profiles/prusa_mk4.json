@@ -1,0 +1,31 @@
+{
+  "manufacturer": "Prusa",
+  "model": "MK4",
+  "protocol_family": "prusa_link",
+  "build_volume": {
+    "type": "rectangular",
+    "x": 250.0,
+    "y": 210.0,
+    "z": 220.0
+  },
+  "bed_shape": "rectangular",
+  "nozzle_diameters": [0.25, 0.4, 0.6, 0.8],
+  "default_nozzle_diameter": 0.4,
+  "min_layer_height": 0.05,
+  "max_layer_height": 0.3,
+  "max_hotend_temp": 300.0,
+  "max_bed_temp": 120.0,
+  "has_enclosure": false,
+  "supports_mmu": true,
+  "firmware_flavor": "prusa",
+  "supported_file_types": ["gcode", "bgcode"],
+  "supports_direct_upload": true,
+  "supports_pause_resume": true,
+  "supports_cancel": true,
+  "supports_job_progress": true,
+  "supports_webcam": false,
+  "supports_chamber_temp": false,
+  "known_quirks": ["long_heatup"],
+  "unsafe_commands": ["M500"],
+  "filename_restrictions": null
+}
