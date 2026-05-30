@@ -151,18 +151,21 @@ impl LoadedPlugin {
 macro_rules! export_validation_plugin {
     ($validate_fn:expr) => {
         #[no_mangle]
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
         pub extern "C" fn alloc(size: u32) -> *mut u8 {
             let layout = std::alloc::Layout::from_size_align(size as usize, 8).unwrap();
             unsafe { std::alloc::alloc(layout) }
         }
 
         #[no_mangle]
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
         pub extern "C" fn dealloc(ptr: *mut u8, size: u32) {
             let layout = std::alloc::Layout::from_size_align(size as usize, 8).unwrap();
             unsafe { std::alloc::dealloc(ptr, layout) }
         }
 
         #[no_mangle]
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
         pub extern "C" fn validate(ptr: *mut u8, len: u32) -> u64 {
             let input_bytes = unsafe { std::slice::from_raw_parts(ptr, len as usize) };
             let input_str = match std::str::from_utf8(input_bytes) {

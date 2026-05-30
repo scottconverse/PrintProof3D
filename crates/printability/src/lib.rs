@@ -1049,4 +1049,70 @@ mod tests {
             .iter()
             .any(|issue| issue.id == "HOTEND_TEMP_EXCEEDS_MAX"));
     }
+
+    #[test]
+    fn test_parse_binary_stl() {
+        let mut bytes = vec![0u8; 80]; // Header
+        bytes.extend_from_slice(&1u32.to_le_bytes()); // 1 Triangle
+
+        // Facet normal: [0.0, 0.0, -1.0]
+        bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        bytes.extend_from_slice(&(-1.0f32).to_le_bytes());
+
+        // Vertex 0: [0.0, 0.0, 10.0]
+        bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        bytes.extend_from_slice(&10.0f32.to_le_bytes());
+
+        // Vertex 1: [10.0, 0.0, 10.0]
+        bytes.extend_from_slice(&10.0f32.to_le_bytes());
+        bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        bytes.extend_from_slice(&10.0f32.to_le_bytes());
+
+        // Vertex 2: [5.0, 5.0, 10.0]
+        bytes.extend_from_slice(&5.0f32.to_le_bytes());
+        bytes.extend_from_slice(&5.0f32.to_le_bytes());
+        bytes.extend_from_slice(&10.0f32.to_le_bytes());
+
+        bytes.extend_from_slice(&0u16.to_le_bytes()); // Attribute byte count
+
+        let temp_dir = std::env::temp_dir();
+        let file_path = temp_dir.join("temp_test_binary.stl");
+        std::fs::write(&file_path, bytes).unwrap();
+
+        let facets = parse_stl(&file_path).unwrap();
+        std::fs::remove_file(file_path).unwrap();
+
+        assert_eq!(facets.len(), 1);
+        assert_eq!(facets[0].normal, [0.0, 0.0, -1.0]);
+        assert_eq!(facets[0].vertices[0], [0.0, 0.0, 10.0]);
+        assert_eq!(facets[0].vertices[1], [10.0, 0.0, 10.0]);
+        assert_eq!(facets[0].vertices[2], [5.0, 5.0, 10.0]);
+    }
+
+    #[test]
+    fn test_validate_gcode_deduplication() {
+        let (_, printer, material) = get_fixtures_and_profiles();
+        // Create a temporary G-code file with multiple duplicate GCODE_OUT_OF_BOUNDS coordinates
+        let gcode_content = "G28\nG1 X300 Y300 Z300\nG1 X300 Y300 Z300\nG1 X300 Y300 Z300\n";
+        
+        let temp_dir = std::env::temp_dir();
+        let file_path = temp_dir.join("temp_test_dedup.gcode");
+        std::fs::write(&file_path, gcode_content).unwrap();
+
+        let validator = StandardGcodeValidator;
+        let report = validator
+            .validate_gcode(&file_path, &printer, &material)
+            .unwrap();
+        std::fs::remove_file(file_path).unwrap();
+
+        // Check that only 1 issue for GCODE_OUT_OF_BOUNDS is present
+        let bounds_issues_count = report
+            .issues
+            .iter()
+            .filter(|issue| issue.id == "GCODE_OUT_OF_BOUNDS")
+            .count();
+        assert_eq!(bounds_issues_count, 1);
+    }
 }
