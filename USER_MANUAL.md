@@ -298,7 +298,40 @@ AI coding assistants or automated agents can run `printproof3d mcp`. If validati
 
 The `printproof3d` command-line utility provides fast local execution.
 
-### 5.1 Command Reference
+### 5.1 Installation & Setup
+
+Before running the commands, compile the workspace binaries or install the package targets globally using Cargo.
+
+#### Global System Installation (Recommended)
+Installing globally allows you to run `printproof3d` and the HTTP web server `printproof3d-rest` from any command prompt on your system:
+```bash
+# Install the CLI tool
+cargo install --path crates/cli
+
+# Verify CLI version and path reachability
+printproof3d --version
+
+# Install the REST API server daemon
+cargo install --path crates/rest
+
+# Verify REST server help interface
+printproof3d-rest --help
+```
+> [!TIP]
+> Ensure that Cargo's target binary directory (e.g. `~/.cargo/bin` on Unix-like operating systems or `%USERPROFILE%\.cargo\bin` on Windows) is registered in your environment `PATH` variable.
+
+#### Local Source Building
+If you do not wish to copy the binaries to your global path, build the binaries directly in the project build target directory:
+```bash
+cargo build --release
+```
+The native compiled binaries will be output at:
+* **CLI tool**: `./target/release/printproof3d` (or `./target/release/printproof3d.exe` on Windows)
+* **REST server**: `./target/release/printproof3d-rest` (or `./target/release/printproof3d-rest.exe` on Windows)
+
+---
+
+### 5.2 Command Reference
 
 #### 1. Validate 3D STL Mesh Geometry (`validate-model`)
 Audits watertightness, coordinates, overhang angles, and bed footprint ratios.

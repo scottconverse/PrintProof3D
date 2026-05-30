@@ -33,9 +33,45 @@ PrintProof3D is organized as a Cargo workspace with decoupled crates:
 
 ---
 
+## ⚙️ Installation & Setup
+
+PrintProof3D can be built from source locally or installed globally onto your system's execution path.
+
+### 1. Install Globally (Recommended)
+Installing the binary targets globally allows you to invoke the commands (`printproof3d` and `printproof3d-rest`) from any directory in your shell.
+
+Run the installer via Cargo from the root directory of the cloned repository:
+```bash
+# Install the printproof3d command-line tool globally
+cargo install --path crates/cli
+
+# Verify the CLI installation is successful and in your path
+printproof3d --version
+
+# Install the printproof3d-rest API server globally
+cargo install --path crates/rest
+
+# Verify the REST server installation
+printproof3d-rest --help
+```
+> [!NOTE]
+> Ensure that Cargo's binary installation path (typically `~/.cargo/bin` on Unix systems, or `%USERPROFILE%\.cargo\bin` on Windows) is present in your system's `PATH` environment variable.
+
+### 2. Build from Source (Local Compilation)
+If you prefer not to copy the binaries to your system path, you can compile the workspace outputs locally:
+```bash
+# Compile the entire workspace in release mode
+cargo build --release
+```
+The compiled binaries are written to the target subdirectory:
+* **CLI tool**: `./target/release/printproof3d` (or `./target/release/printproof3d.exe` on Windows)
+* **REST server**: `./target/release/printproof3d-rest` (or `./target/release/printproof3d-rest.exe` on Windows)
+
+---
+
 ## Quickstart & Commands
 
-### 1. Compile the Workspace
+### 1. Compile the Example Plugin
 Build all native crates, unit tests, and compile the example WebAssembly validation plugin:
 ```bash
 # Build the native project crates
