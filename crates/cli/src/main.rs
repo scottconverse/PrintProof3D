@@ -3,7 +3,8 @@ use clap::{Parser, Subcommand};
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use printproof3d_core::{PrinterProfile, MaterialProfile, ValidationReport, ValidationStatus, ModelMetadata, BuildVolume};
+use printproof3d_core::{PrinterProfile, MaterialProfile, ValidationStatus};
+use printproof3d_printability::{ModelValidator, GcodeValidator, StlModelValidator, StandardGcodeValidator};
 
 #[derive(Parser)]
 #[command(name = "printproof3d")]
@@ -108,19 +109,14 @@ fn main() {
                 std::process::exit(1);
             }
 
-            // Create a mock validation report for Stage 1 CLI logic
-            let report = ValidationReport {
-                status: ValidationStatus::Pass,
-                target_printer_profile: format!("{}_{}", printer_profile.manufacturer, printer_profile.model),
-                target_material_profile: material_profile.name.clone(),
-                model: ModelMetadata {
-                    file_name: model.file_name().unwrap_or_default().to_string_lossy().into_owned(),
-                    units: "mm".to_string(),
-                    bounding_box: BuildVolume::Rectangular { x: 50.0, y: 50.0, z: 50.0 },
-                },
-                issues: vec![],
-                confidence_level: "high".to_string(),
-                sliced_settings_assumed: None,
+            // Run real StlModelValidator validation engine
+            let validator = StlModelValidator;
+            let report = match validator.validate_mesh(&model, &printer_profile, &material_profile) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Error: Model validation failed: {}", e);
+                    std::process::exit(1);
+                }
             };
 
             let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
@@ -161,7 +157,7 @@ fn main() {
                 std::process::exit(1);
             }
 
-            let material_name = if let Some(mat_path) = material {
+            let material_profile = if let Some(mat_path) = material {
                 let material_json = match read_file_to_string(&mat_path) {
                     Ok(s) => s,
                     Err(e) => {
@@ -180,24 +176,34 @@ fn main() {
                     eprintln!("Error: Material profile validation failed: {}", e);
                     std::process::exit(1);
                 }
-                material_profile.name
+                material_profile
             } else {
-                "none".to_string()
+                MaterialProfile {
+                    name: "Generic".to_string(),
+                    abbreviations: vec![],
+                    min_nozzle_temp: 0.0,
+                    max_nozzle_temp: 500.0,
+                    min_bed_temp: 0.0,
+                    max_bed_temp: 200.0,
+                    cooling_fan_speed_pct: 0.0,
+                    warp_risk: printproof3d_core::RiskLevel::Low,
+                    bridge_difficulty: printproof3d_core::RiskLevel::Low,
+                    overhang_difficulty: printproof3d_core::RiskLevel::Low,
+                    enclosure_recommended: false,
+                    dryness_sensitive: false,
+                    bed_adhesion_notes: None,
+                    min_feature_size_mm: 0.4,
+                }
             };
 
-            // Create a mock validation report for Stage 1 CLI logic
-            let report = ValidationReport {
-                status: ValidationStatus::Pass,
-                target_printer_profile: format!("{}_{}", printer_profile.manufacturer, printer_profile.model),
-                target_material_profile: material_name,
-                model: ModelMetadata {
-                    file_name: gcode.file_name().unwrap_or_default().to_string_lossy().into_owned(),
-                    units: "mm".to_string(),
-                    bounding_box: BuildVolume::Rectangular { x: 50.0, y: 50.0, z: 50.0 },
-                },
-                issues: vec![],
-                confidence_level: "high".to_string(),
-                sliced_settings_assumed: None,
+            // Run real StandardGcodeValidator validation engine
+            let validator = StandardGcodeValidator;
+            let report = match validator.validate_gcode(&gcode, &printer_profile, &material_profile) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Error: G-code validation failed: {}", e);
+                    std::process::exit(1);
+                }
             };
 
             let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
