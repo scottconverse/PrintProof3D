@@ -181,10 +181,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
- "js-sys",
  "num-traits",
  "serde",
- "wasm-bindgen",
  "windows-link",
 ]
 
@@ -275,6 +273,16 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys",
+]
+
+[[package]]
+name = "example-plugin"
+version = "0.1.0"
+dependencies = [
+ "printproof3d-core",
+ "printproof3d-plugins",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -629,6 +637,7 @@ dependencies = [
  "clap",
  "printproof3d-adapters",
  "printproof3d-core",
+ "printproof3d-plugins",
  "printproof3d-printability",
  "serde",
  "serde_json",

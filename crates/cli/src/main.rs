@@ -37,6 +37,10 @@ enum Commands {
         /// Path to write the output validation report JSON
         #[arg(long, short = 'o')]
         output: Option<PathBuf>,
+
+        /// Path to the custom rules WASM validation plugin
+        #[arg(long, short = 'l')]
+        plugin: Option<PathBuf>,
     },
     /// Validate G-code against printer and material profiles
     ValidateGcode {
@@ -55,6 +59,10 @@ enum Commands {
         /// Path to write the output validation report JSON
         #[arg(long, short = 'o')]
         output: Option<PathBuf>,
+
+        /// Path to the custom rules WASM validation plugin
+        #[arg(long, short = 'l')]
+        plugin: Option<PathBuf>,
     },
 }
 
@@ -65,6 +73,29 @@ fn read_file_to_string(path: &PathBuf) -> Result<String, String> {
     Ok(contents)
 }
 
+fn run_validation_plugin(
+    plugin_path: &std::path::Path,
+    report: &printproof3d_core::ValidationReport,
+) -> Result<printproof3d_core::ValidationReport, String> {
+    let wasm_bytes = std::fs::read(plugin_path)
+        .map_err(|e| format!("Failed to read plugin file {:?}: {}", plugin_path, e))?;
+    
+    let engine = printproof3d_plugins::PluginEngine::new();
+    let mut loaded = engine.load_plugin(&wasm_bytes)
+        .map_err(|e| format!("Failed to load plugin: {}", e))?;
+        
+    let report_json = serde_json::to_string(report)
+        .map_err(|e| format!("Failed to serialize report: {}", e))?;
+        
+    let modified_json = loaded.execute_validation(&report_json)
+        .map_err(|e| format!("Failed to run plugin validation: {}", e))?;
+        
+    let modified_report: printproof3d_core::ValidationReport = serde_json::from_str(&modified_json)
+        .map_err(|e| format!("Failed to deserialize modified report: {}", e))?;
+        
+    Ok(modified_report)
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -72,7 +103,7 @@ fn main() {
         Commands::Mcp => {
             mcp::run_mcp_server();
         }
-        Commands::ValidateModel { model, printer, material, output } => {
+        Commands::ValidateModel { model, printer, material, output, plugin } => {
             if !model.exists() {
                 eprintln!("Error: Model file {:?} does not exist", model);
                 std::process::exit(1);
@@ -117,13 +148,23 @@ fn main() {
 
             // Run real StlModelValidator validation engine
             let validator = StlModelValidator;
-            let report = match validator.validate_mesh(&model, &printer_profile, &material_profile) {
+            let mut report = match validator.validate_mesh(&model, &printer_profile, &material_profile) {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Error: Model validation failed: {}", e);
                     std::process::exit(1);
                 }
             };
+
+            if let Some(plugin_path) = plugin {
+                report = match run_validation_plugin(&plugin_path, &report) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("Error: Plugin execution failed: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+            }
 
             let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
             let report_json = serde_json::to_string_pretty(&report).unwrap();
@@ -139,7 +180,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::ValidateGcode { gcode, printer, material, output } => {
+        Commands::ValidateGcode { gcode, printer, material, output, plugin } => {
             if !gcode.exists() {
                 eprintln!("Error: G-code file {:?} does not exist", gcode);
                 std::process::exit(1);
@@ -204,13 +245,23 @@ fn main() {
 
             // Run real StandardGcodeValidator validation engine
             let validator = StandardGcodeValidator;
-            let report = match validator.validate_gcode(&gcode, &printer_profile, &material_profile) {
+            let mut report = match validator.validate_gcode(&gcode, &printer_profile, &material_profile) {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Error: G-code validation failed: {}", e);
                     std::process::exit(1);
                 }
             };
+
+            if let Some(plugin_path) = plugin {
+                report = match run_validation_plugin(&plugin_path, &report) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("Error: Plugin execution failed: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+            }
 
             let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
             let report_json = serde_json::to_string_pretty(&report).unwrap();

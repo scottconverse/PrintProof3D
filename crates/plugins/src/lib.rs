@@ -28,11 +28,23 @@ impl PluginEngine {
         let module = Module::new(&self.engine, wasm_bytes)
             .map_err(|e| format!("Failed to compile WASM module: {:?}", e))?;
         
-        let linker = <Linker<()>>::new(&self.engine);
+        let mut linker = <Linker<()>>::new(&self.engine);
+        let stub_describe = wasmi::Func::wrap(&mut store, |_: i32| {});
+        let stub_throw = wasmi::Func::wrap(&mut store, |_: i32, _: i32| {});
+        let _ = linker.define("__wbindgen_placeholder__", "__wbindgen_describe", stub_describe);
+        let _ = linker.define("__wbindgen_placeholder__", "__wbindgen_throw", stub_throw);
+
+        let stub_grow = wasmi::Func::wrap(&mut store, |x: i32| x);
+        let stub_set_null = wasmi::Func::wrap(&mut store, |_: i32| {});
+        let _ = linker.define("__wbindgen_externref_xform__", "__wbindgen_externref_table_grow", stub_grow);
+        let _ = linker.define("__wbindgen_externref_xform__", "__wbindgen_externref_table_set_null", stub_set_null);
+
+
         let instance = linker.instantiate(&mut store, &module)
             .map_err(|e| format!("Failed to instantiate module: {:?}", e))?
             .start(&mut store)
             .map_err(|e| format!("Failed to start module: {:?}", e))?;
+
 
 
 
