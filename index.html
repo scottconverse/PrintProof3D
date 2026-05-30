@@ -7,6 +7,22 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Load Mermaid Library for rendering live architecture diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        background: '#121621',
+        primaryColor: '#4f46e5',
+        primaryTextColor: '#fff',
+        lineColor: '#06b6d4',
+        secondaryColor: '#06b6d4',
+        tertiaryColor: '#10b981'
+      }
+    });
+  </script>
   <style>
     :root {
       --bg: #090b10;
@@ -204,6 +220,47 @@
       font-weight: 300;
     }
 
+    /* Architecture section styles */
+    .architecture-section {
+      max-width: 1000px;
+      margin: 6rem auto;
+      padding: 0 2rem;
+      text-align: center;
+    }
+
+    .architecture-section h2 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, #fff 0%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .architecture-section p {
+      color: var(--text-muted);
+      font-weight: 300;
+      max-width: 700px;
+      margin: 0 auto 3rem auto;
+    }
+
+    .diagram-container {
+      background-color: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3rem 2rem;
+      overflow-x: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .mermaid {
+      background: transparent !important;
+      display: flex;
+      justify-content: center;
+    }
+
     footer {
       text-align: center;
       padding: 4rem 2rem;
@@ -259,6 +316,45 @@
     <div class="card">
       <h3><span>🤖</span> Model Context Protocol</h3>
       <p>Expose validation and inspection capabilities to LLMs and agentic development assistants over standard JSON-RPC 2.0 stdin/stdout transport.</p>
+    </div>
+  </section>
+
+  <!-- Live System Architecture Diagram Section -->
+  <section class="architecture-section">
+    <h2>System Architecture & Crate Boundaries</h2>
+    <p>PrintProof3D utilizes a decoupled multi-crate workspace. The topology diagram below details how Native, CLI, REST API, and AI MCP channels route validation requests through our safety and plugin modules.</p>
+    <div class="diagram-container">
+      <div class="mermaid">
+        graph TD
+          %% Clients & Entry Points
+          User[Developer / Slicer Client] -->|Native Imports| SDK[crates/sdk]
+          CI[CI/CD Pipelines / CLI] -->|CLI Commands| CLI[crates/cli]
+          Agent[AI Agent / Cursor] -->|MCP Line Protocol| MCP[MCP Server]
+          RemoteClient[Remote Management App] -->|Axum HTTP REST| REST[crates/rest]
+
+          %% Routing
+          CLI -->|Imports| Core[crates/core]
+          CLI -->|Imports| Printability[crates/printability]
+          CLI -->|Imports| Plugins[crates/plugins]
+
+          REST -->|Bearer Auth| Core
+          REST -->|Routes Validation| Printability
+          REST -->|Loads Hooks| Plugins
+
+          MCP -->|Tools Engine| Core
+          MCP -->|Tools Engine| Printability
+
+          SDK -->|Conformance Suite| Adapters[crates/adapters]
+          SDK -->|Imports| Core
+
+          %% Infrastructure
+          Printability -->|STL/G-code Geometry Checks| Core
+          Adapters -->|Moonraker/OctoPrint/Serial| Core
+
+          %% Sandboxed Plugins
+          Plugins -->|Instantiates wasmi| Sandbox[Restricted Guest Sandbox]
+          Sandbox -->|Guest Exec| Guest[example-plugin.wasm]
+      </div>
     </div>
   </section>
 

@@ -2,7 +2,7 @@
 
 Welcome to the **PrintProof3D User Manual**. This document is split into three parts:
 - **Part 1 — For Print Operators (Non-Technical)**: Introduction, configuring profiles, running validation checks, and reading report results.
-- **Part 2 — For Technical Operators (Systems Integration)**: Geometry math, G-code travel tracking, WASM memory sandbox protocols, REST API, and MCP configurations.
+- **Part 2 — For Technical Operators (Systems Integration)**: System architecture & crate boundaries, geometry math, G-code travel tracking, WASM memory sandbox protocols, REST API, and MCP configurations.
 - **Part 3 — For Developers (Crates & Codebase)**: Local setup, writing custom WASM plugins, implementing connection adapters, and running compliance tests.
 
 ---
@@ -77,9 +77,69 @@ Every warning or failure includes a **Suggested Fix** explaining how to resolve 
 
 This section covers the technical architecture, mathematical calculations, and remote interfaces for systems administrators and integrations.
 
-## 1. Under the Hood: Mathematical Validation
+## 1. System Architecture & Crate Boundaries
 
-### 1.1 STL Geometry Auditing
+PrintProof3D is structured as a Cargo workspace containing decoupled, specialized crates. Below is the structural topology detailing how Native, CLI, REST API, and AI MCP channels route validation requests:
+
+```mermaid
+graph TD
+    %% Clients & Entry Points
+    User[Developer / Slicer Client] -->|Native Imports| SDK[crates/sdk]
+    CI[CI/CD Pipelines / CLI] -->|CLI Commands| CLI[crates/cli]
+    Agent[AI Agent / Cursor] -->|MCP Line Protocol| MCP[MCP Server]
+    RemoteClient[Remote Management App] -->|Axum HTTP REST| REST[crates/rest]
+
+    %% Routing
+    CLI -->|Imports| Core[crates/core]
+    CLI -->|Imports| Printability[crates/printability]
+    CLI -->|Imports| Plugins[crates/plugins]
+
+    REST -->|Bearer Auth| Core
+    REST -->|Routes Validation| Printability
+    REST -->|Loads Hooks| Plugins
+
+    MCP -->|Tools Engine| Core
+    MCP -->|Tools Engine| Printability
+
+    SDK -->|Conformance Suite| Adapters[crates/adapters]
+    SDK -->|Imports| Core
+
+    %% Infrastructure
+    Printability -->|STL/G-code Geometry Checks| Core
+    Adapters -->|Moonraker/OctoPrint/Serial| Core
+
+    %% Sandboxed Plugins
+    Plugins -->|Instantiates wasmi| Sandbox[Restricted Guest Sandbox]
+    Sandbox -->|Guest Exec| Guest[example-plugin.wasm]
+```
+
+### 1.1 WebAssembly Memory Sandbox Flow
+Custom validation rules are executed inside a sandboxed `wasmi` memory boundary. Because WASM linear memory is isolated, reports are serialized and copied over shared memory blocks:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as PrintProof3D Host (PluginEngine)
+    participant WASM as WebAssembly Instance (wasmi)
+    participant Memory as Linear WASM Memory
+
+    Host->>WASM: call alloc(input_len)
+    WASM-->>Host: returns input_ptr (offset in linear memory)
+    Host->>Memory: write input JSON string to input_ptr
+    Host->>WASM: call validate(input_ptr, input_len)
+    Note over WASM: Deserializes report,<br/>runs custom validation checks,<br/>serializes report to string,<br/>calls guest alloc() to store output
+    WASM-->>Host: returns result_u64 (output_ptr << 32 | output_len)
+    Host->>WASM: call dealloc(input_ptr, input_len)
+    Host->>Memory: read output JSON string from output_ptr
+    Host->>WASM: call dealloc(output_ptr, output_len)
+    Host->>Host: Deserializes final report and merges
+```
+
+---
+
+## 2. Under the Hood: Mathematical Validation
+
+### 2.1 STL Geometry Auditing
 The engine parses STL files and performs geometric verification using the following logic:
 
 * **Vertex Quantization**: To prevent floating-point rounding errors (where adjacent faces don't align due to minor float variances), coordinates are scaled to micrometers and rounded to 3D integer keys:
@@ -95,13 +155,13 @@ The engine parses STL files and performs geometric verification using the follow
   $$\text{Area} = \frac{1}{2} \|(V_1 - V_0) \times (V_2 - V_0)\|$$
   If the contact area is $< 5\%$ of the model's 2D bounding footprint area, it flags a `POOR_BED_ADHESION` warning.
 
-### 1.2 G-Code Toolpath Analysis
+### 2.2 G-Code Toolpath Analysis
 * **Stateful Coordinates Tracking**: Tracks the toolhead's current $X$, $Y$, and $Z$ positions. It monitors absolute positioning (`G90`), relative positioning (`G91`), homing commands (`G28`), and movement segments (`G0`–`G3`). If any movement places the toolhead outside the build volume, the engine flags a `GCODE_OUT_OF_BOUNDS` error.
 * **Thermal Target Monitoring**: Intercepts hotend commands (`M104`/`M109`) and bed commands (`M140`/`M190`). Targets exceeding printer limits flag `Critical` errors, while targets outside material temp windows flag `Major` errors.
 
 ---
 
-## 2. Systems Integration & Remote APIs
+## 3. Systems Integration & Remote APIs
 
 ### 2.1 Axum REST Web Service
 Start the REST validation microservice:
