@@ -628,10 +628,12 @@ dependencies = [
 name = "printproof3d-sdk"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "printproof3d-adapters",
  "printproof3d-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
