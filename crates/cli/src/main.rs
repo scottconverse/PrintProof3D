@@ -1,4 +1,5 @@
 // PrintProof3D Command Line Interface
+pub mod mcp;
 use clap::{Parser, Subcommand};
 use std::fs::File;
 use std::io::Read;
@@ -17,6 +18,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Start the Model Context Protocol (MCP) JSON-RPC server on stdin/stdout
+    Mcp,
     /// Validate a 3D model mesh against printer and material profiles
     ValidateModel {
         /// Path to the 3D model file (e.g., STL, OBJ)
@@ -66,6 +69,9 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Mcp => {
+            mcp::run_mcp_server();
+        }
         Commands::ValidateModel { model, printer, material, output } => {
             if !model.exists() {
                 eprintln!("Error: Model file {:?} does not exist", model);
