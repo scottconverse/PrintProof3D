@@ -7,4 +7,5 @@ members = [
     "crates/sdk",
     "crates/cli",
     "crates/rest",
+    "crates/plugins",
 ]
