@@ -2,14 +2,16 @@
 
 This reference documents the public structures, traits, and functions exposed by the PrintProof3D crates.
 
+---
+
 ## 1. `printproof3d-core`
 
 ### Core Structs
 
 #### `PrinterProfile`
 Defines printer limits and capacities.
-- `manufacturer: String` — The manufacturer name (e.g. "Prusa").
-- `model: String` — The specific model name (e.g. "MK4").
+- `manufacturer: String` — The manufacturer name.
+- `model: String` — The specific model name.
 - `protocol_family: ProtocolFamily` — The communication protocol standard.
 - `build_volume: BuildVolume` — Bounding box limits in mm.
 - `bed_shape: BedShape` — Visual shape layout of the build plate.
@@ -59,29 +61,6 @@ The output of validation engines.
 - `issues: Vec<ValidationIssue>`
 - `confidence_level: String`
 - `sliced_settings_assumed: Option<serde_json::Value>`
-
----
-
-### Core Enums
-
-#### `BuildVolume`
-Represents the dimensional printing bounds.
-```rust
-pub enum BuildVolume {
-    Rectangular { x: f32, y: f32, z: f32 },
-    Cylindrical { diameter: f32, z: f32 },
-}
-```
-
-#### `RiskLevel`
-Represents warning risk layers.
-```rust
-pub enum RiskLevel {
-    Low,
-    Medium,
-    High,
-}
-```
 
 ---
 
@@ -138,69 +117,37 @@ pub trait PrinterAdapter: Send + Sync {
 }
 ```
 
-#### `PrinterTelemetry`
-Contains state snapshots retrieved from the print adapter.
-- `state: String` — Active status ("idle", "printing", "paused", "error").
-- `tool_temp: f32` — Current extruder hotend temperature in Celsius.
-- `tool_target: f32` — Target extruder hotend temperature in Celsius.
-- `bed_temp: f32` — Current heated bed temperature in Celsius.
-- `bed_target: f32` — Target heated bed temperature in Celsius.
-- `progress: f32` — Print progress percentage (0.0 to 100.0).
-- `current_file: Option<String>` — Active printing file name.
+---
 
-#### `AdapterError`
-Enumerate connection and control command failure states.
+## 4. `printproof3d-sdk`
+
+### Conformance Testing
+
+#### `run_conformance_tests`
+Automated validation checks to verify `PrinterAdapter` implementation compliance.
 ```rust
-pub enum AdapterError {
-    ConnectionFailed(String),
-    AuthenticationFailed(String),
-    UploadFailed(String),
-    CommandFailed(String),
-    Timeout,
-    Unknown(String),
-}
+pub async fn run_conformance_tests<A: PrinterAdapter>(adapter: &mut A) -> Result<(), String>;
 ```
 
 ---
 
-## Code Example
+## 5. `printproof3d-plugins`
 
+### WASM Loader Runtime
+
+#### `PluginEngine`
+Initializes compiler-free WebAssembly engines.
+- `pub fn new() -> Self` — Creates a new sandbox configuration.
+- `pub fn load_plugin(&self, wasm_bytes: &[u8]) -> Result<LoadedPlugin, String>` — Instantiates a WASM module.
+
+#### `LoadedPlugin`
+Executes loaded plugins in the wasmi context.
+- `pub fn execute_validation(&mut self, report_json: &str) -> Result<String, String>` — Pass a JSON report representation to the guest and return the modified result.
+
+### Helper Macros
+
+#### `export_validation_plugin!`
+Simplifies memory mapping and serialization in custom WASM modules:
 ```rust
-use printproof3d_core::{PrinterProfile, BuildVolume, BedShape, ProtocolFamily, FirmwareFlavor};
-use printproof3d_sdk::sdk_init;
-
-fn main() {
-    // Initialize SDK
-    sdk_init();
-
-    // Define configuration
-    let printer = PrinterProfile {
-        manufacturer: "Custom".to_string(),
-        model: "Prusa Clone".to_string(),
-        protocol_family: ProtocolFamily::MarlinSerial,
-        build_volume: BuildVolume::Rectangular { x: 220.0, y: 220.0, z: 250.0 },
-        bed_shape: BedShape::Rectangular,
-        nozzle_diameters: vec![0.4],
-        default_nozzle_diameter: 0.4,
-        min_layer_height: 0.1,
-        max_layer_height: 0.3,
-        max_hotend_temp: 260.0,
-        max_bed_temp: 100.0,
-        has_enclosure: false,
-        supports_mmu: false,
-        firmware_flavor: FirmwareFlavor::Marlin,
-        supported_file_types: vec!["gcode".to_string()],
-        supports_direct_upload: true,
-        supports_pause_resume: false,
-        supports_cancel: true,
-        supports_job_progress: false,
-        supports_webcam: false,
-        supports_chamber_temp: false,
-        known_quirks: vec![],
-        unsafe_commands: vec![],
-        filename_restrictions: None,
-    };
-
-    println!("Loaded profile: {} {}", printer.manufacturer, printer.model);
-}
+export_validation_plugin!(validation_function);
 ```

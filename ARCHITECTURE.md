@@ -1,77 +1,110 @@
-# PrintProof3D Architecture
+# PrintProof3D System Architecture & Drawings
 
-This document describes the design principles, crate boundaries, data flow, and automation systems within PrintProof3D.
-
-## Design Philosophy
-
-1. **Type-Safe Data Models**: All printer profiles, material specifications, and validation results are represented as strict, type-safe Rust structures.
-2. **Schema-Driven Handoff**: Profiles and reports are exported to standard JSON Schemas, allowing interoperability with external frontend clients, databases, and scripting languages.
-3. **Decoupled Connectivity**: Firmware and host adapters are wrapped in uniform interfaces, separating serial/HTTP communication logic from print safety analysis.
+This document describes the design principles, crate boundaries, data flow, and runtime mechanics within PrintProof3D.
 
 ---
 
-## Crate Layout & Dependencies
+## 1. System Topology & Integration Boundaries
 
-The system is split into five logical modules within a Cargo workspace:
+PrintProof3D exposes multiple programmatic and network boundaries to support client integrations (AI agents, static analyzers, and remote management tools):
 
 ```mermaid
 graph TD
-    cli[crates/cli] --> core[crates/core]
-    cli --> printability[crates/printability]
-    cli --> adapters[crates/adapters]
-    
-    sdk[crates/sdk] --> core
-    sdk --> adapters
-    
-    printability --> core
-    adapters --> core
-    
-    subgraph Core Schemas & Outputs
-        core --> |cargo test| schemas[JSON Schemas: printer, material, report]
-    end
-    
-    subgraph Inputs / Fixtures
-        stl[fixtures/*.stl] --> printability
-        gcode[fixtures/*.gcode] --> printability
-    end
+    %% Clients & Entry Points
+    User[Developer / Slicer Client] -->|Native Imports| SDK[crates/sdk]
+    CI[CI/CD Pipelines / CLI] -->|CLI Commands| CLI[crates/cli]
+    Agent[AI Agent / Cursor] -->|MCP Line Protocol| MCP[MCP Server]
+    RemoteClient[Remote Management App] -->|Axum HTTP REST| REST[crates/rest]
+
+    %% Routing
+    CLI -->|Imports| Core[crates/core]
+    CLI -->|Imports| Printability[crates/printability]
+    CLI -->|Imports| Plugins[crates/plugins]
+
+    REST -->|Bearer Auth| Core
+    REST -->|Routes Validation| Printability
+    REST -->|Loads Hooks| Plugins
+
+    MCP -->|Tools Engine| Core
+    MCP -->|Tools Engine| Printability
+
+    SDK -->|Conformance Suite| Adapters[crates/adapters]
+    SDK -->|Imports| Core
+
+    %% Infrastructure
+    Printability -->|STL/G-code Geometry Checks| Core
+    Adapters -->|Moonraker/OctoPrint/Serial| Core
+
+    %% Sandboxed Plugins
+    Plugins -->|Instantiates wasmi| Sandbox[Restricted Guest Sandbox]
+    Sandbox -->|Guest Exec| Guest[example-plugin.wasm]
 ```
-
-### 1. `printproof3d-core`
-- **Responsibility**: Contains all core enums (`BedShape`, `ProtocolFamily`, `FirmwareFlavor`, `ValidationStatus`, `IssueSeverity`) and profile structs.
-- **JSON Schema Target**: Serves as the source of truth for the project's data schema. Running `cargo test` regenerates the schema files in `/schemas`.
-
-### 2. `printproof3d-printability`
-- **Responsibility**: Houses the geometry parser and boundary validation code.
-- **Analysis Types**:
-  - STL validation (verifies manifold boundaries, bounds limits, and overhang flags).
-  - G-code static parsing (identifies temperature thresholds and build-envelope violations).
-
-### 3. `printproof3d-adapters`
-- **Responsibility**: Implements API clients and serial drivers for:
-  - **Moonraker**: Websocket and HTTP interface for Klipper.
-  - **OctoPrint**: REST client for standard API commands.
-  - **Marlin Serial**: Direct serial interface using G-code commands.
-
-### 4. `printproof3d-sdk`
-- **Responsibility**: Exposes a clean, high-level developer SDK to initialize validation tasks and test adapter compliance.
-
-### 5. `printproof3d` (CLI)
-- **Responsibility**: Exposes command-line interactions and an MCP server.
 
 ---
 
-## Schema Auto-Generation Pipeline
+## 2. WebAssembly Memory Sandbox Flow
 
-To prevent drift between the Rust struct definitions and the JSON Schemas, the generation pipeline is automated using the `schemars` crate:
+Custom validation rules are loaded as WASM byte slices and executed in a restricted memory sandbox utilizing the `wasmi` interpreter. Memory exchanges use raw pointer layouts (`alloc`, `dealloc`, and `validate` exports):
 
-```rust
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn generate_schemas() {
-        // Generates schemas and outputs them to the workspace root's /schemas directory.
-    }
-}
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as PrintProof3D Host (PluginEngine)
+    participant WASM as WebAssembly Instance (wasmi)
+    participant Memory as Linear WASM Memory
+
+    Host->>WASM: call alloc(input_len)
+    WASM-->>Host: returns input_ptr (offset in linear memory)
+    Host->>Memory: write input JSON string to input_ptr
+    Host->>WASM: call validate(input_ptr, input_len)
+    Note over WASM: Deserializes report,<br/>runs custom validation checks,<br/>serializes report to string,<br/>calls guest alloc() to store output
+    WASM-->>Host: returns result_u64 (output_ptr << 32 | output_len)
+    Host->>WASM: call dealloc(input_ptr, input_len)
+    Host->>Memory: read output JSON string from output_ptr
+    Host->>WASM: call dealloc(output_ptr, output_len)
+    Host->>Host: Deserializes final report and merges
 ```
 
-This test runs as part of the pre-push hook configuration, ensuring that any model updates are verified and compiled into schemas before changes are pushed to remote repositories.
+---
+
+## 3. Conformance Test Suite Flowchart
+
+The automated SDK conformance suite validates that third-party `PrinterAdapter` implementations preserve state invariants and respond correctly under normal and simulated failure paths:
+
+```mermaid
+flowchart TD
+    Start([Start Suite]) --> Connect[Call connect]
+    Connect -->|Err| FailConnect([Fail: Connection Error])
+    Connect -->|Ok| Status[Call get_status]
+    
+    Status -->|Err| FailStatus([Fail: Status Error])
+    Status -->|Ok: Telemetry| CheckState{Is telemetry.state valid?}
+    CheckState -->|No| FailState([Fail: Empty State])
+    CheckState -->|Yes| Control[Execute Control Loop]
+
+    Control --> Pause[Call pause_job]
+    Pause --> Resume[Call resume_job]
+    Resume --> Cancel[Call cancel_job]
+    
+    Cancel -->|Err| FailControl([Fail: Control Command Failed])
+    Cancel -->|Ok| Disconnect[Call disconnect]
+    Disconnect -->|Err| FailDisconnect([Fail: Disconnect Failed])
+    Disconnect -->|Ok| Pass([Pass: Conformance Confirmed])
+```
+
+---
+
+## 4. Decoupled Data Flow Pipeline
+
+Data validations flow through independent analysis and filtration layers:
+
+```mermaid
+graph LR
+    Input[STL Mesh / G-code File] --> Parser[printproof3d-printability]
+    Parser --> Profile[Compare to Printer/Material JSON Profiles]
+    Profile --> RawReport[Generate baseline ValidationReport]
+    RawReport --> Filter{Has Custom Rules WASM Plugin?}
+    Filter -->|No| Output[Output final JSON report]
+    Filter -->|Yes| Plugins[wasmi Sandboxed validation]
+    Plugins --> Output
+```
