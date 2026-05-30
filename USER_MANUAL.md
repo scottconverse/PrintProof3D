@@ -1,28 +1,28 @@
 # PrintProof3D User Manual & Integration Guide
 
 Welcome to the **PrintProof3D User Manual**. This document is split into three parts:
-- **Part 1 — For Print Operators (Non-Technical)**: Introduction, configuring profiles, running validation checks, and reading report results.
+- **Part 1 — Core Validation Concepts**: Conceptual model, profiles, validation rules, and report statuses.
 - **Part 2 — For Technical Operators (Systems Integration)**: System architecture & crate boundaries, geometry math, G-code travel tracking, WASM memory sandbox protocols, REST API, and MCP configurations.
 - **Part 3 — For Developers (Crates & Codebase)**: Local setup, writing custom WASM plugins, implementing connection adapters, and running compliance tests.
 
 ---
 
-# Part 1 — For Print Operators
+# Part 1 — Core Validation Concepts
 
-This section is written in plain English for 3D printer operators, workshop managers, and print shop technicians. You do not need any programming experience to follow these steps.
+This section covers the core concepts, validation logic, and configuration models behind the PrintProof3D engine.
 
 ## 1. What is PrintProof3D?
-PrintProof3D is a safety utility for 3D printing. In a typical workshop, you download a 3D model, slice it, and send it directly to your printer. If the model has holes, or if the slicer settings are wrong, you risk wasting filament, creating messy "spaghetti" prints, or even damaging your hardware (such as crashing the metal nozzle into the printbed or overheating the components).
+PrintProof3D is a safety utility for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has holes, or if the slicer settings are wrong, you risk wasting filament, creating messy "spaghetti" prints, or even damaging your hardware (such as crashing the metal nozzle into the printbed or overheating the components).
 
 PrintProof3D acts as a pre-flight checklist. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to ensure they are safe, watertight, and match the capabilities of your specific machine and filament.
 
 ---
 
-## 2. Setting Up Profiles
-To validate prints, you must define the target machine and filament using two simple text files: the **Printer Profile** and the **Material Profile**.
+## 2. Profile Structures
+To validate prints, you must define the target machine and filament using two JSON files: the **Printer Profile** and the **Material Profile**.
 
 ### 2.1 The Printer Profile (`.json`)
-This file defines the physical dimensions, safety thresholds, and capabilities of your 3D printer. Below is an explanation of what each setting controls:
+This file defines the physical dimensions, safety thresholds, and capabilities of your 3D printer:
 
 * **Manufacturer & Model**: Identifies the machine (e.g. "Prusa MK4").
 * **Build Volume**: The physical boundaries of the bed.
@@ -30,46 +30,25 @@ This file defines the physical dimensions, safety thresholds, and capabilities o
   * *Cylindrical*: Specified as `diameter` and `z` height in millimeters (common for circular beds or delta printers).
 * **Bed Shape**: Tells the system the shape of your printbed. This must match the volume (a `circular` bed requires a `cylindrical` volume).
 * **Nozzle Diameters**: The nozzle sizes you have available (e.g., `0.4` mm, `0.6` mm). 
-* **Max Hotend & Bed Temperatures**: Physical safety cutoffs. If a file attempts to heat the nozzle or bed past these limits, PrintProof3D will flag it as a critical hazard.
-* **Unsafe Commands**: A list of codes you wish to block. For example, blocking `M500` prevents print files from saving random settings to your printer's permanent memory, which can wear out the mainboard.
+* **Max Hotend & Bed Temperatures**: Physical safety cutoffs. If a file attempts to heat the nozzle or bed past these limits, PrintProof3D flags it as a critical hazard.
+* **Unsafe Commands**: A list of codes to block. For example, blocking `M500` prevents print files from saving random settings to your printer's permanent memory.
 
 ### 2.2 The Material Profile (`.json`)
 This file defines the thermal requirements and printing limits of your filament (e.g., PLA, PETG, ABS).
-* **Min/Max Nozzle & Bed Temperature**: The safe printing window recommended by the filament manufacturer. Printing outside this window leads to extrusion jams or poor layer adhesion.
+* **Min/Max Nozzle & Bed Temperature**: The safe printing window recommended by the filament manufacturer.
 * **Warp Risk**: The likelihood of the plastic curling as it cools. High-warp materials (like ABS) trigger strict warnings if the model's footprint touching the bed is too small.
-* **Overhang & Bridge Difficulty**: Tells the validator how well this filament can print angles in mid-air.
+* **Overhang & Bridge Difficulty**: Mapped to cooling properties to evaluate overhang angles.
 
 ---
 
-## 3. Running Checks & Reading Reports
-
-### 3.1 Running the CLI Utility
-You run checks using the `printproof3d` command in your terminal. 
-
-#### Validating a 3D model (STL):
-```bash
-printproof3d validate-model \
-  --model my_part.stl \
-  --printer profiles/prusa_mk4.json \
-  --material profiles/pla.json
-```
-
-#### Validating a sliced print file (G-code):
-```bash
-printproof3d validate-gcode \
-  --gcode print_job.gcode \
-  --printer profiles/prusa_mk4.json \
-  --material profiles/pla.json
-```
-
-### 3.2 Reading the Validation Report
-After running a check, PrintProof3D outputs a report. The most important field is the **`status`**, which can return one of three results:
+## 3. Reading the Validation Report
+After running a check, PrintProof3D outputs a unified validation report. The most important field is the **`status`**, which can return one of three results:
 
 1. **`pass` (Green)**: The file matches all profiles. It is safe to print.
 2. **`warning` (Yellow)**: Non-blocking issues were found. You should review them, but the file is not dangerous to the machine. Common warnings include low bed contact area or steep overhangs.
 3. **`fail` (Red)**: Critical errors were detected (such as coordinates that exceed your printer's physical dimensions or temperatures that exceed safety limits). Printing is blocked.
 
-Every warning or failure includes a **Suggested Fix** explaining how to resolve it (e.g., "Add supports in your slicer" or "Decrease extrusion temperature").
+Every warning or failure includes a **Suggested Fix** explaining how to resolve it (e.g., "Add support structures in your slicer").
 
 ---
 
@@ -163,7 +142,7 @@ The engine parses STL files and performs geometric verification using the follow
 
 ## 3. Systems Integration & Remote APIs
 
-### 2.1 Axum REST Web Service
+### 3.1 Axum REST Web Service
 Start the REST validation microservice:
 ```bash
 cargo run --package printproof3d-rest
@@ -176,7 +155,7 @@ cargo run --package printproof3d-rest
 * `POST /validate/model` (Multipart) — Performs mesh audit. Accepts `model` (STL file), `printer` (JSON profile), and `material` (JSON profile) fields.
 * `POST /validate/gcode` (Multipart) — Performs G-code audit. Accepts `gcode` (file), `printer` (JSON profile), and optional `material` (JSON profile) fields.
 
-### 2.2 Model Context Protocol (MCP) Server
+### 3.2 Model Context Protocol (MCP) Server
 Integrate validation directly into AI agents (like Claude Desktop or Cursor) over standard I/O:
 ```bash
 printproof3d mcp

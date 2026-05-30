@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PrintProof3D — Premium 3D Print Validation Engine</title>
+  <title>PrintProof3D — Open-Source 3D Print Validation Engine</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
@@ -269,6 +269,140 @@
       font-size: 0.875rem;
       font-weight: 300;
     }
+
+    /* Status Badge styling */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 1rem;
+      border-radius: 50px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      color: var(--secondary);
+      margin-bottom: 2rem;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+    }
+
+    /* Card link wrapping feature cards */
+    .card-link {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      height: 100%;
+    }
+
+    /* Terminal & JSON interactive preview section */
+    .preview-section {
+      max-width: 900px;
+      margin: 4rem auto;
+      padding: 0 2rem;
+    }
+
+    .preview-section h2 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      background: linear-gradient(135deg, #fff 0%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .preview-section p {
+      color: var(--text-muted);
+      text-align: center;
+      font-weight: 300;
+      margin-bottom: 2rem;
+      font-size: 1rem;
+    }
+
+    .preview-container {
+      background-color: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .tab-bar {
+      display: flex;
+      background: rgba(9, 11, 16, 0.8);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 1rem 1.5rem;
+      font-family: var(--font-display);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      color: var(--secondary);
+      border-bottom-color: var(--secondary);
+    }
+
+    .code-viewer {
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .code-pane {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre;
+      text-align: left;
+    }
+
+    .code-pane.active {
+      display: block;
+      opacity: 1;
+    }
+
+    /* Terminal output specific formatting */
+    .terminal-pane {
+      color: #38bdf8;
+    }
+    .terminal-prompt {
+      color: #10b981;
+      font-weight: bold;
+    }
+    .terminal-warning {
+      color: #fbbf24;
+      font-weight: bold;
+    }
+    .terminal-info {
+      color: #e2e8f0;
+    }
+
+    /* JSON specific syntax styling */
+    .json-key { color: #f43f5e; }
+    .json-string { color: #34d399; }
+    .json-number { color: #38bdf8; }
+    .json-boolean { color: #fbbf24; }
+    .json-null { color: #a78bfa; }
   </style>
 </head>
 <body>
@@ -284,39 +418,117 @@
   </header>
 
   <section class="hero">
+    <div class="status-badge">v0.1.0 — build from source; pre-release</div>
     <h1>Verify Geometries & Paths<br><span>Before You Press Print</span></h1>
-    <p>A type-safe printability and dynamic validation plugin engine for 3D printers. Inspect meshes, static paths, and run hermetic custom rules inside a sandboxed runtime.</p>
+    <p>An open-source Rust engine and library for static printability and G-code validation, exposing CLI, REST, MCP, and WASM-plugin interfaces. Inspect meshes and paths before you print.</p>
     <div class="cta-buttons">
-      <a class="btn btn-primary" href="USER_MANUAL.md">Get Started</a>
-      <a class="btn btn-secondary" href="README.md">Developer Guide</a>
+      <a class="btn btn-primary" href="README.md#⚙️-installation--setup">Install via cargo</a>
+      <a class="btn btn-secondary" href="USER_MANUAL.md">Read User Manual</a>
+    </div>
+  </section>
+
+  <!-- Interactive Terminal & JSON Output Preview -->
+  <section class="preview-section">
+    <h2>Validation Engine in Action</h2>
+    <p>Audit print files via CLI or inspect the unified, machine-readable validation reports.</p>
+    <div class="preview-container">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('terminal')">Terminal Command</button>
+        <button class="tab-btn" onclick="switchTab('json')">ValidationReport JSON</button>
+      </div>
+      <div class="code-viewer">
+        <!-- Tab 1: Terminal -->
+        <div id="pane-terminal" class="code-pane active terminal-pane"><span class="terminal-prompt">$</span> printproof3d validate-model --model fixtures/bracket.stl --printer profiles/prusa_mk4.json
+<span class="terminal-info">[+] Loading Printer Profile: profiles/prusa_mk4.json
+[+] Loading Material Profile: profiles/pla.json
+[+] Parsing STL file: fixtures/bracket.stl</span>
+<span class="terminal-warning">[!] Warning: STEEP_OVERHANG detected at overhang_layer_3 (Z: 15.00mm)
+[!] Overhang slope of 58.4° exceeds filament limit of 50.0°.</span>
+
+<span class="terminal-info">Validation Status: WARNING (1 warning, 0 failures)
+Confidence Level: High</span></div>
+        
+        <!-- Tab 2: JSON Report -->
+        <div id="pane-json" class="code-pane"><code class="json-code">{
+  <span class="json-key">"status"</span>: <span class="json-string">"warning"</span>,
+  <span class="json-key">"target_printer_profile"</span>: <span class="json-string">"prusa_mk4.json"</span>,
+  <span class="json-key">"target_material_profile"</span>: <span class="json-string">"pla.json"</span>,
+  <span class="json-key">"model"</span>: {
+    <span class="json-key">"file_name"</span>: <span class="json-string">"bracket.stl"</span>,
+    <span class="json-key">"units"</span>: <span class="json-string">"mm"</span>,
+    <span class="json-key">"bounding_box"</span>: {
+      <span class="json-key">"min_x"</span>: <span class="json-number">-45.2</span>,
+      <span class="json-key">"min_y"</span>: <span class="json-number">-30.0</span>,
+      <span class="json-key">"min_z"</span>: <span class="json-number">0.0</span>,
+      <span class="json-key">"max_x"</span>: <span class="json-number">45.2</span>,
+      <span class="json-key">"max_y"</span>: <span class="json-number">30.0</span>,
+      <span class="json-key">"max_z"</span>: <span class="json-number">65.5</span>
+    }
+  },
+  <span class="json-key">"issues"</span>: [
+    {
+      <span class="json-key">"id"</span>: <span class="json-string">"STEEP_OVERHANG"</span>,
+      <span class="json-key">"severity"</span>: <span class="json-string">"Major"</span>,
+      <span class="json-key">"message"</span>: <span class="json-string">"Overhang slope of 58.4° exceeds filament limit of 50.0°."</span>,
+      <span class="json-key">"location"</span>: {
+        <span class="json-key">"region"</span>: <span class="json-string">"overhang_layer_3"</span>,
+        <span class="json-key">"geometry"</span>: {
+          <span class="json-key">"type"</span>: <span class="json-string">"point"</span>,
+          <span class="json-key">"x"</span>: <span class="json-number">12.5</span>,
+          <span class="json-key">"y"</span>: <span class="json-number">-8.2</span>,
+          <span class="json-key">"z"</span>: <span class="json-number">15.0</span>
+        }
+      },
+      <span class="json-key">"suggested_fixes"</span>: [
+        <span class="json-string">"Enable support structures in your slicer"</span>,
+        <span class="json-string">"Rotate the model to decrease the overhang angle"</span>
+      ]
+    }
+  ],
+  <span class="json-key">"confidence_level"</span>: <span class="json-string">"High"</span>,
+  <span class="json-key">"sliced_settings_assumed"</span>: <span class="json-null">null</span>
+}</code></div>
+      </div>
     </div>
   </section>
 
   <section class="features-grid">
-    <div class="card">
-      <h3><span>🧪</span> Type-Safe Core</h3>
-      <p>Ensure printer profile models and raw filament structures conform to automated JSON schemas. Never worry about configuration drift between Rust and integrations.</p>
-    </div>
-    <div class="card">
-      <h3><span>📐</span> Geometry & Path Checkers</h3>
-      <p>Detect non-manifold edges, bounds violations, and unsupported overhang normals on STL models. Run static coordinate and thermal limits audits on G-code paths.</p>
-    </div>
-    <div class="card">
-      <h3><span>🔒</span> WASM-Sandboxed Plugins</h3>
-      <p>Write validation rules in Rust and run them dynamically in a hermetic WebAssembly sandbox with no socket or filesystem access. Fast, compiler-free, and safe.</p>
-    </div>
-    <div class="card">
-      <h3><span>🛠</span> Adapter Conformance SDK</h3>
-      <p>Exposes automated conformance verification testing harnesses to ensure third-party connectivity clients implement states and commands cleanly.</p>
-    </div>
-    <div class="card">
-      <h3><span>📡</span> Axum REST microservice</h3>
-      <p>Condition-built HTTP REST server protected by bearer token middleware. Perfect for web interfaces, slicers, or newsroom workflow integrations.</p>
-    </div>
-    <div class="card">
-      <h3><span>🤖</span> Model Context Protocol</h3>
-      <p>Expose validation and inspection capabilities to LLMs and agentic development assistants over standard JSON-RPC 2.0 stdin/stdout transport.</p>
-    </div>
+    <a href="USER_MANUAL.md#2-profile-structures" class="card-link">
+      <div class="card">
+        <h3><span>🧪</span> Type-Safe Core</h3>
+        <p>Ensure printer profile models and raw filament structures conform to automated JSON schemas. Never worry about configuration drift between Rust and integrations.</p>
+      </div>
+    </a>
+    <a href="USER_MANUAL.md#2-under-the-hood-mathematical-validation" class="card-link">
+      <div class="card">
+        <h3><span>📐</span> Geometry & Path Checkers</h3>
+        <p>Detect non-manifold edges, bounds violations, and unsupported overhang normals on STL models. Run static coordinate and thermal limits audits on G-code paths.</p>
+      </div>
+    </a>
+    <a href="USER_MANUAL.md#2-writing-a-custom-wasm-validation-plugin" class="card-link">
+      <div class="card">
+        <h3><span>🔒</span> WASM-Sandboxed Plugins</h3>
+        <p>Write validation rules in Rust and run them dynamically in a hermetic WebAssembly sandbox with no socket or filesystem access. Fast, compiler-free, and safe.</p>
+      </div>
+    </a>
+    <a href="USER_MANUAL.md#3-custom-printer-connections--compliance-tests" class="card-link">
+      <div class="card">
+        <h3><span>🛠</span> Adapter Conformance SDK</h3>
+        <p>Exposes automated conformance verification testing harnesses to ensure third-party connectivity clients implement states and commands cleanly.</p>
+      </div>
+    </a>
+    <a href="USER_MANUAL.md#31-axum-rest-web-service" class="card-link">
+      <div class="card">
+        <h3><span>📡</span> Axum REST microservice</h3>
+        <p>Condition-built HTTP REST server protected by bearer token middleware. Perfect for web interfaces, slicers, or newsroom workflow integrations.</p>
+      </div>
+    </a>
+    <a href="USER_MANUAL.md#32-model-context-protocol-mcp-server" class="card-link">
+      <div class="card">
+        <h3><span>🤖</span> Model Context Protocol</h3>
+        <p>Expose validation and inspection capabilities to LLMs and agentic development assistants over standard JSON-RPC 2.0 stdin/stdout transport.</p>
+      </div>
+    </a>
   </section>
 
   <!-- Live System Architecture Diagram Section -->
@@ -361,5 +573,30 @@
   <footer>
     <p>&copy; 2026 PrintProof3D. Released under the <a href="https://github.com/scottconverse/PrintProof3D/blob/main/LICENSE" style="color: var(--text-muted); text-decoration: underline;">MIT License</a>. View the source on <a href="https://github.com/scottconverse/PrintProof3D" style="color: var(--text-muted); text-decoration: underline;">GitHub</a>.</p>
   </footer>
+  <script>
+    function switchTab(tab) {
+      // Deactivate all tab buttons and panes
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.code-pane').forEach(pane => {
+        pane.classList.remove('active');
+        pane.style.opacity = 0;
+      });
+
+      // Find the selected elements
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(
+        btn => btn.textContent.toLowerCase().includes(tab) || (tab === 'json' && btn.textContent.includes('JSON'))
+      );
+      const activePane = document.getElementById('pane-' + tab);
+
+      if (activeBtn && activePane) {
+        activeBtn.classList.add('active');
+        activePane.classList.add('active');
+        // Force layout repaint and trigger transition fade-in
+        setTimeout(() => {
+          activePane.style.opacity = 1;
+        }, 50);
+      }
+    }
+  </script>
 </body>
 </html>

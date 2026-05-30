@@ -1,5 +1,8 @@
 # PrintProof3D: Printability Analysis & Printer Management Engine
 
+> [!IMPORTANT]
+> **Project Status**: PrintProof3D is currently in pre-release (pre-1.0) developer engine status. Printer protocol adapters and path validation are tested against mock/simulator conformance harnesses and are not yet hardware-validated on physical machines. Build from source to compile.
+
 PrintProof3D is a highly modular, type-safe **3D Printer Compatibility, Printability, and Integration Engine** written in Rust. 
 
 The project provides compiler-safe data models, automated JSON Schema generation, static geometric and path printability validation for 3D meshes (STL) and pre-sliced machine files (G-code), remote printer protocol adapters, and a dynamic WebAssembly-sandboxed validation plugin system.
@@ -8,11 +11,11 @@ The project provides compiler-safe data models, automated JSON Schema generation
 
 ## Key Features
 
-* **Type-Safe Domain Profiles**: Define printer hardware boundaries and material chemical properties using structured, validated JSON data models.
+* **Type-Safe Domain Profiles**: Define printer hardware boundaries and material chemical properties using validated JSON data models.
 * **Rigorous Geometry Audits**: Check STL meshes for manifold/watertightness issues, build volume limit violations, steep overhang slopes, and low bed-plate contact footprint risks.
 * **Stateful G-Code Validation**: Accumulate toolhead coordinates statefully through motion coordinates (`G0`–`G3`) and homing commands (`G28`) to audit travel bounds and check thermal instructions against physical machine limits.
-* **Sandboxed WASM Plugin Runtime**: Write custom enterprise safety and compliance policies in Rust, compile them to WebAssembly, and execute them in a restricted memory sandbox utilizing `wasmi`.
-* **Standardized Printer Protocol Adapters**: Wrap Moonraker/Klipper, OctoPrint, and Duet/RRF connection controls under an asynchronous `PrinterAdapter` trait.
+* **Sandboxed WASM Plugin Runtime**: Write custom validation policies in Rust, compile them to WebAssembly, and execute them in a restricted memory sandbox utilizing `wasmi`.
+* **Standardized Printer Protocol Adapters**: Wrap printer connection controls under an asynchronous `PrinterAdapter` trait (trait and mock conformance harness implemented; Moonraker/OctoPrint concrete clients are currently trait stubs).
 * **Developer SDK**: Run mock servers and automated conformance test suites to verify custom adapter compliance.
 * **Axum REST microservice & MCP Server**: Integrate validation hooks into web servers, slicers, asset databases, or AI agentic workflows.
 
@@ -22,50 +25,51 @@ The project provides compiler-safe data models, automated JSON Schema generation
 
 PrintProof3D is organized as a Cargo workspace with decoupled crates:
 
-* **[`crates/core`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/core)**: Contains domain structures (`PrinterProfile`, `MaterialProfile`, `ValidationReport`) and validation invariants.
-* **[`crates/printability`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/printability)**: Mathematical geometry validation and G-code position/temperature checking.
-* **[`crates/adapters`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/adapters)**: Standardized printer connection protocols and telemetry definitions.
-* **[`crates/sdk`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/sdk)**: Mock connection servers and conformance test harnesses.
-* **[`crates/plugins`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/plugins)**: WebAssembly guest loading and linear memory management stubs.
-* **[`crates/cli`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/cli)**: Command line utility and Model Context Protocol (MCP) server.
-* **[`crates/rest`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/rest)**: Local-loopback Axum HTTP REST server protected by Bearer Token authorization.
-* **[`crates/example-plugin`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/example-plugin)**: Sample validation plugin compiling to `wasm32-unknown-unknown` to append volume warnings.
+* **[`crates/core`](crates/core)**: Contains domain structures (`PrinterProfile`, `MaterialProfile`, `ValidationReport`) and validation invariants.
+* **[`crates/printability`](crates/printability)**: Mathematical geometry validation and G-code position/temperature checking.
+* **[`crates/adapters`](crates/adapters)**: Standardized printer connection protocols and telemetry definitions.
+* **[`crates/sdk`](crates/sdk)**: Mock connection servers and conformance test harnesses.
+* **[`crates/plugins`](crates/plugins)**: WebAssembly guest loading and linear memory management stubs.
+* **[`crates/cli`](crates/cli)**: Command line utility and Model Context Protocol (MCP) server.
+* **[`crates/rest`](crates/rest)**: Local-loopback Axum HTTP REST server protected by Bearer Token authorization.
+* **[`crates/example-plugin`](crates/example-plugin)**: Sample validation plugin compiling to `wasm32-unknown-unknown` to append volume warnings.
 
 ---
 
 ## ⚙️ Installation & Setup
 
-PrintProof3D can be built from source locally or installed globally onto your system's execution path.
+PrintProof3D must be compiled from source. Follow these steps to build the workspace locally:
 
-### 1. Install Globally (Recommended)
-Installing the binary targets globally allows you to invoke the commands (`printproof3d` and `printproof3d-rest`) from any directory in your shell.
-
-Run the installer via Cargo from the root directory of the cloned repository:
+### 1. Build from Source (Recommended Local Path)
 ```bash
-# Install the printproof3d command-line tool globally
-cargo install --path crates/cli
+# Clone the repository
+git clone https://github.com/scottconverse/PrintProof3D.git
+cd PrintProof3D
 
-# Verify the CLI installation is successful and in your path
-printproof3d --version
-
-# Install the printproof3d-rest API server globally
-cargo install --path crates/rest
-
-# Verify the REST server installation
-printproof3d-rest --help
-```
-> [!NOTE]
-> Ensure that Cargo's binary installation path (typically `~/.cargo/bin` on Unix systems, or `%USERPROFILE%\.cargo\bin` on Windows) is present in your system's `PATH` environment variable.
-
-### 2. Build from Source (Local Compilation)
-If you prefer not to copy the binaries to your system path, you can compile the workspace outputs locally:
-```bash
 # Compile the entire workspace in release mode
 cargo build --release
 ```
 The compiled binaries are written to the target subdirectory:
 * **CLI tool**: `./target/release/printproof3d` (or `./target/release/printproof3d.exe` on Windows)
 * **REST server**: `./target/release/printproof3d-rest` (or `./target/release/printproof3d-rest.exe` on Windows)
+
+### 2. Global Installation
+If you want to invoke `printproof3d` globally in your path, compile and install via cargo path:
+```bash
+# Install the command-line tool globally
+cargo install --path crates/cli
+
+# Verify CLI installation
+printproof3d --version
+
+# Install the REST API server globally
+cargo install --path crates/rest
+
+# Verify REST server installation
+printproof3d-rest --help
+```
+> [!NOTE]
+> Ensure that Cargo's binary installation path (typically `~/.cargo/bin` on Unix systems, or `%USERPROFILE%\.cargo\bin` on Windows) is present in your system's `PATH` environment variable.
 
 ---
 
