@@ -1,109 +1,105 @@
-# PrintProof3D
+# PrintProof3D: Printability Analysis & Printer Management Engine
 
-PrintProof3D is a highly modular, type-safe **3D Printer Compatibility, Printability, and Integration Engine** written in Rust. It provides compiler-safe data models, automated JSON Schema generation, static geometric and path printability verification for STL/G-code, printer protocol adapters, and a dynamic WebAssembly-sandboxed plugin system.
+PrintProof3D is a highly modular, type-safe **3D Printer Compatibility, Printability, and Integration Engine** written in Rust. 
 
----
-
-## 🛠 Crate Layout & Crate Hierarchy
-
-The project is structured as a Cargo workspace split into decoupled crates:
-
-* **[crates/core](file:///crates/core)**: Versioned JSON schemas and core configurations (`PrinterProfile`, `MaterialProfile`, `ValidationReport`).
-* **[crates/printability](file:///crates/printability)**: Geometry validation (STL watertightness, overhang bounds) and G-code position/thermal safety checkers.
-* **[crates/adapters](file:///crates/adapters)**: Connection interfaces for printer protocols (OctoPrint, Moonraker/Klipper, Marlin Serial) and mock telemetry handlers.
-* **[crates/sdk](file:///crates/sdk)**: Integration SDK exposing automated adapter conformance verification suites.
-* **[crates/plugins](file:///crates/plugins)**: WebAssembly sandbox loader utilizing the pure-Rust `wasmi` interpreter for safe, dynamic plugin execution.
-* **[crates/cli](file:///crates/cli)**: Command line utility and Model Context Protocol (MCP) server integration.
-* **[crates/rest](file:///crates/rest)**: Local-loopback Axum HTTP REST server protected by Bearer Token Auth.
-* **[crates/example-plugin](file:///crates/example-plugin)**: Sample validation plugin compiling to `wasm32-unknown-unknown` to append volume warnings.
+The project provides compiler-safe data models, automated JSON Schema generation, static geometric and path printability validation for 3D meshes (STL) and pre-sliced machine files (G-code), remote printer protocol adapters, and a dynamic WebAssembly-sandboxed validation plugin system.
 
 ---
 
-## 🚀 Quickstart & Usage
+## Key Features
 
-### 1. Model and G-code Validation via CLI
+* **Type-Safe Domain Profiles**: Define printer hardware boundaries and material chemical properties using structured, validated JSON data models.
+* **Rigorous Geometry Audits**: Check STL meshes for manifold/watertightness issues, build volume limit violations, steep overhang slopes, and low bed-plate contact footprint risks.
+* **Stateful G-Code Validation**: Accumulate toolhead coordinates statefully through motion coordinates (`G0`–`G3`) and homing commands (`G28`) to audit travel bounds and check thermal instructions against physical machine limits.
+* **Sandboxed WASM Plugin Runtime**: Write custom enterprise safety and compliance policies in Rust, compile them to WebAssembly, and execute them in a restricted memory sandbox utilizing `wasmi`.
+* **Standardized Printer Protocol Adapters**: Wrap Moonraker/Klipper, OctoPrint, and Duet/RRF connection controls under an asynchronous `PrinterAdapter` trait.
+* **Developer SDK**: Run mock servers and automated conformance test suites to verify custom adapter compliance.
+* **Axum REST microservice & MCP Server**: Integrate validation hooks into web servers, slicers, asset databases, or AI agentic workflows.
 
-Inspect a raw 3D mesh (STL) or pre-sliced G-code using CLI commands:
+---
 
+## Project Structure & Crate Layout
+
+PrintProof3D is organized as a Cargo workspace with decoupled crates:
+
+* **[`crates/core`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/core)**: Contains domain structures (`PrinterProfile`, `MaterialProfile`, `ValidationReport`) and validation invariants.
+* **[`crates/printability`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/printability)**: Mathematical geometry validation and G-code position/temperature checking.
+* **[`crates/adapters`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/adapters)**: Standardized printer connection protocols and telemetry definitions.
+* **[`crates/sdk`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/sdk)**: Mock connection servers and conformance test harnesses.
+* **[`crates/plugins`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/plugins)**: WebAssembly guest loading and linear memory management stubs.
+* **[`crates/cli`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/cli)**: Command line utility and Model Context Protocol (MCP) server.
+* **[`crates/rest`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/rest)**: Local-loopback Axum HTTP REST server protected by Bearer Token authorization.
+* **[`crates/example-plugin`](file:///C:/Users/scott/Documents/antigravity/eager-archimedes/PrintProof3D/crates/example-plugin)**: Sample validation plugin compiling to `wasm32-unknown-unknown` to append volume warnings.
+
+---
+
+## Quickstart & Commands
+
+### 1. Compile the Workspace
+Build all native crates, unit tests, and compile the example WebAssembly validation plugin:
 ```bash
-# Validate STL mesh geometry compatibility
+# Build the native project crates
+cargo build --release
+
+# Compile the sample WASM rules plugin
+cargo build --package example-plugin --target wasm32-unknown-unknown --release
+```
+
+### 2. Execute Geometry Validation
+Audit raw 3D mesh assets against target hardware and material limits:
+```bash
 printproof3d validate-model \
   --model fixtures/tetrahedron.stl \
   --printer profiles/prusa_mk4.json \
   --material profiles/pla.json
+```
 
-# Validate G-code coordinates and thermal safety limits
+### 3. Execute Toolpath Validation
+Audit sliced G-code instructions for safety bounds:
+```bash
 printproof3d validate-gcode \
   --gcode fixtures/safe_print.gcode \
   --printer profiles/prusa_mk4.json \
   --material profiles/pla.json
 ```
 
-### 2. Loading Dynamic WASM Validation Plugins
-
-Enrich reports with dynamic custom rules loaded securely at runtime:
-
+### 4. Run Validation with Custom WASM Plugins
+Inject custom compliance policies at runtime using the compiled WASM binary:
 ```bash
 printproof3d validate-model \
   --model fixtures/tetrahedron.stl \
   --printer profiles/prusa_mk4.json \
   --material profiles/pla.json \
-  --plugin target/wasm32-unknown-unknown/debug/example_plugin.wasm
+  --plugin target/wasm32-unknown-unknown/release/example_plugin.wasm
 ```
 
-### 3. Running the REST API Server
-
-Launch the Axum REST API server bound to local port `3000`:
-
+### 5. Spin up the REST Web Daemon
+Launch the HTTP validation microservice:
 ```bash
 cargo run --package printproof3d-rest
 ```
-Verify endpoints like `/profiles/printers` or perform multipart validation requests `/validate/model` using a Bearer token.
+*Secure routes enforce Bearer authentication. By default, the API key defaults to `secret_print_token`.*
 
-### 4. Running the MCP JSON-RPC Server
-
-Integrate PrintProof3D validation tools into AI agentic workflows (e.g. Cursor, MCP Clients):
-
+### 6. Interface with AI Agents (MCP Server)
+Integrate validation rules into agentic software assistants (like Cursor or Claude Desktop):
 ```bash
 printproof3d mcp
 ```
 
 ---
 
-## 🧪 Developer SDK & Compliance Harness
+## Running Workspace Tests
 
-Developer integrations can import print adapters and verify compliance using the conformance suite:
-
-```rust
-use printproof3d_adapters::PrinterAdapter;
-use printproof3d_sdk::run_conformance_tests;
-
-#[tokio::test]
-async fn verify_custom_adapter() {
-    let mut my_adapter = MyPrinterClient::new();
-    let result = run_conformance_tests(&mut my_adapter).await;
-    assert!(result.is_ok(), "Adapter failed compliance tests: {:?}", result);
-}
-```
-
----
-
-## 🔒 Security & Sandbox Guarantees
-
-* **Zero System Access**: WASM Plugins run inside a hermetic `wasmi` environment with no raw access to sockets, filesystem, or operating system calls.
-* **Type-Safe Serializations**: Data exchange occurs strictly via JSON strings copied over shared WASM memory buffers (`alloc`/`dealloc`/`validate`).
-* **Auth Middleware**: REST endpoints enforce Bearer Token verification on every route.
-
----
-
-## 🔨 Building & Testing
-
-To build the workspace and run all tests (pre-push hooks automatically verify this):
-
+Run all unit, integration, and conformance tests across the workspace crates:
 ```bash
-# Run all workspace unit, integration, and WASM tests
 cargo test --workspace
-
-# Compile the example validation plugin to WebAssembly
-cargo build --package example-plugin --target wasm32-unknown-unknown
 ```
+
+---
+
+## Documentation Links
+
+For details on integration, mechanics, and APIs, see the dedicated documentation files:
+* **[PrintProof3D User Manual](USER_MANUAL.md)**: Deep dive on profile schemas, mathematical formulas, integration hooks, and the custom plugin tutorial.
+* **[System Architecture Spec](ARCHITECTURE.md)**: Details system boundaries, WASM memory mapping sequence diagrams, and adapter state-machine flowcharts.
+* **[Core API Reference Manual](API_REFERENCE.md)**: Complete guide on structures, trait functions, error enums, and exports macros.
