@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MaterialProfile",
+  "description": "Core material printing window, ventilation, and adhesion configurations.",
   "type": "object",
   "required": [
     "abbreviations",
@@ -19,67 +20,94 @@
   ],
   "properties": {
     "abbreviations": {
+      "description": "Known abbreviations (e.g. [\"PLA\", \"PLA+\"]).",
       "type": "array",
       "items": {
         "type": "string"
       }
     },
     "bed_adhesion_notes": {
+      "description": "Help descriptions for bed preparation.",
       "type": [
         "string",
         "null"
       ]
     },
     "bridge_difficulty": {
-      "$ref": "#/definitions/Difficulty"
+      "description": "Bridge print extrusion difficulty.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/RiskLevel"
+        }
+      ]
     },
     "cooling_fan_speed_pct": {
+      "description": "Extruder cooling fan speed percentage (0.0 to 100.0).",
       "type": "number",
       "format": "float"
     },
     "dryness_sensitive": {
+      "description": "True if the raw material absorbs ambient moisture easily (hygroscopic).",
       "type": "boolean"
     },
     "enclosure_recommended": {
+      "description": "True if an enclosure is required for print success.",
       "type": "boolean"
     },
     "max_bed_temp": {
+      "description": "Maximum recommended bed temperature in Celsius.",
       "type": "number",
       "format": "float"
     },
     "max_nozzle_temp": {
+      "description": "Maximum recommended nozzle temperature in Celsius.",
       "type": "number",
       "format": "float"
     },
     "min_bed_temp": {
+      "description": "Minimum recommended bed temperature in Celsius.",
       "type": "number",
       "format": "float"
     },
     "min_feature_size_mm": {
+      "description": "Smallest resolvable detailed dimension in mm.",
       "type": "number",
       "format": "float"
     },
     "min_nozzle_temp": {
+      "description": "Minimum recommended nozzle temperature in Celsius.",
       "type": "number",
       "format": "float"
     },
     "name": {
+      "description": "Readable name of the material (e.g. \"Polylactic Acid\").",
       "type": "string"
     },
     "overhang_difficulty": {
-      "$ref": "#/definitions/Difficulty"
+      "description": "Overhang print angle cooling difficulty.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/RiskLevel"
+        }
+      ]
     },
     "warp_risk": {
-      "$ref": "#/definitions/Difficulty"
+      "description": "Relative warp risk under standard airflow conditions.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/RiskLevel"
+        }
+      ]
     }
   },
   "definitions": {
-    "Difficulty": {
+    "RiskLevel": {
+      "description": "Severity risk scales.",
       "type": "string",
       "enum": [
-        "easy",
+        "low",
         "medium",
-        "hard"
+        "high"
       ]
     }
   }

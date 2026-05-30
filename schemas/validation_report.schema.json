@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ValidationReport",
+  "description": "Consolidated printability report.",
   "type": "object",
   "required": [
     "confidence_level",
@@ -12,84 +13,134 @@
   ],
   "properties": {
     "confidence_level": {
+      "description": "Validation confidence level.",
       "type": "string"
     },
     "issues": {
+      "description": "List of validation failures/warnings.",
       "type": "array",
       "items": {
         "$ref": "#/definitions/ValidationIssue"
       }
     },
     "model": {
-      "$ref": "#/definitions/ModelMetadata"
+      "description": "Imported model metadata.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ModelMetadata"
+        }
+      ]
     },
-    "sliced_settings_assumed": true,
+    "sliced_settings_assumed": {
+      "description": "Associated slicer assumptions used."
+    },
     "status": {
-      "$ref": "#/definitions/ValidationStatus"
+      "description": "General status of validation.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ValidationStatus"
+        }
+      ]
     },
     "target_material_profile": {
+      "description": "Associated material profile.",
       "type": "string"
     },
     "target_printer_profile": {
+      "description": "Associated printer profile.",
       "type": "string"
     }
   },
   "definitions": {
     "BuildVolume": {
-      "type": "object",
-      "required": [
-        "x",
-        "y",
-        "z"
-      ],
-      "properties": {
-        "x": {
-          "type": "number",
-          "format": "float"
+      "description": "3D dimensional bounds representation.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "x",
+            "y",
+            "z"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "rectangular"
+              ]
+            },
+            "x": {
+              "description": "Bounding box X-axis dimension (width) in millimeters.",
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "description": "Bounding box Y-axis dimension (depth) in millimeters.",
+              "type": "number",
+              "format": "float"
+            },
+            "z": {
+              "description": "Bounding box Z-axis dimension (height) in millimeters.",
+              "type": "number",
+              "format": "float"
+            }
+          }
         },
-        "y": {
-          "type": "number",
-          "format": "float"
-        },
-        "z": {
-          "type": "number",
-          "format": "float"
+        {
+          "type": "object",
+          "required": [
+            "diameter",
+            "type",
+            "z"
+          ],
+          "properties": {
+            "diameter": {
+              "description": "Diameter of the build volume in millimeters.",
+              "type": "number",
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "cylindrical"
+              ]
+            },
+            "z": {
+              "description": "Height of the build volume in millimeters.",
+              "type": "number",
+              "format": "float"
+            }
+          }
         }
-      }
+      ]
     },
     "IssueLocation": {
+      "description": "Spatial location coordinates or geometric boundaries of a printability alert.",
       "type": "object",
       "required": [
         "region"
       ],
       "properties": {
+        "geometry": {
+          "description": "Detailed geometric shape representing the issue.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LocationGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "region": {
+          "description": "Geometry region descriptor (e.g. \"base\", \"overhang\").",
           "type": "string"
-        },
-        "x": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "float"
-        },
-        "y": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "float"
-        },
-        "z": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "float"
         }
       }
     },
     "IssueSeverity": {
+      "description": "Classification of issue urgency.",
       "type": "string",
       "enum": [
         "blocker",
@@ -99,7 +150,107 @@
         "nit"
       ]
     },
+    "LocationGeometry": {
+      "description": "The geometric shape/details of the issue location.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "x",
+            "y",
+            "z"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "point"
+              ]
+            },
+            "x": {
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "type": "number",
+              "format": "float"
+            },
+            "z": {
+              "type": "number",
+              "format": "float"
+            }
+          }
+        },
+        {
+          "description": "A 3D bounding box region representation.",
+          "type": "object",
+          "required": [
+            "max_x",
+            "max_y",
+            "max_z",
+            "min_x",
+            "min_y",
+            "min_z",
+            "type"
+          ],
+          "properties": {
+            "max_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "max_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "max_z": {
+              "type": "number",
+              "format": "float"
+            },
+            "min_x": {
+              "type": "number",
+              "format": "float"
+            },
+            "min_y": {
+              "type": "number",
+              "format": "float"
+            },
+            "min_z": {
+              "type": "number",
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "bounding_box"
+              ]
+            }
+          }
+        },
+        {
+          "type": [
+            "object",
+            "array"
+          ],
+          "items": {
+            "$ref": "#/definitions/Triangle"
+          },
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "triangles"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "ModelMetadata": {
+      "description": "Verified file metadata.",
       "type": "object",
       "required": [
         "bounding_box",
@@ -108,17 +259,63 @@
       ],
       "properties": {
         "bounding_box": {
-          "$ref": "#/definitions/BuildVolume"
+          "description": "Bounding box layout bounds.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/BuildVolume"
+            }
+          ]
         },
         "file_name": {
+          "description": "Filename of the imported part.",
           "type": "string"
         },
         "units": {
+          "description": "Length units used (typically \"mm\").",
           "type": "string"
         }
       }
     },
+    "Triangle": {
+      "description": "A 3D triangle representation.",
+      "type": "object",
+      "required": [
+        "v0",
+        "v1",
+        "v2"
+      ],
+      "properties": {
+        "v0": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "v1": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "v2": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      }
+    },
     "ValidationIssue": {
+      "description": "Single compatibility issue item.",
       "type": "object",
       "required": [
         "id",
@@ -128,9 +325,11 @@
       ],
       "properties": {
         "id": {
+          "description": "System ID identifying the error class (e.g. \"OVERHANG_UNSUPPORTED\").",
           "type": "string"
         },
         "location": {
+          "description": "Millimeter coordinates of the issue.",
           "anyOf": [
             {
               "$ref": "#/definitions/IssueLocation"
@@ -141,12 +340,19 @@
           ]
         },
         "message": {
+          "description": "Human readable issue explanation.",
           "type": "string"
         },
         "severity": {
-          "$ref": "#/definitions/IssueSeverity"
+          "description": "Issue severity layer.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/IssueSeverity"
+            }
+          ]
         },
         "suggested_fixes": {
+          "description": "Suggestion fixes.",
           "type": "array",
           "items": {
             "type": "string"
@@ -155,6 +361,7 @@
       }
     },
     "ValidationStatus": {
+      "description": "Overall print verification result states.",
       "type": "string",
       "enum": [
         "pass",

@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  virtual-printer:
+    image: mainsailcrew/virtual-klipper-printer:latest
+    container_name: virtual-klipper-printer
+    ports:
+      - "80:80"        # Mainsail Web Interface
+      - "7125:7125"    # Moonraker API
+    environment:
+      - TZ=UTC
+    volumes:
+      - klipper_config:/opt/printer_data/config
+      - klipper_gcodes:/opt/printer_data/gcodes
+    restart: unless-stopped
+
+volumes:
+  klipper_config:
+  klipper_gcodes:

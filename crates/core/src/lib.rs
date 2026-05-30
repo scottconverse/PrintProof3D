@@ -6,6 +6,7 @@ pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// The visual geometric shape of the printer bed.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BedShape {
@@ -14,6 +15,7 @@ pub enum BedShape {
     Custom(String),
 }
 
+/// The connection protocol family used to communicate with the printer or print host.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ProtocolFamily {
@@ -30,6 +32,7 @@ pub enum ProtocolFamily {
     Unknown,
 }
 
+/// The firmware flavor running on the machine control board.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum FirmwareFlavor {
@@ -45,71 +48,200 @@ pub enum FirmwareFlavor {
     Unknown,
 }
 
+/// 3D dimensional bounds representation.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct BuildVolume {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BuildVolume {
+    Rectangular {
+        /// Bounding box X-axis dimension (width) in millimeters.
+        x: f32,
+        /// Bounding box Y-axis dimension (depth) in millimeters.
+        y: f32,
+        /// Bounding box Z-axis dimension (height) in millimeters.
+        z: f32,
+    },
+    Cylindrical {
+        /// Diameter of the build volume in millimeters.
+        diameter: f32,
+        /// Height of the build volume in millimeters.
+        z: f32,
+    },
 }
 
+/// Defines printer properties, capability bounds, and communication protocols.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct PrinterProfile {
+    /// The manufacturer name of the 3D printer (e.g. "Prusa").
     pub manufacturer: String,
+    /// The specific model name of the 3D printer (e.g. "MK4").
     pub model: String,
+    /// The network/serial communication protocol standard.
     pub protocol_family: ProtocolFamily,
+    /// The printable bounding box volume dimensions in mm.
     pub build_volume: BuildVolume,
+    /// The physical shape layout of the build plate.
     pub bed_shape: BedShape,
+    /// List of supported nozzle diameter configurations (e.g. [0.4, 0.6]).
     pub nozzle_diameters: Vec<f32>,
+    /// Default installed nozzle diameter on the toolhead in mm.
     pub default_nozzle_diameter: f32,
+    /// Minimum practical layer height support in mm.
     pub min_layer_height: f32,
+    /// Maximum practical layer height support in mm.
     pub max_layer_height: f32,
+    /// Maximum safe hotend temperature limit in Celsius.
     pub max_hotend_temp: f32,
+    /// Maximum safe heated bed temperature limit in Celsius.
     pub max_bed_temp: f32,
+    /// True if the print chamber is fully enclosed.
     pub has_enclosure: bool,
+    /// True if an automatic material system or multi-material unit is connected.
     pub supports_mmu: bool,
+    /// The internal firmware parser flavor.
     pub firmware_flavor: FirmwareFlavor,
+    /// List of file extensions supported for direct execution (e.g. ["gcode"]).
     pub supported_file_types: Vec<String>,
     
     // Connectivity capabilities
+    /// Direct remote print upload connectivity.
     pub supports_direct_upload: bool,
+    /// Job pause and resume state control support.
     pub supports_pause_resume: bool,
+    /// Active job cancellation support.
     pub supports_cancel: bool,
+    /// Live print percentage and telemetry reporting support.
     pub supports_job_progress: bool,
+    /// Webcam remote monitoring streaming availability.
     pub supports_webcam: bool,
+    /// Active chamber temperature monitoring availability.
     pub supports_chamber_temp: bool,
     
     // Quirks and constraints
+    /// Known configuration or driver bugs to bypass.
     pub known_quirks: Vec<String>,
+    /// Slicer blacklisted G-code instructions.
     pub unsafe_commands: Vec<String>,
+    /// Target file name constraints regular expression pattern.
     pub filename_restrictions: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum Difficulty {
-    Easy,
-    Medium,
-    Hard,
+impl PrinterProfile {
+    /// Validates field ranges and constraints for logical correctness.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.manufacturer.is_empty() {
+            return Err("Manufacturer name cannot be empty".to_string());
+        }
+        if self.model.is_empty() {
+            return Err("Model name cannot be empty".to_string());
+        }
+        match &self.build_volume {
+            BuildVolume::Rectangular { x, y, z } => {
+                if *x <= 0.0 || *y <= 0.0 || *z <= 0.0 {
+                    return Err("Build volume dimensions must be positive".to_string());
+                }
+            }
+            BuildVolume::Cylindrical { diameter, z } => {
+                if *diameter <= 0.0 || *z <= 0.0 {
+                    return Err("Build volume dimensions must be positive".to_string());
+                }
+            }
+        }
+        if self.default_nozzle_diameter <= 0.0 {
+            return Err("Default nozzle diameter must be positive".to_string());
+        }
+        if !self.nozzle_diameters.contains(&self.default_nozzle_diameter) {
+            return Err("Default nozzle diameter must be present in nozzle_diameters options".to_string());
+        }
+        if self.min_layer_height <= 0.0 || self.max_layer_height <= 0.0 {
+            return Err("Layer heights must be positive".to_string());
+        }
+        if self.min_layer_height > self.max_layer_height {
+            return Err("Minimum layer height cannot be greater than maximum layer height".to_string());
+        }
+        if self.max_hotend_temp <= 0.0 || self.max_bed_temp <= 0.0 {
+            return Err("Maximum temperatures must be positive".to_string());
+        }
+        if self.max_hotend_temp > 500.0 {
+            return Err("Unsafe hotend maximum temperature target (exceeds 500C)".to_string());
+        }
+        if self.max_bed_temp > 200.0 {
+            return Err("Unsafe bed maximum temperature target (exceeds 200C)".to_string());
+        }
+        Ok(())
+    }
 }
 
+/// Severity risk scales.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+}
+
+/// Core material printing window, ventilation, and adhesion configurations.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct MaterialProfile {
+    /// Readable name of the material (e.g. "Polylactic Acid").
     pub name: String,
+    /// Known abbreviations (e.g. ["PLA", "PLA+"]).
     pub abbreviations: Vec<String>,
+    /// Minimum recommended nozzle temperature in Celsius.
     pub min_nozzle_temp: f32,
+    /// Maximum recommended nozzle temperature in Celsius.
     pub max_nozzle_temp: f32,
+    /// Minimum recommended bed temperature in Celsius.
     pub min_bed_temp: f32,
+    /// Maximum recommended bed temperature in Celsius.
     pub max_bed_temp: f32,
+    /// Extruder cooling fan speed percentage (0.0 to 100.0).
     pub cooling_fan_speed_pct: f32,
-    pub warp_risk: Difficulty,
-    pub bridge_difficulty: Difficulty,
-    pub overhang_difficulty: Difficulty,
+    /// Relative warp risk under standard airflow conditions.
+    pub warp_risk: RiskLevel,
+    /// Bridge print extrusion difficulty.
+    pub bridge_difficulty: RiskLevel,
+    /// Overhang print angle cooling difficulty.
+    pub overhang_difficulty: RiskLevel,
+    /// True if an enclosure is required for print success.
     pub enclosure_recommended: bool,
+    /// True if the raw material absorbs ambient moisture easily (hygroscopic).
     pub dryness_sensitive: bool,
+    /// Help descriptions for bed preparation.
     pub bed_adhesion_notes: Option<String>,
+    /// Smallest resolvable detailed dimension in mm.
     pub min_feature_size_mm: f32,
 }
 
+impl MaterialProfile {
+    /// Validates thermal bounds and fan limits.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.is_empty() {
+            return Err("Material name cannot be empty".to_string());
+        }
+        if self.min_nozzle_temp <= 0.0 || self.max_nozzle_temp <= 0.0 {
+            return Err("Nozzle temperatures must be positive".to_string());
+        }
+        if self.min_nozzle_temp > self.max_nozzle_temp {
+            return Err("Minimum nozzle temperature cannot be greater than maximum nozzle temperature".to_string());
+        }
+        if self.min_bed_temp <= 0.0 || self.max_bed_temp <= 0.0 {
+            return Err("Bed temperatures must be positive".to_string());
+        }
+        if self.min_bed_temp > self.max_bed_temp {
+            return Err("Minimum bed temperature cannot be greater than maximum bed temperature".to_string());
+        }
+        if self.cooling_fan_speed_pct < 0.0 || self.cooling_fan_speed_pct > 100.0 {
+            return Err("Cooling fan speed must be between 0 and 100 percent".to_string());
+        }
+        if self.min_feature_size_mm <= 0.0 {
+            return Err("Minimum feature size must be positive".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// Overall print verification result states.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ValidationStatus {
@@ -118,6 +250,7 @@ pub enum ValidationStatus {
     Fail,
 }
 
+/// Classification of issue urgency.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueSeverity {
@@ -128,39 +261,104 @@ pub enum IssueSeverity {
     Nit,
 }
 
+/// Verified file metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ModelMetadata {
+    /// Filename of the imported part.
     pub file_name: String,
+    /// Length units used (typically "mm").
     pub units: String,
+    /// Bounding box layout bounds.
     pub bounding_box: BuildVolume,
 }
 
+/// A 3D bounding box region representation.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct IssueLocation {
-    pub region: String,
-    pub x: Option<f32>,
-    pub y: Option<f32>,
-    pub z: Option<f32>,
+pub struct BoundingBox {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub min_z: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+    pub max_z: f32,
 }
 
+/// A 3D triangle representation.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct Triangle {
+    pub v0: [f32; 3],
+    pub v1: [f32; 3],
+    pub v2: [f32; 3],
+}
+
+/// The geometric shape/details of the issue location.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LocationGeometry {
+    Point {
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    BoundingBox(BoundingBox),
+    Triangles(Vec<Triangle>),
+}
+
+/// Spatial location coordinates or geometric boundaries of a printability alert.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct IssueLocation {
+    /// Geometry region descriptor (e.g. "base", "overhang").
+    pub region: String,
+    /// Detailed geometric shape representing the issue.
+    pub geometry: Option<LocationGeometry>,
+}
+
+/// Single compatibility issue item.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ValidationIssue {
+    /// System ID identifying the error class (e.g. "OVERHANG_UNSUPPORTED").
     pub id: String,
+    /// Issue severity layer.
     pub severity: IssueSeverity,
+    /// Human readable issue explanation.
     pub message: String,
+    /// Millimeter coordinates of the issue.
     pub location: Option<IssueLocation>,
+    /// Suggestion fixes.
     pub suggested_fixes: Vec<String>,
 }
 
+/// Consolidated printability report.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ValidationReport {
+    /// General status of validation.
     pub status: ValidationStatus,
+    /// Associated printer profile.
     pub target_printer_profile: String,
+    /// Associated material profile.
     pub target_material_profile: String,
+    /// Imported model metadata.
     pub model: ModelMetadata,
+    /// List of validation failures/warnings.
     pub issues: Vec<ValidationIssue>,
+    /// Validation confidence level.
     pub confidence_level: String,
+    /// Associated slicer assumptions used.
     pub sliced_settings_assumed: Option<serde_json::Value>,
+}
+
+impl ValidationReport {
+    /// Enforces state invariants (e.g., Blockers/Criticals force Fail status).
+    pub fn validate(&self) -> Result<(), String> {
+        let has_critical_or_blocker = self.issues.iter().any(|issue| {
+            issue.severity == IssueSeverity::Blocker || issue.severity == IssueSeverity::Critical
+        });
+        
+        if has_critical_or_blocker && self.status != ValidationStatus::Fail {
+            return Err("Report status must be 'fail' if blocker or critical issues exist".to_string());
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -173,12 +371,12 @@ mod tests {
     }
 
     #[test]
-    fn test_printer_profile_serialization() {
+    fn test_printer_profile_validation() {
         let profile = PrinterProfile {
             manufacturer: "Prusa".to_string(),
             model: "MK4".to_string(),
             protocol_family: ProtocolFamily::PrusaLink,
-            build_volume: BuildVolume { x: 250.0, y: 210.0, z: 220.0 },
+            build_volume: BuildVolume::Rectangular { x: 250.0, y: 210.0, z: 220.0 },
             bed_shape: BedShape::Rectangular,
             nozzle_diameters: vec![0.25, 0.4, 0.6, 0.8],
             default_nozzle_diameter: 0.4,
@@ -201,13 +399,19 @@ mod tests {
             filename_restrictions: None,
         };
 
-        let json = serde_json::to_string_pretty(&profile).unwrap();
-        let deserialized: PrinterProfile = serde_json::from_str(&json).unwrap();
-        assert_eq!(profile, deserialized);
+        assert!(profile.validate().is_ok());
+
+        let mut bad_profile = profile.clone();
+        bad_profile.build_volume = BuildVolume::Rectangular { x: -10.0, y: 210.0, z: 220.0 };
+        assert!(bad_profile.validate().is_err());
+
+        let mut bad_temp = profile.clone();
+        bad_temp.max_hotend_temp = 600.0;
+        assert!(bad_temp.validate().is_err());
     }
 
     #[test]
-    fn test_material_profile_serialization() {
+    fn test_material_profile_validation() {
         let material = MaterialProfile {
             name: "Polylactic Acid".to_string(),
             abbreviations: vec!["PLA".to_string()],
@@ -216,53 +420,48 @@ mod tests {
             min_bed_temp: 50.0,
             max_bed_temp: 60.0,
             cooling_fan_speed_pct: 100.0,
-            warp_risk: Difficulty::Easy,
-            bridge_difficulty: Difficulty::Easy,
-            overhang_difficulty: Difficulty::Easy,
+            warp_risk: RiskLevel::Low,
+            bridge_difficulty: RiskLevel::Low,
+            overhang_difficulty: RiskLevel::Low,
             enclosure_recommended: false,
             dryness_sensitive: false,
             bed_adhesion_notes: Some("Requires clean PEI sheet".to_string()),
             min_feature_size_mm: 0.4,
         };
 
-        let json = serde_json::to_string_pretty(&material).unwrap();
-        let deserialized: MaterialProfile = serde_json::from_str(&json).unwrap();
-        assert_eq!(material, deserialized);
+        assert!(material.validate().is_ok());
+
+        let mut bad_fan = material.clone();
+        bad_fan.cooling_fan_speed_pct = 150.0;
+        assert!(bad_fan.validate().is_err());
     }
 
     #[test]
-    fn test_validation_report_serialization() {
+    fn test_validation_report_invariants() {
         let report = ValidationReport {
-            status: ValidationStatus::Warning,
+            status: ValidationStatus::Pass, // INVARIANT INCONSISTENCY
             target_printer_profile: "prusa_mk4_default".to_string(),
             target_material_profile: "generic_pla".to_string(),
             model: ModelMetadata {
                 file_name: "test_bracket.stl".to_string(),
                 units: "mm".to_string(),
-                bounding_box: BuildVolume { x: 50.0, y: 30.0, z: 20.0 },
+                bounding_box: BuildVolume::Rectangular { x: 50.0, y: 30.0, z: 20.0 },
             },
             issues: vec![
                 ValidationIssue {
                     id: "OVERHANG_UNSUPPORTED".to_string(),
-                    severity: IssueSeverity::Major,
-                    message: "Unsupported overhang exceeds 45 degrees.".to_string(),
-
-                    location: Some(IssueLocation {
-                        region: "underside_flange".to_string(),
-                        x: Some(12.5),
-                        y: Some(5.0),
-                        z: Some(0.0),
-                    }),
-                    suggested_fixes: vec!["enable_supports".to_string(), "rotate_model_90_y".to_string()],
+                    severity: IssueSeverity::Critical,
+                    message: "Critical unsupported overhang.".to_string(),
+                    location: None,
+                    suggested_fixes: vec![],
                 }
             ],
             confidence_level: "high".to_string(),
             sliced_settings_assumed: None,
         };
 
-        let json = serde_json::to_string_pretty(&report).unwrap();
-        let deserialized: ValidationReport = serde_json::from_str(&json).unwrap();
-        assert_eq!(report, deserialized);
+        // Report should fail invariant checks due to critical issue on passing status
+        assert!(report.validate().is_err());
     }
 
     #[test]

@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "PrinterProfile",
+  "description": "Defines printer properties, capability bounds, and communication protocols.",
   "type": "object",
   "required": [
     "bed_shape",
@@ -29,56 +30,82 @@
   ],
   "properties": {
     "bed_shape": {
-      "$ref": "#/definitions/BedShape"
+      "description": "The physical shape layout of the build plate.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/BedShape"
+        }
+      ]
     },
     "build_volume": {
-      "$ref": "#/definitions/BuildVolume"
+      "description": "The printable bounding box volume dimensions in mm.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/BuildVolume"
+        }
+      ]
     },
     "default_nozzle_diameter": {
+      "description": "Default installed nozzle diameter on the toolhead in mm.",
       "type": "number",
       "format": "float"
     },
     "filename_restrictions": {
+      "description": "Target file name constraints regular expression pattern.",
       "type": [
         "string",
         "null"
       ]
     },
     "firmware_flavor": {
-      "$ref": "#/definitions/FirmwareFlavor"
+      "description": "The internal firmware parser flavor.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/FirmwareFlavor"
+        }
+      ]
     },
     "has_enclosure": {
+      "description": "True if the print chamber is fully enclosed.",
       "type": "boolean"
     },
     "known_quirks": {
+      "description": "Known configuration or driver bugs to bypass.",
       "type": "array",
       "items": {
         "type": "string"
       }
     },
     "manufacturer": {
+      "description": "The manufacturer name of the 3D printer (e.g. \"Prusa\").",
       "type": "string"
     },
     "max_bed_temp": {
+      "description": "Maximum safe heated bed temperature limit in Celsius.",
       "type": "number",
       "format": "float"
     },
     "max_hotend_temp": {
+      "description": "Maximum safe hotend temperature limit in Celsius.",
       "type": "number",
       "format": "float"
     },
     "max_layer_height": {
+      "description": "Maximum practical layer height support in mm.",
       "type": "number",
       "format": "float"
     },
     "min_layer_height": {
+      "description": "Minimum practical layer height support in mm.",
       "type": "number",
       "format": "float"
     },
     "model": {
+      "description": "The specific model name of the 3D printer (e.g. \"MK4\").",
       "type": "string"
     },
     "nozzle_diameters": {
+      "description": "List of supported nozzle diameter configurations (e.g. [0.4, 0.6]).",
       "type": "array",
       "items": {
         "type": "number",
@@ -86,36 +113,50 @@
       }
     },
     "protocol_family": {
-      "$ref": "#/definitions/ProtocolFamily"
+      "description": "The network/serial communication protocol standard.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ProtocolFamily"
+        }
+      ]
     },
     "supported_file_types": {
+      "description": "List of file extensions supported for direct execution (e.g. [\"gcode\"]).",
       "type": "array",
       "items": {
         "type": "string"
       }
     },
     "supports_cancel": {
+      "description": "Active job cancellation support.",
       "type": "boolean"
     },
     "supports_chamber_temp": {
+      "description": "Active chamber temperature monitoring availability.",
       "type": "boolean"
     },
     "supports_direct_upload": {
+      "description": "Direct remote print upload connectivity.",
       "type": "boolean"
     },
     "supports_job_progress": {
+      "description": "Live print percentage and telemetry reporting support.",
       "type": "boolean"
     },
     "supports_mmu": {
+      "description": "True if an automatic material system or multi-material unit is connected.",
       "type": "boolean"
     },
     "supports_pause_resume": {
+      "description": "Job pause and resume state control support.",
       "type": "boolean"
     },
     "supports_webcam": {
+      "description": "Webcam remote monitoring streaming availability.",
       "type": "boolean"
     },
     "unsafe_commands": {
+      "description": "Slicer blacklisted G-code instructions.",
       "type": "array",
       "items": {
         "type": "string"
@@ -124,6 +165,7 @@
   },
   "definitions": {
     "BedShape": {
+      "description": "The visual geometric shape of the printer bed.",
       "oneOf": [
         {
           "type": "string",
@@ -147,28 +189,70 @@
       ]
     },
     "BuildVolume": {
-      "type": "object",
-      "required": [
-        "x",
-        "y",
-        "z"
-      ],
-      "properties": {
-        "x": {
-          "type": "number",
-          "format": "float"
+      "description": "3D dimensional bounds representation.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "x",
+            "y",
+            "z"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "rectangular"
+              ]
+            },
+            "x": {
+              "description": "Bounding box X-axis dimension (width) in millimeters.",
+              "type": "number",
+              "format": "float"
+            },
+            "y": {
+              "description": "Bounding box Y-axis dimension (depth) in millimeters.",
+              "type": "number",
+              "format": "float"
+            },
+            "z": {
+              "description": "Bounding box Z-axis dimension (height) in millimeters.",
+              "type": "number",
+              "format": "float"
+            }
+          }
         },
-        "y": {
-          "type": "number",
-          "format": "float"
-        },
-        "z": {
-          "type": "number",
-          "format": "float"
+        {
+          "type": "object",
+          "required": [
+            "diameter",
+            "type",
+            "z"
+          ],
+          "properties": {
+            "diameter": {
+              "description": "Diameter of the build volume in millimeters.",
+              "type": "number",
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "cylindrical"
+              ]
+            },
+            "z": {
+              "description": "Height of the build volume in millimeters.",
+              "type": "number",
+              "format": "float"
+            }
+          }
         }
-      }
+      ]
     },
     "FirmwareFlavor": {
+      "description": "The firmware flavor running on the machine control board.",
       "type": "string",
       "enum": [
         "klipper",
@@ -184,6 +268,7 @@
       ]
     },
     "ProtocolFamily": {
+      "description": "The connection protocol family used to communicate with the printer or print host.",
       "type": "string",
       "enum": [
         "klipper",
