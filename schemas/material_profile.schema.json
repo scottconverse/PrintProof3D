@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MaterialProfile",
+  "type": "object",
+  "required": [
+    "abbreviations",
+    "bridge_difficulty",
+    "cooling_fan_speed_pct",
+    "dryness_sensitive",
+    "enclosure_recommended",
+    "max_bed_temp",
+    "max_nozzle_temp",
+    "min_bed_temp",
+    "min_feature_size_mm",
+    "min_nozzle_temp",
+    "name",
+    "overhang_difficulty",
+    "warp_risk"
+  ],
+  "properties": {
+    "abbreviations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "bed_adhesion_notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bridge_difficulty": {
+      "$ref": "#/definitions/Difficulty"
+    },
+    "cooling_fan_speed_pct": {
+      "type": "number",
+      "format": "float"
+    },
+    "dryness_sensitive": {
+      "type": "boolean"
+    },
+    "enclosure_recommended": {
+      "type": "boolean"
+    },
+    "max_bed_temp": {
+      "type": "number",
+      "format": "float"
+    },
+    "max_nozzle_temp": {
+      "type": "number",
+      "format": "float"
+    },
+    "min_bed_temp": {
+      "type": "number",
+      "format": "float"
+    },
+    "min_feature_size_mm": {
+      "type": "number",
+      "format": "float"
+    },
+    "min_nozzle_temp": {
+      "type": "number",
+      "format": "float"
+    },
+    "name": {
+      "type": "string"
+    },
+    "overhang_difficulty": {
+      "$ref": "#/definitions/Difficulty"
+    },
+    "warp_risk": {
+      "$ref": "#/definitions/Difficulty"
+    }
+  },
+  "definitions": {
+    "Difficulty": {
+      "type": "string",
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ]
+    }
+  }
+}

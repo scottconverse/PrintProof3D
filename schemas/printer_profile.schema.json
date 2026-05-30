@@ -1,0 +1,203 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PrinterProfile",
+  "type": "object",
+  "required": [
+    "bed_shape",
+    "build_volume",
+    "default_nozzle_diameter",
+    "firmware_flavor",
+    "has_enclosure",
+    "known_quirks",
+    "manufacturer",
+    "max_bed_temp",
+    "max_hotend_temp",
+    "max_layer_height",
+    "min_layer_height",
+    "model",
+    "nozzle_diameters",
+    "protocol_family",
+    "supported_file_types",
+    "supports_cancel",
+    "supports_chamber_temp",
+    "supports_direct_upload",
+    "supports_job_progress",
+    "supports_mmu",
+    "supports_pause_resume",
+    "supports_webcam",
+    "unsafe_commands"
+  ],
+  "properties": {
+    "bed_shape": {
+      "$ref": "#/definitions/BedShape"
+    },
+    "build_volume": {
+      "$ref": "#/definitions/BuildVolume"
+    },
+    "default_nozzle_diameter": {
+      "type": "number",
+      "format": "float"
+    },
+    "filename_restrictions": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "firmware_flavor": {
+      "$ref": "#/definitions/FirmwareFlavor"
+    },
+    "has_enclosure": {
+      "type": "boolean"
+    },
+    "known_quirks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "manufacturer": {
+      "type": "string"
+    },
+    "max_bed_temp": {
+      "type": "number",
+      "format": "float"
+    },
+    "max_hotend_temp": {
+      "type": "number",
+      "format": "float"
+    },
+    "max_layer_height": {
+      "type": "number",
+      "format": "float"
+    },
+    "min_layer_height": {
+      "type": "number",
+      "format": "float"
+    },
+    "model": {
+      "type": "string"
+    },
+    "nozzle_diameters": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "format": "float"
+      }
+    },
+    "protocol_family": {
+      "$ref": "#/definitions/ProtocolFamily"
+    },
+    "supported_file_types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "supports_cancel": {
+      "type": "boolean"
+    },
+    "supports_chamber_temp": {
+      "type": "boolean"
+    },
+    "supports_direct_upload": {
+      "type": "boolean"
+    },
+    "supports_job_progress": {
+      "type": "boolean"
+    },
+    "supports_mmu": {
+      "type": "boolean"
+    },
+    "supports_pause_resume": {
+      "type": "boolean"
+    },
+    "supports_webcam": {
+      "type": "boolean"
+    },
+    "unsafe_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "BedShape": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "rectangular",
+            "circular"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "BuildVolume": {
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "type": "number",
+          "format": "float"
+        }
+      }
+    },
+    "FirmwareFlavor": {
+      "type": "string",
+      "enum": [
+        "klipper",
+        "marlin",
+        "rep_rap_firmware",
+        "prusa",
+        "bambu",
+        "elegoo",
+        "creality",
+        "anycubic",
+        "flash_forge",
+        "unknown"
+      ]
+    },
+    "ProtocolFamily": {
+      "type": "string",
+      "enum": [
+        "klipper",
+        "octo_print",
+        "marlin_serial",
+        "prusa_link",
+        "rep_rap_firmware",
+        "bambu_mqtt",
+        "elegoo_sdcp",
+        "creality_os",
+        "anycubic_lan",
+        "flash_forge_tcp",
+        "unknown"
+      ]
+    }
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ValidationReport",
+  "type": "object",
+  "required": [
+    "confidence_level",
+    "issues",
+    "model",
+    "status",
+    "target_material_profile",
+    "target_printer_profile"
+  ],
+  "properties": {
+    "confidence_level": {
+      "type": "string"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ValidationIssue"
+      }
+    },
+    "model": {
+      "$ref": "#/definitions/ModelMetadata"
+    },
+    "sliced_settings_assumed": true,
+    "status": {
+      "$ref": "#/definitions/ValidationStatus"
+    },
+    "target_material_profile": {
+      "type": "string"
+    },
+    "target_printer_profile": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "BuildVolume": {
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "type": "number",
+          "format": "float"
+        }
+      }
+    },
+    "IssueLocation": {
+      "type": "object",
+      "required": [
+        "region"
+      ],
+      "properties": {
+        "region": {
+          "type": "string"
+        },
+        "x": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "y": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "z": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      }
+    },
+    "IssueSeverity": {
+      "type": "string",
+      "enum": [
+        "blocker",
+        "critical",
+        "major",
+        "minor",
+        "nit"
+      ]
+    },
+    "ModelMetadata": {
+      "type": "object",
+      "required": [
+        "bounding_box",
+        "file_name",
+        "units"
+      ],
+      "properties": {
+        "bounding_box": {
+          "$ref": "#/definitions/BuildVolume"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "units": {
+          "type": "string"
+        }
+      }
+    },
+    "ValidationIssue": {
+      "type": "object",
+      "required": [
+        "id",
+        "message",
+        "severity",
+        "suggested_fixes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/IssueLocation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/definitions/IssueSeverity"
+        },
+        "suggested_fixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ValidationStatus": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "warning",
+        "fail"
+      ]
+    }
+  }
+}
