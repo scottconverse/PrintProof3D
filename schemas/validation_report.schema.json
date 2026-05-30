@@ -52,68 +52,43 @@
     }
   },
   "definitions": {
-    "BuildVolume": {
-      "description": "3D dimensional bounds representation.",
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "type",
-            "x",
-            "y",
-            "z"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": [
-                "rectangular"
-              ]
-            },
-            "x": {
-              "description": "Bounding box X-axis dimension (width) in millimeters.",
-              "type": "number",
-              "format": "float"
-            },
-            "y": {
-              "description": "Bounding box Y-axis dimension (depth) in millimeters.",
-              "type": "number",
-              "format": "float"
-            },
-            "z": {
-              "description": "Bounding box Z-axis dimension (height) in millimeters.",
-              "type": "number",
-              "format": "float"
-            }
-          }
+    "BoundingBox": {
+      "description": "A 3D bounding box region representation.",
+      "type": "object",
+      "required": [
+        "max_x",
+        "max_y",
+        "max_z",
+        "min_x",
+        "min_y",
+        "min_z"
+      ],
+      "properties": {
+        "max_x": {
+          "type": "number",
+          "format": "float"
         },
-        {
-          "type": "object",
-          "required": [
-            "diameter",
-            "type",
-            "z"
-          ],
-          "properties": {
-            "diameter": {
-              "description": "Diameter of the build volume in millimeters.",
-              "type": "number",
-              "format": "float"
-            },
-            "type": {
-              "type": "string",
-              "enum": [
-                "cylindrical"
-              ]
-            },
-            "z": {
-              "description": "Height of the build volume in millimeters.",
-              "type": "number",
-              "format": "float"
-            }
-          }
+        "max_y": {
+          "type": "number",
+          "format": "float"
+        },
+        "max_z": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_y": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_z": {
+          "type": "number",
+          "format": "float"
         }
-      ]
+      }
     },
     "IssueLocation": {
       "description": "Spatial location coordinates or geometric boundaries of a printability alert.",
@@ -262,7 +237,7 @@
           "description": "Bounding box layout bounds.",
           "allOf": [
             {
-              "$ref": "#/definitions/BuildVolume"
+              "$ref": "#/definitions/BoundingBox"
             }
           ]
         },

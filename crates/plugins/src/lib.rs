@@ -1,7 +1,7 @@
-use wasmi::{Engine, Store, Module, TypedFunc, Memory, Linker};
+use wasmi::{Engine, Linker, Memory, Module, Store, TypedFunc};
 
 // Re-export core types and serde_json so the macro has reliable references
-pub use printproof3d_core::{ValidationReport, ValidationIssue, IssueSeverity, ValidationStatus};
+pub use printproof3d_core::{IssueSeverity, ValidationIssue, ValidationReport, ValidationStatus};
 pub use serde_json;
 
 /// Runtime loader and executor for WASM validation plugins.
@@ -27,37 +27,50 @@ impl PluginEngine {
         let mut store = Store::new(&self.engine, ());
         let module = Module::new(&self.engine, wasm_bytes)
             .map_err(|e| format!("Failed to compile WASM module: {:?}", e))?;
-        
+
         let mut linker = <Linker<()>>::new(&self.engine);
         let stub_describe = wasmi::Func::wrap(&mut store, |_: i32| {});
         let stub_throw = wasmi::Func::wrap(&mut store, |_: i32, _: i32| {});
-        let _ = linker.define("__wbindgen_placeholder__", "__wbindgen_describe", stub_describe);
+        let _ = linker.define(
+            "__wbindgen_placeholder__",
+            "__wbindgen_describe",
+            stub_describe,
+        );
         let _ = linker.define("__wbindgen_placeholder__", "__wbindgen_throw", stub_throw);
 
         let stub_grow = wasmi::Func::wrap(&mut store, |x: i32| x);
         let stub_set_null = wasmi::Func::wrap(&mut store, |_: i32| {});
-        let _ = linker.define("__wbindgen_externref_xform__", "__wbindgen_externref_table_grow", stub_grow);
-        let _ = linker.define("__wbindgen_externref_xform__", "__wbindgen_externref_table_set_null", stub_set_null);
+        let _ = linker.define(
+            "__wbindgen_externref_xform__",
+            "__wbindgen_externref_table_grow",
+            stub_grow,
+        );
+        let _ = linker.define(
+            "__wbindgen_externref_xform__",
+            "__wbindgen_externref_table_set_null",
+            stub_set_null,
+        );
 
-
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .map_err(|e| format!("Failed to instantiate module: {:?}", e))?
             .start(&mut store)
             .map_err(|e| format!("Failed to start module: {:?}", e))?;
 
-
-
-
-        let memory = instance.get_memory(&store, "memory")
+        let memory = instance
+            .get_memory(&store, "memory")
             .ok_or_else(|| "Module does not export 'memory'".to_string())?;
 
-        let alloc_fn = instance.get_typed_func::<u32, u32>(&store, "alloc")
+        let alloc_fn = instance
+            .get_typed_func::<u32, u32>(&store, "alloc")
             .map_err(|e| format!("Module does not export 'alloc' function: {:?}", e))?;
 
-        let dealloc_fn = instance.get_typed_func::<(u32, u32), ()>(&store, "dealloc")
+        let dealloc_fn = instance
+            .get_typed_func::<(u32, u32), ()>(&store, "dealloc")
             .map_err(|e| format!("Module does not export 'dealloc' function: {:?}", e))?;
 
-        let validate_fn = instance.get_typed_func::<(u32, u32), u64>(&store, "validate")
+        let validate_fn = instance
+            .get_typed_func::<(u32, u32), u64>(&store, "validate")
             .map_err(|e| format!("Module does not export 'validate' function: {:?}", e))?;
 
         Ok(LoadedPlugin {
@@ -87,19 +100,26 @@ impl LoadedPlugin {
         let input_len = input_bytes.len() as u32;
 
         // 1. Allocate input buffer in WASM memory
-        let input_ptr = self.alloc_fn.call(&mut self.store, input_len)
+        let input_ptr = self
+            .alloc_fn
+            .call(&mut self.store, input_len)
             .map_err(|e| format!("WASM alloc failed: {:?}", e))?;
 
         // 2. Write input JSON to WASM memory
-        self.memory.write(&mut self.store, input_ptr as usize, input_bytes)
+        self.memory
+            .write(&mut self.store, input_ptr as usize, input_bytes)
             .map_err(|e| format!("Failed to write to WASM memory: {:?}", e))?;
 
         // 3. Execute validation in the sandbox
-        let result_u64 = self.validate_fn.call(&mut self.store, (input_ptr, input_len))
+        let result_u64 = self
+            .validate_fn
+            .call(&mut self.store, (input_ptr, input_len))
             .map_err(|e| format!("WASM validation failed: {:?}", e))?;
 
         // 4. Clean up input buffer in WASM memory
-        let _ = self.dealloc_fn.call(&mut self.store, (input_ptr, input_len));
+        let _ = self
+            .dealloc_fn
+            .call(&mut self.store, (input_ptr, input_len));
 
         // 5. Decode output pointer and length
         let output_ptr = (result_u64 >> 32) as u32;
@@ -111,11 +131,14 @@ impl LoadedPlugin {
 
         // 6. Read output JSON bytes from WASM memory
         let mut output_bytes = vec![0u8; output_len as usize];
-        self.memory.read(&self.store, output_ptr as usize, &mut output_bytes)
+        self.memory
+            .read(&self.store, output_ptr as usize, &mut output_bytes)
             .map_err(|e| format!("Failed to read output from WASM memory: {:?}", e))?;
 
         // 7. Clean up output buffer in WASM memory
-        let _ = self.dealloc_fn.call(&mut self.store, (output_ptr, output_len));
+        let _ = self
+            .dealloc_fn
+            .call(&mut self.store, (output_ptr, output_len));
 
         // 8. Return deserialized JSON
         String::from_utf8(output_bytes)
@@ -147,7 +170,8 @@ macro_rules! export_validation_plugin {
                 Err(_) => return 0,
             };
 
-            let mut report: $crate::ValidationReport = match $crate::serde_json::from_str(input_str) {
+            let mut report: $crate::ValidationReport = match $crate::serde_json::from_str(input_str)
+            {
                 Ok(r) => r,
                 Err(_) => return 0,
             };
@@ -164,7 +188,11 @@ macro_rules! export_validation_plugin {
             let output_len = output_bytes.len() as u32;
             let output_ptr = alloc(output_len);
             unsafe {
-                std::ptr::copy_nonoverlapping(output_bytes.as_ptr(), output_ptr, output_len as usize);
+                std::ptr::copy_nonoverlapping(
+                    output_bytes.as_ptr(),
+                    output_ptr,
+                    output_len as usize,
+                );
             }
 
             ((output_ptr as u64) << 32) | (output_len as u64)
@@ -209,7 +237,7 @@ mod tests {
         let wasm_bytes = wat::parse_str(wat).unwrap();
         let engine = PluginEngine::new();
         let mut plugin = engine.load_plugin(&wasm_bytes).unwrap();
-        
+
         let test_json = r#"{"test":"hello"}"#;
         let result = plugin.execute_validation(test_json).unwrap();
         assert_eq!(result, test_json);

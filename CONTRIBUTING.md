@@ -72,7 +72,7 @@ STAGED_STLS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(stl|
 
 for stl in $STAGED_STLS; do
   echo "Auditing $stl..."
-  cargo run --package printproof3d-cli -- validate-model \
+  cargo run --package printproof3d -- validate-model \
     --model "$stl" \
     --printer profiles/prusa_mk4.json \
     --material profiles/pla.json

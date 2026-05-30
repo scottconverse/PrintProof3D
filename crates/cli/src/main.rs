@@ -1,11 +1,13 @@
 // PrintProof3D Command Line Interface
 pub mod mcp;
 use clap::{Parser, Subcommand};
+use printproof3d_core::{MaterialProfile, PrinterProfile, ValidationStatus};
+use printproof3d_printability::{
+    GcodeValidator, ModelValidator, StandardGcodeValidator, StlModelValidator,
+};
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use printproof3d_core::{PrinterProfile, MaterialProfile, ValidationStatus};
-use printproof3d_printability::{ModelValidator, GcodeValidator, StlModelValidator, StandardGcodeValidator};
 
 #[derive(Parser)]
 #[command(name = "printproof3d")]
@@ -67,9 +69,11 @@ enum Commands {
 }
 
 fn read_file_to_string(path: &PathBuf) -> Result<String, String> {
-    let mut file = File::open(path).map_err(|e| format!("Failed to open file {:?}: {}", path, e))?;
+    let mut file =
+        File::open(path).map_err(|e| format!("Failed to open file {:?}: {}", path, e))?;
     let mut contents = String::new();
-    file.read_to_string(&mut contents).map_err(|e| format!("Failed to read file {:?}: {}", path, e))?;
+    file.read_to_string(&mut contents)
+        .map_err(|e| format!("Failed to read file {:?}: {}", path, e))?;
     Ok(contents)
 }
 
@@ -79,20 +83,22 @@ fn run_validation_plugin(
 ) -> Result<printproof3d_core::ValidationReport, String> {
     let wasm_bytes = std::fs::read(plugin_path)
         .map_err(|e| format!("Failed to read plugin file {:?}: {}", plugin_path, e))?;
-    
+
     let engine = printproof3d_plugins::PluginEngine::new();
-    let mut loaded = engine.load_plugin(&wasm_bytes)
+    let mut loaded = engine
+        .load_plugin(&wasm_bytes)
         .map_err(|e| format!("Failed to load plugin: {}", e))?;
-        
-    let report_json = serde_json::to_string(report)
-        .map_err(|e| format!("Failed to serialize report: {}", e))?;
-        
-    let modified_json = loaded.execute_validation(&report_json)
+
+    let report_json =
+        serde_json::to_string(report).map_err(|e| format!("Failed to serialize report: {}", e))?;
+
+    let modified_json = loaded
+        .execute_validation(&report_json)
         .map_err(|e| format!("Failed to run plugin validation: {}", e))?;
-        
+
     let modified_report: printproof3d_core::ValidationReport = serde_json::from_str(&modified_json)
         .map_err(|e| format!("Failed to deserialize modified report: {}", e))?;
-        
+
     Ok(modified_report)
 }
 
@@ -103,7 +109,13 @@ fn main() {
         Commands::Mcp => {
             mcp::run_mcp_server();
         }
-        Commands::ValidateModel { model, printer, material, output, plugin } => {
+        Commands::ValidateModel {
+            model,
+            printer,
+            material,
+            output,
+            plugin,
+        } => {
             if !model.exists() {
                 eprintln!("Error: Model file {:?} does not exist", model);
                 std::process::exit(1);
@@ -148,13 +160,14 @@ fn main() {
 
             // Run real StlModelValidator validation engine
             let validator = StlModelValidator;
-            let mut report = match validator.validate_mesh(&model, &printer_profile, &material_profile) {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Error: Model validation failed: {}", e);
-                    std::process::exit(1);
-                }
-            };
+            let mut report =
+                match validator.validate_mesh(&model, &printer_profile, &material_profile) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("Error: Model validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                };
 
             if let Some(plugin_path) = plugin {
                 report = match run_validation_plugin(&plugin_path, &report) {
@@ -166,7 +179,8 @@ fn main() {
                 };
             }
 
-            let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
+            let has_warnings_or_failures = report.status == ValidationStatus::Warning
+                || report.status == ValidationStatus::Fail;
             let report_json = serde_json::to_string_pretty(&report).unwrap();
             if let Some(out_path) = output {
                 if let Err(e) = std::fs::write(&out_path, &report_json) {
@@ -180,7 +194,13 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::ValidateGcode { gcode, printer, material, output, plugin } => {
+        Commands::ValidateGcode {
+            gcode,
+            printer,
+            material,
+            output,
+            plugin,
+        } => {
             if !gcode.exists() {
                 eprintln!("Error: G-code file {:?} does not exist", gcode);
                 std::process::exit(1);
@@ -245,13 +265,14 @@ fn main() {
 
             // Run real StandardGcodeValidator validation engine
             let validator = StandardGcodeValidator;
-            let mut report = match validator.validate_gcode(&gcode, &printer_profile, &material_profile) {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Error: G-code validation failed: {}", e);
-                    std::process::exit(1);
-                }
-            };
+            let mut report =
+                match validator.validate_gcode(&gcode, &printer_profile, &material_profile) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("Error: G-code validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                };
 
             if let Some(plugin_path) = plugin {
                 report = match run_validation_plugin(&plugin_path, &report) {
@@ -263,7 +284,8 @@ fn main() {
                 };
             }
 
-            let has_warnings_or_failures = report.status == ValidationStatus::Warning || report.status == ValidationStatus::Fail;
+            let has_warnings_or_failures = report.status == ValidationStatus::Warning
+                || report.status == ValidationStatus::Fail;
             let report_json = serde_json::to_string_pretty(&report).unwrap();
             if let Some(out_path) = output {
                 if let Err(e) = std::fs::write(&out_path, &report_json) {

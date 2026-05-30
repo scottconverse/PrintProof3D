@@ -48,7 +48,7 @@ graph TD
 * **`printproof3d-printability`**: The mathematical validation engine. It contains parsers for ASCII STL and raw G-code, running spatial and thermal audits against the core profiles. It depends only on `printproof3d-core` to remain highly embeddable.
 * **`printproof3d-plugins`**: The WASM runtime supervisor. It instantiates the `wasmi` interpreter, loads compiled guest `.wasm` bytecode arrays, and manages memory writing and reading over linear memory buffers.
 * **`printproof3d-adapters`**: The physical connection protocol layer. It declares the asynchronous `PrinterAdapter` trait and houses connection configurations for serial channels, Moonraker/Klipper, and OctoPrint endpoints.
-* **`printproof3d-sdk`**: The development and test integration SDK. It provides mock servers (OctoPrint, Duet/RRF, Bambu MQTT/FTP) and exposes a conformance verification test suite to ensure connection clients operate reliably.
+* **`printproof3d-sdk`**: The development and test integration SDK. It provides mock servers (Duet/RRF, Bambu MQTT/FTP) and exposes a conformance verification test suite to ensure connection clients operate reliably.
 * **`printproof3d-cli`**: The shell interface. It handles command line option parsing, compiles output validation files, and runs the MCP JSON-RPC 2.0 server.
 * **`printproof3d-rest`**: The network service layer. It wraps validation operations in an Axum web daemon, enforcing Bearer token authentication middleware on secure endpoints.
 

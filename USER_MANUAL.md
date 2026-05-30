@@ -262,7 +262,7 @@ Because WASM runs in an isolated sandbox, data is exchanged by passing pointers 
 
    fn enforce_safety_margin(report: &mut ValidationReport) {
        // Ensure that model bounding box does not exceed a safety limit
-       if report.model.bounding_box.max_x() > 200.0 {
+       if report.model.bounding_box.max_x > 200.0 {
            report.issues.push(ValidationIssue {
                id: "SAFETY_MARGIN_EXCEEDED".to_string(),
                severity: IssueSeverity::Major,

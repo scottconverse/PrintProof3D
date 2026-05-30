@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::thread;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
 
 pub struct RrfMockServer {
     running: Arc<AtomicBool>,
@@ -13,7 +13,7 @@ impl RrfMockServer {
     pub fn start() -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
-        
+
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         listener.set_nonblocking(true).unwrap();

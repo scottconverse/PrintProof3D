@@ -1,6 +1,6 @@
 // PrintProof3D Core Crate
-use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -101,7 +101,7 @@ pub struct PrinterProfile {
     pub firmware_flavor: FirmwareFlavor,
     /// List of file extensions supported for direct execution (e.g. ["gcode"]).
     pub supported_file_types: Vec<String>,
-    
+
     // Connectivity capabilities
     /// Direct remote print upload connectivity.
     pub supports_direct_upload: bool,
@@ -115,7 +115,7 @@ pub struct PrinterProfile {
     pub supports_webcam: bool,
     /// Active chamber temperature monitoring availability.
     pub supports_chamber_temp: bool,
-    
+
     // Quirks and constraints
     /// Known configuration or driver bugs to bypass.
     pub known_quirks: Vec<String>,
@@ -163,14 +163,21 @@ impl PrinterProfile {
                 return Err("All nozzle diameters must be positive".to_string());
             }
         }
-        if !self.nozzle_diameters.contains(&self.default_nozzle_diameter) {
-            return Err("Default nozzle diameter must be present in nozzle_diameters options".to_string());
+        if !self
+            .nozzle_diameters
+            .contains(&self.default_nozzle_diameter)
+        {
+            return Err(
+                "Default nozzle diameter must be present in nozzle_diameters options".to_string(),
+            );
         }
         if self.min_layer_height <= 0.0 || self.max_layer_height <= 0.0 {
             return Err("Layer heights must be positive".to_string());
         }
         if self.min_layer_height > self.max_layer_height {
-            return Err("Minimum layer height cannot be greater than maximum layer height".to_string());
+            return Err(
+                "Minimum layer height cannot be greater than maximum layer height".to_string(),
+            );
         }
         if self.max_hotend_temp <= 0.0 || self.max_bed_temp <= 0.0 {
             return Err("Maximum temperatures must be positive".to_string());
@@ -237,13 +244,19 @@ impl MaterialProfile {
             return Err("Nozzle temperatures must be positive".to_string());
         }
         if self.min_nozzle_temp > self.max_nozzle_temp {
-            return Err("Minimum nozzle temperature cannot be greater than maximum nozzle temperature".to_string());
+            return Err(
+                "Minimum nozzle temperature cannot be greater than maximum nozzle temperature"
+                    .to_string(),
+            );
         }
-        if self.min_bed_temp <= 0.0 || self.max_bed_temp <= 0.0 {
-            return Err("Bed temperatures must be positive".to_string());
+        if self.min_bed_temp < 0.0 || self.max_bed_temp < 0.0 {
+            return Err("Bed temperatures must be non-negative".to_string());
         }
         if self.min_bed_temp > self.max_bed_temp {
-            return Err("Minimum bed temperature cannot be greater than maximum bed temperature".to_string());
+            return Err(
+                "Minimum bed temperature cannot be greater than maximum bed temperature"
+                    .to_string(),
+            );
         }
         if self.cooling_fan_speed_pct < 0.0 || self.cooling_fan_speed_pct > 100.0 {
             return Err("Cooling fan speed must be between 0 and 100 percent".to_string());
@@ -283,7 +296,7 @@ pub struct ModelMetadata {
     /// Length units used (typically "mm").
     pub units: String,
     /// Bounding box layout bounds.
-    pub bounding_box: BuildVolume,
+    pub bounding_box: BoundingBox,
 }
 
 /// A 3D bounding box region representation.
@@ -309,11 +322,7 @@ pub struct Triangle {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LocationGeometry {
-    Point {
-        x: f32,
-        y: f32,
-        z: f32,
-    },
+    Point { x: f32, y: f32, z: f32 },
     BoundingBox(BoundingBox),
     Triangles(Vec<Triangle>),
 }
@@ -367,9 +376,11 @@ impl ValidationReport {
         let has_critical_or_blocker = self.issues.iter().any(|issue| {
             issue.severity == IssueSeverity::Blocker || issue.severity == IssueSeverity::Critical
         });
-        
+
         if has_critical_or_blocker && self.status != ValidationStatus::Fail {
-            return Err("Report status must be 'fail' if blocker or critical issues exist".to_string());
+            return Err(
+                "Report status must be 'fail' if blocker or critical issues exist".to_string(),
+            );
         }
         Ok(())
     }
@@ -390,7 +401,11 @@ mod tests {
             manufacturer: "Prusa".to_string(),
             model: "MK4".to_string(),
             protocol_family: ProtocolFamily::PrusaLink,
-            build_volume: BuildVolume::Rectangular { x: 250.0, y: 210.0, z: 220.0 },
+            build_volume: BuildVolume::Rectangular {
+                x: 250.0,
+                y: 210.0,
+                z: 220.0,
+            },
             bed_shape: BedShape::Rectangular,
             nozzle_diameters: vec![0.25, 0.4, 0.6, 0.8],
             default_nozzle_diameter: 0.4,
@@ -416,7 +431,11 @@ mod tests {
         assert!(profile.validate().is_ok());
 
         let mut bad_profile = profile.clone();
-        bad_profile.build_volume = BuildVolume::Rectangular { x: -10.0, y: 210.0, z: 220.0 };
+        bad_profile.build_volume = BuildVolume::Rectangular {
+            x: -10.0,
+            y: 210.0,
+            z: 220.0,
+        };
         assert!(bad_profile.validate().is_err());
 
         let mut bad_temp = profile.clone();
@@ -428,7 +447,10 @@ mod tests {
         assert!(bad_bed_vol.validate().is_err());
 
         let mut bad_bed_vol2 = profile.clone();
-        bad_bed_vol2.build_volume = BuildVolume::Cylindrical { diameter: 200.0, z: 200.0 }; // Rectangular bed + Cylindrical volume -> invalid
+        bad_bed_vol2.build_volume = BuildVolume::Cylindrical {
+            diameter: 200.0,
+            z: 200.0,
+        }; // Rectangular bed + Cylindrical volume -> invalid
         assert!(bad_bed_vol2.validate().is_err());
 
         let mut bad_nozzle = profile.clone();
@@ -471,17 +493,22 @@ mod tests {
             model: ModelMetadata {
                 file_name: "test_bracket.stl".to_string(),
                 units: "mm".to_string(),
-                bounding_box: BuildVolume::Rectangular { x: 50.0, y: 30.0, z: 20.0 },
+                bounding_box: BoundingBox {
+                    min_x: 0.0,
+                    min_y: 0.0,
+                    min_z: 0.0,
+                    max_x: 50.0,
+                    max_y: 30.0,
+                    max_z: 20.0,
+                },
             },
-            issues: vec![
-                ValidationIssue {
-                    id: "OVERHANG_UNSUPPORTED".to_string(),
-                    severity: IssueSeverity::Critical,
-                    message: "Critical unsupported overhang.".to_string(),
-                    location: None,
-                    suggested_fixes: vec![],
-                }
-            ],
+            issues: vec![ValidationIssue {
+                id: "OVERHANG_UNSUPPORTED".to_string(),
+                severity: IssueSeverity::Critical,
+                message: "Critical unsupported overhang.".to_string(),
+                location: None,
+                suggested_fixes: vec![],
+            }],
             confidence_level: "high".to_string(),
             sliced_settings_assumed: None,
         };
@@ -503,14 +530,29 @@ mod tests {
 
         let printer_schema = schema_for!(PrinterProfile);
         let mut file = File::create(schema_dir.join("printer_profile.schema.json")).unwrap();
-        file.write_all(serde_json::to_string_pretty(&printer_schema).unwrap().as_bytes()).unwrap();
+        file.write_all(
+            serde_json::to_string_pretty(&printer_schema)
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
 
         let material_schema = schema_for!(MaterialProfile);
         let mut file = File::create(schema_dir.join("material_profile.schema.json")).unwrap();
-        file.write_all(serde_json::to_string_pretty(&material_schema).unwrap().as_bytes()).unwrap();
+        file.write_all(
+            serde_json::to_string_pretty(&material_schema)
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
 
         let report_schema = schema_for!(ValidationReport);
         let mut file = File::create(schema_dir.join("validation_report.schema.json")).unwrap();
-        file.write_all(serde_json::to_string_pretty(&report_schema).unwrap().as_bytes()).unwrap();
+        file.write_all(
+            serde_json::to_string_pretty(&report_schema)
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
     }
 }

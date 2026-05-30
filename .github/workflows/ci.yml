@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main, stage-1 ]
+    branches: [ main, "stage-*" ]
   pull_request:
-    branches: [ main, stage-1 ]
+    branches: [ main, "stage-*" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,6 +20,8 @@ jobs:
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
 
     - name: Cache Cargo build artifacts
       uses: actions/cache@v4
@@ -31,6 +33,12 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run clippy linter
+      run: cargo clippy --workspace --all-targets -- -D warnings
 
     - name: Build workspace
       run: cargo build --verbose

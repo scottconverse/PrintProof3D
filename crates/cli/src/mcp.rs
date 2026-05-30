@@ -1,8 +1,10 @@
+use printproof3d_core::{MaterialProfile, PrinterProfile, ValidationReport, ValidationStatus};
+use printproof3d_printability::{
+    GcodeValidator, ModelValidator, StandardGcodeValidator, StlModelValidator,
+};
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, stdin, stdout, Write};
+use std::io::{stdin, stdout, BufRead, Write};
 use std::path::Path;
-use printproof3d_core::{PrinterProfile, MaterialProfile, ValidationReport, ValidationStatus};
-use printproof3d_printability::{ModelValidator, GcodeValidator, StlModelValidator, StandardGcodeValidator};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct JsonRpcRequest {
@@ -190,17 +192,34 @@ fn execute_tool(call: ToolCallParams) -> Result<serde_json::Value, String> {
 
     match call.name.as_str() {
         "validate_model_printability" => {
-            let model_path = args.get("model_path").and_then(|v| v.as_str()).ok_or("Missing 'model_path'")?;
-            let printer_path = args.get("printer_profile_path").and_then(|v| v.as_str()).ok_or("Missing 'printer_profile_path'")?;
-            let material_path = args.get("material_profile_path").and_then(|v| v.as_str()).ok_or("Missing 'material_profile_path'")?;
+            let model_path = args
+                .get("model_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'model_path'")?;
+            let printer_path = args
+                .get("printer_profile_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'printer_profile_path'")?;
+            let material_path = args
+                .get("material_profile_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'material_profile_path'")?;
 
-            let printer_json = std::fs::read_to_string(printer_path).map_err(|e| format!("Failed to read printer profile: {}", e))?;
-            let printer: PrinterProfile = serde_json::from_str(&printer_json).map_err(|e| format!("Malformed printer profile: {}", e))?;
-            printer.validate().map_err(|e| format!("Invalid printer profile: {}", e))?;
+            let printer_json = std::fs::read_to_string(printer_path)
+                .map_err(|e| format!("Failed to read printer profile: {}", e))?;
+            let printer: PrinterProfile = serde_json::from_str(&printer_json)
+                .map_err(|e| format!("Malformed printer profile: {}", e))?;
+            printer
+                .validate()
+                .map_err(|e| format!("Invalid printer profile: {}", e))?;
 
-            let material_json = std::fs::read_to_string(material_path).map_err(|e| format!("Failed to read material profile: {}", e))?;
-            let material: MaterialProfile = serde_json::from_str(&material_json).map_err(|e| format!("Malformed material profile: {}", e))?;
-            material.validate().map_err(|e| format!("Invalid material profile: {}", e))?;
+            let material_json = std::fs::read_to_string(material_path)
+                .map_err(|e| format!("Failed to read material profile: {}", e))?;
+            let material: MaterialProfile = serde_json::from_str(&material_json)
+                .map_err(|e| format!("Malformed material profile: {}", e))?;
+            material
+                .validate()
+                .map_err(|e| format!("Invalid material profile: {}", e))?;
 
             let validator = StlModelValidator;
             let report = validator.validate_mesh(Path::new(model_path), &printer, &material)?;
@@ -213,18 +232,32 @@ fn execute_tool(call: ToolCallParams) -> Result<serde_json::Value, String> {
             }))
         }
         "validate_gcode" => {
-            let gcode_path = args.get("gcode_path").and_then(|v| v.as_str()).ok_or("Missing 'gcode_path'")?;
-            let printer_path = args.get("printer_profile_path").and_then(|v| v.as_str()).ok_or("Missing 'printer_profile_path'")?;
+            let gcode_path = args
+                .get("gcode_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'gcode_path'")?;
+            let printer_path = args
+                .get("printer_profile_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'printer_profile_path'")?;
             let material_path = args.get("material_profile_path").and_then(|v| v.as_str());
 
-            let printer_json = std::fs::read_to_string(printer_path).map_err(|e| format!("Failed to read printer profile: {}", e))?;
-            let printer: PrinterProfile = serde_json::from_str(&printer_json).map_err(|e| format!("Malformed printer profile: {}", e))?;
-            printer.validate().map_err(|e| format!("Invalid printer profile: {}", e))?;
+            let printer_json = std::fs::read_to_string(printer_path)
+                .map_err(|e| format!("Failed to read printer profile: {}", e))?;
+            let printer: PrinterProfile = serde_json::from_str(&printer_json)
+                .map_err(|e| format!("Malformed printer profile: {}", e))?;
+            printer
+                .validate()
+                .map_err(|e| format!("Invalid printer profile: {}", e))?;
 
             let material = if let Some(m_path) = material_path {
-                let material_json = std::fs::read_to_string(m_path).map_err(|e| format!("Failed to read material profile: {}", e))?;
-                let material: MaterialProfile = serde_json::from_str(&material_json).map_err(|e| format!("Malformed material profile: {}", e))?;
-                material.validate().map_err(|e| format!("Invalid material profile: {}", e))?;
+                let material_json = std::fs::read_to_string(m_path)
+                    .map_err(|e| format!("Failed to read material profile: {}", e))?;
+                let material: MaterialProfile = serde_json::from_str(&material_json)
+                    .map_err(|e| format!("Malformed material profile: {}", e))?;
+                material
+                    .validate()
+                    .map_err(|e| format!("Invalid material profile: {}", e))?;
                 material
             } else {
                 MaterialProfile {
@@ -258,7 +291,9 @@ fn execute_tool(call: ToolCallParams) -> Result<serde_json::Value, String> {
         "list_printer_profiles" => {
             let mut profiles_dir = std::env::current_dir().unwrap_or_default().join("profiles");
             if !profiles_dir.exists() {
-                profiles_dir = std::env::current_dir().unwrap_or_default().join("../../profiles");
+                profiles_dir = std::env::current_dir()
+                    .unwrap_or_default()
+                    .join("../../profiles");
             }
             if !profiles_dir.exists() {
                 return Err("Profiles directory not found".to_string());
@@ -279,7 +314,8 @@ fn execute_tool(call: ToolCallParams) -> Result<serde_json::Value, String> {
                 }
             }
 
-            let profiles_json = serde_json::to_string_pretty(&profiles).map_err(|e| e.to_string())?;
+            let profiles_json =
+                serde_json::to_string_pretty(&profiles).map_err(|e| e.to_string())?;
             Ok(serde_json::json!({
                 "content": [
                     { "type": "text", "text": profiles_json }
@@ -287,8 +323,12 @@ fn execute_tool(call: ToolCallParams) -> Result<serde_json::Value, String> {
             }))
         }
         "explain_validation_report" => {
-            let report_str = args.get("report_json").and_then(|v| v.as_str()).ok_or("Missing 'report_json'")?;
-            let report: ValidationReport = serde_json::from_str(report_str).map_err(|e| format!("Malformed validation report: {}", e))?;
+            let report_str = args
+                .get("report_json")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'report_json'")?;
+            let report: ValidationReport = serde_json::from_str(report_str)
+                .map_err(|e| format!("Malformed validation report: {}", e))?;
 
             let mut explanation = format!(
                 "PrintProof3D Validation Report Summary:\n- File: {}\n- Printer Target: {}\n- Material Target: {}\n- Status: {}\n",
@@ -303,13 +343,21 @@ fn execute_tool(call: ToolCallParams) -> Result<serde_json::Value, String> {
             );
 
             if report.issues.is_empty() {
-                explanation.push_str("\nNo issues were found. The print matches all safety invariants and bounds.");
+                explanation.push_str(
+                    "\nNo issues were found. The print matches all safety invariants and bounds.",
+                );
             } else {
-                explanation.push_str(&format!("\nFound {} validation alerts:\n", report.issues.len()));
+                explanation.push_str(&format!(
+                    "\nFound {} validation alerts:\n",
+                    report.issues.len()
+                ));
                 for (idx, issue) in report.issues.iter().enumerate() {
                     explanation.push_str(&format!(
                         "\n[{}] {} ({:?}): {}\n   Suggested fixes:\n",
-                        idx + 1, issue.id, issue.severity, issue.message
+                        idx + 1,
+                        issue.id,
+                        issue.severity,
+                        issue.message
                     ));
                     for fix in &issue.suggested_fixes {
                         explanation.push_str(&format!("   - {}\n", fix));
@@ -360,10 +408,18 @@ mod tests {
         let res = resp.result.unwrap();
         let tools = res.get("tools").unwrap().as_array().unwrap();
         assert_eq!(tools.len(), 4);
-        assert!(tools.iter().any(|t| t.get("name").unwrap() == "validate_model_printability"));
-        assert!(tools.iter().any(|t| t.get("name").unwrap() == "validate_gcode"));
-        assert!(tools.iter().any(|t| t.get("name").unwrap() == "list_printer_profiles"));
-        assert!(tools.iter().any(|t| t.get("name").unwrap() == "explain_validation_report"));
+        assert!(tools
+            .iter()
+            .any(|t| t.get("name").unwrap() == "validate_model_printability"));
+        assert!(tools
+            .iter()
+            .any(|t| t.get("name").unwrap() == "validate_gcode"));
+        assert!(tools
+            .iter()
+            .any(|t| t.get("name").unwrap() == "list_printer_profiles"));
+        assert!(tools
+            .iter()
+            .any(|t| t.get("name").unwrap() == "explain_validation_report"));
     }
 
     #[test]
@@ -376,16 +432,19 @@ mod tests {
                 "file_name": "test.stl",
                 "units": "mm",
                 "bounding_box": {
-                    "type": "rectangular",
-                    "x": 10.0,
-                    "y": 10.0,
-                    "z": 10.0
+                    "min_x": 0.0,
+                    "min_y": 0.0,
+                    "min_z": 0.0,
+                    "max_x": 10.0,
+                    "max_y": 10.0,
+                    "max_z": 10.0
                 }
             },
             "issues": [],
             "confidence_level": "high",
             "sliced_settings_assumed": null
-        }).to_string();
+        })
+        .to_string();
 
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -405,5 +464,81 @@ mod tests {
         let text = content[0].get("text").unwrap().as_str().unwrap();
         assert!(text.contains("PASS"));
         assert!(text.contains("No issues were found"));
+    }
+
+    #[test]
+    fn test_mcp_validate_model_printability() {
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let model_path = manifest_dir
+            .join("../../fixtures/tetrahedron.stl")
+            .to_string_lossy()
+            .into_owned();
+        let printer_path = manifest_dir
+            .join("../../profiles/prusa_mk4.json")
+            .to_string_lossy()
+            .into_owned();
+        let material_path = manifest_dir
+            .join("../../profiles/pla.json")
+            .to_string_lossy()
+            .into_owned();
+
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(4)),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "validate_model_printability",
+                "arguments": {
+                    "model_path": model_path,
+                    "printer_profile_path": printer_path,
+                    "material_profile_path": material_path
+                }
+            })),
+        };
+        let resp = handle_mcp_request(req);
+        assert!(resp.error.is_none());
+        let res = resp.result.unwrap();
+        let content = res.get("content").unwrap().as_array().unwrap();
+        let text = content[0].get("text").unwrap().as_str().unwrap();
+        assert!(text.contains("Prusa_MK4"));
+        assert!(text.contains("Polylactic Acid"));
+    }
+
+    #[test]
+    fn test_mcp_validate_gcode() {
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let gcode_path = manifest_dir
+            .join("../../fixtures/safe_print.gcode")
+            .to_string_lossy()
+            .into_owned();
+        let printer_path = manifest_dir
+            .join("../../profiles/prusa_mk4.json")
+            .to_string_lossy()
+            .into_owned();
+        let material_path = manifest_dir
+            .join("../../profiles/pla.json")
+            .to_string_lossy()
+            .into_owned();
+
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(5)),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "validate_gcode",
+                "arguments": {
+                    "gcode_path": gcode_path,
+                    "printer_profile_path": printer_path,
+                    "material_profile_path": material_path
+                }
+            })),
+        };
+        let resp = handle_mcp_request(req);
+        assert!(resp.error.is_none());
+        let res = resp.result.unwrap();
+        let content = res.get("content").unwrap().as_array().unwrap();
+        let text = content[0].get("text").unwrap().as_str().unwrap();
+        assert!(text.contains("Prusa_MK4"));
+        assert!(text.contains("Polylactic Acid"));
     }
 }

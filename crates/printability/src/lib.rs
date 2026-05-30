@@ -1,17 +1,12 @@
 // PrintProof3D Printability Engine
 use printproof3d_core::{
-    PrinterProfile, MaterialProfile, ValidationReport, ValidationStatus,
-    IssueSeverity, ModelMetadata, BuildVolume, LocationGeometry,
-    IssueLocation, ValidationIssue, BoundingBox, Triangle,
+    BoundingBox, BuildVolume, IssueLocation, IssueSeverity, LocationGeometry, MaterialProfile,
+    ModelMetadata, PrinterProfile, Triangle, ValidationIssue, ValidationReport, ValidationStatus,
 };
-use std::path::Path;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::collections::HashMap;
-
-pub fn check_model() -> &'static str {
-    "ok"
-}
+use std::path::Path;
 
 pub trait ModelValidator {
     fn validate_mesh(
@@ -75,7 +70,8 @@ fn get_open_edges(facets: &[StlFacet]) -> Vec<([i32; 3], [i32; 3])> {
         }
     }
 
-    edge_counts.into_iter()
+    edge_counts
+        .into_iter()
         .filter(|(_, count)| *count != 2)
         .map(|(edge, _)| edge)
         .collect()
@@ -93,8 +89,128 @@ fn cross_product(u: [f32; 3], v: [f32; 3]) -> [f32; 3] {
     ]
 }
 
+fn parse_binary_stl(bytes: &[u8]) -> Result<Vec<StlFacet>, String> {
+    if bytes.len() < 84 {
+        return Err("Binary STL too short".to_string());
+    }
+    let face_count = u32::from_le_bytes([bytes[80], bytes[81], bytes[82], bytes[83]]) as usize;
+    let mut facets = Vec::with_capacity(face_count);
+    let mut offset = 84;
+    for i in 0..face_count {
+        if offset + 50 > bytes.len() {
+            return Err(format!("Binary STL truncated at facet {}", i));
+        }
+        let normal = [
+            f32::from_le_bytes([
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 4],
+                bytes[offset + 5],
+                bytes[offset + 6],
+                bytes[offset + 7],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 8],
+                bytes[offset + 9],
+                bytes[offset + 10],
+                bytes[offset + 11],
+            ]),
+        ];
+        offset += 12;
+        let v0 = [
+            f32::from_le_bytes([
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 4],
+                bytes[offset + 5],
+                bytes[offset + 6],
+                bytes[offset + 7],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 8],
+                bytes[offset + 9],
+                bytes[offset + 10],
+                bytes[offset + 11],
+            ]),
+        ];
+        offset += 12;
+        let v1 = [
+            f32::from_le_bytes([
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 4],
+                bytes[offset + 5],
+                bytes[offset + 6],
+                bytes[offset + 7],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 8],
+                bytes[offset + 9],
+                bytes[offset + 10],
+                bytes[offset + 11],
+            ]),
+        ];
+        offset += 12;
+        let v2 = [
+            f32::from_le_bytes([
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 4],
+                bytes[offset + 5],
+                bytes[offset + 6],
+                bytes[offset + 7],
+            ]),
+            f32::from_le_bytes([
+                bytes[offset + 8],
+                bytes[offset + 9],
+                bytes[offset + 10],
+                bytes[offset + 11],
+            ]),
+        ];
+        offset += 12;
+        offset += 2; // skip attributes
+
+        facets.push(StlFacet {
+            normal,
+            vertices: [v0, v1, v2],
+        });
+    }
+    Ok(facets)
+}
+
+fn parse_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
+    let bytes = std::fs::read(file_path)
+        .map_err(|e| format!("Failed to read file {:?}: {}", file_path, e))?;
+    if bytes.len() >= 84 {
+        let face_count = u32::from_le_bytes([bytes[80], bytes[81], bytes[82], bytes[83]]) as usize;
+        if bytes.len() >= 84 + face_count * 50 {
+            if let Ok(facets) = parse_binary_stl(&bytes) {
+                return Ok(facets);
+            }
+        }
+    }
+    parse_ascii_stl(file_path)
+}
+
 fn parse_ascii_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
-    let file = File::open(file_path).map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
+    let file =
+        File::open(file_path).map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
     let reader = BufReader::new(file);
     let mut facets = Vec::new();
     let mut current_normal = [0.0f32; 3];
@@ -109,9 +225,15 @@ fn parse_ascii_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
         if lower.starts_with("facet normal") {
             let parts: Vec<&str> = trimmed.split_whitespace().collect();
             if parts.len() >= 5 {
-                let nx = parts[2].parse::<f32>().map_err(|e| format!("Failed to parse normal x: {}", e))?;
-                let ny = parts[3].parse::<f32>().map_err(|e| format!("Failed to parse normal y: {}", e))?;
-                let nz = parts[4].parse::<f32>().map_err(|e| format!("Failed to parse normal z: {}", e))?;
+                let nx = parts[2]
+                    .parse::<f32>()
+                    .map_err(|e| format!("Failed to parse normal x: {}", e))?;
+                let ny = parts[3]
+                    .parse::<f32>()
+                    .map_err(|e| format!("Failed to parse normal y: {}", e))?;
+                let nz = parts[4]
+                    .parse::<f32>()
+                    .map_err(|e| format!("Failed to parse normal z: {}", e))?;
                 current_normal = [nx, ny, nz];
                 in_facet = true;
             }
@@ -122,9 +244,15 @@ fn parse_ascii_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
             if in_loop {
                 let parts: Vec<&str> = trimmed.split_whitespace().collect();
                 if parts.len() >= 4 {
-                    let vx = parts[1].parse::<f32>().map_err(|e| format!("Failed to parse vertex x: {}", e))?;
-                    let vy = parts[2].parse::<f32>().map_err(|e| format!("Failed to parse vertex y: {}", e))?;
-                    let vz = parts[3].parse::<f32>().map_err(|e| format!("Failed to parse vertex z: {}", e))?;
+                    let vx = parts[1]
+                        .parse::<f32>()
+                        .map_err(|e| format!("Failed to parse vertex x: {}", e))?;
+                    let vy = parts[2]
+                        .parse::<f32>()
+                        .map_err(|e| format!("Failed to parse vertex y: {}", e))?;
+                    let vz = parts[3]
+                        .parse::<f32>()
+                        .map_err(|e| format!("Failed to parse vertex z: {}", e))?;
                     current_vertices.push([vx, vy, vz]);
                 }
             }
@@ -134,7 +262,11 @@ fn parse_ascii_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
             if in_facet && current_vertices.len() == 3 {
                 facets.push(StlFacet {
                     normal: current_normal,
-                    vertices: [current_vertices[0], current_vertices[1], current_vertices[2]],
+                    vertices: [
+                        current_vertices[0],
+                        current_vertices[1],
+                        current_vertices[2],
+                    ],
                 });
             }
             in_facet = false;
@@ -158,7 +290,7 @@ impl ModelValidator for StlModelValidator {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "unknown".to_string());
 
-        let facets = parse_ascii_stl(file_path)?;
+        let facets = parse_stl(file_path)?;
         if facets.is_empty() {
             return Err("STL file contains no facets or is not a valid ASCII STL file".to_string());
         }
@@ -195,12 +327,24 @@ impl ModelValidator for StlModelValidator {
 
         for facet in &facets {
             for v in &facet.vertices {
-                if v[0] < min_x { min_x = v[0]; }
-                if v[0] > max_x { max_x = v[0]; }
-                if v[1] < min_y { min_y = v[1]; }
-                if v[1] > max_y { max_y = v[1]; }
-                if v[2] < min_z { min_z = v[2]; }
-                if v[2] > max_z { max_z = v[2]; }
+                if v[0] < min_x {
+                    min_x = v[0];
+                }
+                if v[0] > max_x {
+                    max_x = v[0];
+                }
+                if v[1] < min_y {
+                    min_y = v[1];
+                }
+                if v[1] > max_y {
+                    max_y = v[1];
+                }
+                if v[2] < min_z {
+                    min_z = v[2];
+                }
+                if v[2] > max_z {
+                    max_z = v[2];
+                }
             }
         }
 
@@ -208,7 +352,13 @@ impl ModelValidator for StlModelValidator {
         let mut out_of_bounds = false;
         match &printer.build_volume {
             BuildVolume::Rectangular { x, y, z } => {
-                if min_x < 0.0 || max_x > *x || min_y < 0.0 || max_y > *y || min_z < 0.0 || max_z > *z {
+                if min_x < 0.0
+                    || max_x > *x
+                    || min_y < 0.0
+                    || max_y > *y
+                    || min_z < 0.0
+                    || max_z > *z
+                {
                     out_of_bounds = true;
                 }
             }
@@ -216,13 +366,15 @@ impl ModelValidator for StlModelValidator {
                 let r_max = diameter / 2.0;
                 for facet in &facets {
                     for v in &facet.vertices {
-                        let r2 = v[0]*v[0] + v[1]*v[1];
+                        let r2 = v[0] * v[0] + v[1] * v[1];
                         if r2 > r_max * r_max || v[2] < 0.0 || v[2] > *z {
                             out_of_bounds = true;
                             break;
                         }
                     }
-                    if out_of_bounds { break; }
+                    if out_of_bounds {
+                        break;
+                    }
                 }
             }
         }
@@ -262,7 +414,9 @@ impl ModelValidator for StlModelValidator {
         for facet in &facets {
             let n = facet.normal;
             let len = magnitude(n);
-            if len < 1e-6 { continue; }
+            if len < 1e-6 {
+                continue;
+            }
 
             // Facing downwards
             if n[2] < -0.01 {
@@ -390,25 +544,13 @@ impl ModelValidator for StlModelValidator {
             }
         }
 
-        let model_bb = match printer.build_volume {
-            BuildVolume::Rectangular { .. } => BuildVolume::Rectangular {
-                x: max_x - min_x,
-                y: max_y - min_y,
-                z: max_z - min_z,
-            },
-            BuildVolume::Cylindrical { .. } => {
-                let mut max_r = 0.0f32;
-                for facet in &facets {
-                    for v in &facet.vertices {
-                        let r = (v[0]*v[0] + v[1]*v[1]).sqrt();
-                        if r > max_r { max_r = r; }
-                    }
-                }
-                BuildVolume::Cylindrical {
-                    diameter: 2.0 * max_r,
-                    z: max_z - min_z,
-                }
-            }
+        let model_bb = BoundingBox {
+            min_x,
+            min_y,
+            min_z,
+            max_x,
+            max_y,
+            max_z,
         };
 
         Ok(ValidationReport {
@@ -421,7 +563,11 @@ impl ModelValidator for StlModelValidator {
                 bounding_box: model_bb,
             },
             issues,
-            confidence_level: "high".to_string(),
+            confidence_level: if open_edges.is_empty() {
+                "high".to_string()
+            } else {
+                "medium".to_string()
+            },
             sliced_settings_assumed: None,
         })
     }
@@ -443,13 +589,35 @@ fn get_gcode_param(words: &[&str], prefix: char) -> Option<f32> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn update_bbox(x: f32, y: f32, z: f32, min_x: &mut f32, max_x: &mut f32, min_y: &mut f32, max_y: &mut f32, min_z: &mut f32, max_z: &mut f32) {
-    if x < *min_x { *min_x = x; }
-    if x > *max_x { *max_x = x; }
-    if y < *min_y { *min_y = y; }
-    if y > *max_y { *max_y = y; }
-    if z < *min_z { *min_z = z; }
-    if z > *max_z { *max_z = z; }
+fn update_bbox(
+    x: f32,
+    y: f32,
+    z: f32,
+    min_x: &mut f32,
+    max_x: &mut f32,
+    min_y: &mut f32,
+    max_y: &mut f32,
+    min_z: &mut f32,
+    max_z: &mut f32,
+) {
+    if x < *min_x {
+        *min_x = x;
+    }
+    if x > *max_x {
+        *max_x = x;
+    }
+    if y < *min_y {
+        *min_y = y;
+    }
+    if y > *max_y {
+        *max_y = y;
+    }
+    if z < *min_z {
+        *min_z = z;
+    }
+    if z > *max_z {
+        *max_z = z;
+    }
 }
 
 impl GcodeValidator for StandardGcodeValidator {
@@ -464,7 +632,8 @@ impl GcodeValidator for StandardGcodeValidator {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "unknown".to_string());
 
-        let file = File::open(file_path).map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
+        let file = File::open(file_path)
+            .map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
         let reader = BufReader::new(file);
 
         let mut current_x = 0.0f32;
@@ -481,11 +650,19 @@ impl GcodeValidator for StandardGcodeValidator {
 
         let mut issues = Vec::new();
         let mut line_number = 0;
+        let mut homed = false;
+
+        let mut alert_gcode_out_of_bounds = false;
+        let mut alert_hotend_temp_exceeds_max = false;
+        let mut alert_hotend_temp_out_of_range = false;
+        let mut alert_bed_temp_exceeds_max = false;
+        let mut alert_bed_temp_out_of_range = false;
 
         for line_opt in reader.lines() {
             line_number += 1;
-            let line = line_opt.map_err(|e| format!("Error reading line {}: {}", line_number, e))?;
-            
+            let line =
+                line_opt.map_err(|e| format!("Error reading line {}: {}", line_number, e))?;
+
             let gcode_part = match line.split(';').next() {
                 Some(s) => s.trim(),
                 None => continue,
@@ -508,16 +685,26 @@ impl GcodeValidator for StandardGcodeValidator {
                     absolute_xyz = false;
                 }
                 "G28" => {
+                    homed = true;
                     let has_x = get_gcode_param(&words, 'X').is_some();
                     let has_y = get_gcode_param(&words, 'Y').is_some();
                     let has_z = get_gcode_param(&words, 'Z').is_some();
                     let home_all = !has_x && !has_y && !has_z;
 
-                    if home_all || has_x { current_x = 0.0; }
-                    if home_all || has_y { current_y = 0.0; }
-                    if home_all || has_z { current_z = 0.0; }
+                    if home_all || has_x {
+                        current_x = 0.0;
+                    }
+                    if home_all || has_y {
+                        current_y = 0.0;
+                    }
+                    if home_all || has_z {
+                        current_z = 0.0;
+                    }
 
-                    update_bbox(current_x, current_y, current_z, &mut min_x, &mut max_x, &mut min_y, &mut max_y, &mut min_z, &mut max_z);
+                    update_bbox(
+                        current_x, current_y, current_z, &mut min_x, &mut max_x, &mut min_y,
+                        &mut max_y, &mut min_z, &mut max_z,
+                    );
                 }
                 "G0" | "G1" | "G2" | "G3" => {
                     let dx = get_gcode_param(&words, 'X');
@@ -525,34 +712,56 @@ impl GcodeValidator for StandardGcodeValidator {
                     let dz = get_gcode_param(&words, 'Z');
 
                     if absolute_xyz {
-                        if let Some(x) = dx { current_x = x; }
-                        if let Some(y) = dy { current_y = y; }
-                        if let Some(z) = dz { current_z = z; }
+                        if let Some(x) = dx {
+                            current_x = x;
+                        }
+                        if let Some(y) = dy {
+                            current_y = y;
+                        }
+                        if let Some(z) = dz {
+                            current_z = z;
+                        }
                     } else {
-                        if let Some(x) = dx { current_x += x; }
-                        if let Some(y) = dy { current_y += y; }
-                        if let Some(z) = dz { current_z += z; }
+                        if let Some(x) = dx {
+                            current_x += x;
+                        }
+                        if let Some(y) = dy {
+                            current_y += y;
+                        }
+                        if let Some(z) = dz {
+                            current_z += z;
+                        }
                     }
 
-                    update_bbox(current_x, current_y, current_z, &mut min_x, &mut max_x, &mut min_y, &mut max_y, &mut min_z, &mut max_z);
+                    update_bbox(
+                        current_x, current_y, current_z, &mut min_x, &mut max_x, &mut min_y,
+                        &mut max_y, &mut min_z, &mut max_z,
+                    );
 
                     let mut out_of_bounds = false;
                     match &printer.build_volume {
                         BuildVolume::Rectangular { x, y, z } => {
-                            if current_x < 0.0 || current_x > *x || current_y < 0.0 || current_y > *y || current_z < 0.0 || current_z > *z {
+                            if current_x < 0.0
+                                || current_x > *x
+                                || current_y < 0.0
+                                || current_y > *y
+                                || current_z < 0.0
+                                || current_z > *z
+                            {
                                 out_of_bounds = true;
                             }
                         }
                         BuildVolume::Cylindrical { diameter, z } => {
                             let r_max = diameter / 2.0;
-                            let r2 = current_x*current_x + current_y*current_y;
+                            let r2 = current_x * current_x + current_y * current_y;
                             if r2 > r_max * r_max || current_z < 0.0 || current_z > *z {
                                 out_of_bounds = true;
                             }
                         }
                     }
 
-                    if out_of_bounds {
+                    if out_of_bounds && !alert_gcode_out_of_bounds {
+                        alert_gcode_out_of_bounds = true;
                         issues.push(ValidationIssue {
                             id: "GCODE_OUT_OF_BOUNDS".to_string(),
                             severity: IssueSeverity::Critical,
@@ -577,7 +786,8 @@ impl GcodeValidator for StandardGcodeValidator {
                 }
                 "M104" | "M109" => {
                     if let Some(temp) = get_gcode_param(&words, 'S') {
-                        if temp > printer.max_hotend_temp {
+                        if temp > printer.max_hotend_temp && !alert_hotend_temp_exceeds_max {
+                            alert_hotend_temp_exceeds_max = true;
                             issues.push(ValidationIssue {
                                 id: "HOTEND_TEMP_EXCEEDS_MAX".to_string(),
                                 severity: IssueSeverity::Critical,
@@ -594,7 +804,12 @@ impl GcodeValidator for StandardGcodeValidator {
                                 ],
                             });
                         }
-                        if material.name != "Generic" && temp > 0.0 && (temp < material.min_nozzle_temp || temp > material.max_nozzle_temp) {
+                        if material.name != "Generic"
+                            && temp > 0.0
+                            && (temp < material.min_nozzle_temp || temp > material.max_nozzle_temp)
+                            && !alert_hotend_temp_out_of_range
+                        {
+                            alert_hotend_temp_out_of_range = true;
                             issues.push(ValidationIssue {
                                 id: "HOTEND_TEMP_OUT_OF_RANGE".to_string(),
                                 severity: IssueSeverity::Major,
@@ -615,7 +830,8 @@ impl GcodeValidator for StandardGcodeValidator {
                 }
                 "M140" | "M190" => {
                     if let Some(temp) = get_gcode_param(&words, 'S') {
-                        if temp > printer.max_bed_temp {
+                        if temp > printer.max_bed_temp && !alert_bed_temp_exceeds_max {
+                            alert_bed_temp_exceeds_max = true;
                             issues.push(ValidationIssue {
                                 id: "BED_TEMP_EXCEEDS_MAX".to_string(),
                                 severity: IssueSeverity::Critical,
@@ -632,7 +848,12 @@ impl GcodeValidator for StandardGcodeValidator {
                                 ],
                             });
                         }
-                        if material.name != "Generic" && temp > 0.0 && (temp < material.min_bed_temp || temp > material.max_bed_temp) {
+                        if material.name != "Generic"
+                            && temp > 0.0
+                            && (temp < material.min_bed_temp || temp > material.max_bed_temp)
+                            && !alert_bed_temp_out_of_range
+                        {
+                            alert_bed_temp_out_of_range = true;
                             issues.push(ValidationIssue {
                                 id: "BED_TEMP_OUT_OF_RANGE".to_string(),
                                 severity: IssueSeverity::Major,
@@ -656,31 +877,21 @@ impl GcodeValidator for StandardGcodeValidator {
         }
 
         if min_x > max_x {
-            min_x = 0.0; max_x = 0.0;
-            min_y = 0.0; max_y = 0.0;
-            min_z = 0.0; max_z = 0.0;
+            min_x = 0.0;
+            max_x = 0.0;
+            min_y = 0.0;
+            max_y = 0.0;
+            min_z = 0.0;
+            max_z = 0.0;
         }
 
-        let model_bb = match printer.build_volume {
-            BuildVolume::Rectangular { .. } => BuildVolume::Rectangular {
-                x: max_x - min_x,
-                y: max_y - min_y,
-                z: max_z - min_z,
-            },
-            BuildVolume::Cylindrical { .. } => {
-                // Approximate radius from bounding box limits or tracking max distance
-                let r2_min_x = min_x * min_x;
-                let r2_max_x = max_x * max_x;
-                let r2_min_y = min_y * min_y;
-                let r2_max_y = max_y * max_y;
-                let max_r_x = r2_min_x.max(r2_max_x).sqrt();
-                let max_r_y = r2_min_y.max(r2_max_y).sqrt();
-                let max_r = max_r_x.max(max_r_y);
-                BuildVolume::Cylindrical {
-                    diameter: 2.0 * max_r,
-                    z: max_z - min_z,
-                }
-            }
+        let model_bb = BoundingBox {
+            min_x,
+            min_y,
+            min_z,
+            max_x,
+            max_y,
+            max_z,
         };
 
         let mut status = ValidationStatus::Pass;
@@ -709,7 +920,11 @@ impl GcodeValidator for StandardGcodeValidator {
                 bounding_box: model_bb,
             },
             issues,
-            confidence_level: "high".to_string(),
+            confidence_level: if homed {
+                "high".to_string()
+            } else {
+                "low".to_string()
+            },
             sliced_settings_assumed: None,
         })
     }
@@ -738,50 +953,64 @@ mod tests {
     fn test_validate_mesh_tetrahedron() {
         let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
         let path = fixtures_dir.join("tetrahedron.stl");
-        
+
         let validator = StlModelValidator;
         let report = validator.validate_mesh(&path, &printer, &material).unwrap();
 
         // Tetrahedron is watertight, so it should not fail on watertight checks.
         // It might trigger poor bed adhesion due to small footprint, but its status should be Pass or Warning, NOT Fail.
         assert_ne!(report.status, ValidationStatus::Fail);
-        assert!(report.issues.iter().all(|issue| issue.id != "MESH_NOT_MANIFOLD"));
+        assert!(report
+            .issues
+            .iter()
+            .all(|issue| issue.id != "MESH_NOT_MANIFOLD"));
     }
 
     #[test]
     fn test_validate_mesh_open_triangle() {
         let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
         let path = fixtures_dir.join("open_triangle.stl");
-        
+
         let validator = StlModelValidator;
         let report = validator.validate_mesh(&path, &printer, &material).unwrap();
 
         // A single facet is open and not manifold
         assert_eq!(report.status, ValidationStatus::Fail);
-        assert!(report.issues.iter().any(|issue| issue.id == "MESH_NOT_MANIFOLD"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "MESH_NOT_MANIFOLD"));
     }
 
     #[test]
     fn test_validate_mesh_overhang_flange() {
         let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
         let path = fixtures_dir.join("overhang_flange.stl");
-        
+
         let validator = StlModelValidator;
         let report = validator.validate_mesh(&path, &printer, &material).unwrap();
 
-        // Overhang flange is open and has suspended face
-        assert_eq!(report.status, ValidationStatus::Fail);
-        assert!(report.issues.iter().any(|issue| issue.id == "MESH_NOT_MANIFOLD"));
-        assert!(report.issues.iter().any(|issue| issue.id == "OVERHANG_UNSUPPORTED" || issue.id == "BRIDGE_UNSUPPORTED"));
+        // Overhang flange is watertight but has overhangs, status should be Warning
+        assert_eq!(report.status, ValidationStatus::Warning);
+        assert!(report
+            .issues
+            .iter()
+            .all(|issue| issue.id != "MESH_NOT_MANIFOLD"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "OVERHANG_UNSUPPORTED" || issue.id == "BRIDGE_UNSUPPORTED"));
     }
 
     #[test]
     fn test_validate_gcode_safe() {
         let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
         let path = fixtures_dir.join("safe_print.gcode");
-        
+
         let validator = StandardGcodeValidator;
-        let report = validator.validate_gcode(&path, &printer, &material).unwrap();
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
 
         assert_eq!(report.status, ValidationStatus::Pass);
         assert!(report.issues.is_empty());
@@ -791,24 +1020,33 @@ mod tests {
     fn test_validate_gcode_out_of_bounds() {
         let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
         let path = fixtures_dir.join("out_of_bounds.gcode");
-        
+
         let validator = StandardGcodeValidator;
-        let report = validator.validate_gcode(&path, &printer, &material).unwrap();
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
 
         assert_eq!(report.status, ValidationStatus::Fail);
-        assert!(report.issues.iter().any(|issue| issue.id == "GCODE_OUT_OF_BOUNDS"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "GCODE_OUT_OF_BOUNDS"));
     }
 
     #[test]
     fn test_validate_gcode_unsafe_temp() {
         let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
         let path = fixtures_dir.join("unsafe_temp.gcode");
-        
+
         let validator = StandardGcodeValidator;
-        let report = validator.validate_gcode(&path, &printer, &material).unwrap();
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
 
         assert_eq!(report.status, ValidationStatus::Fail);
-        assert!(report.issues.iter().any(|issue| issue.id == "HOTEND_TEMP_EXCEEDS_MAX"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "HOTEND_TEMP_EXCEEDS_MAX"));
     }
 }
-
