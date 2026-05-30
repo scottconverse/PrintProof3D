@@ -6,4 +6,5 @@ members = [
     "crates/adapters",
     "crates/sdk",
     "crates/cli",
+    "crates/rest",
 ]
