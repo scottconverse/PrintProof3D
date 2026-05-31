@@ -72,7 +72,7 @@ This file details network endpoints, serial configurations, and authentication d
 ## 3. Reading the Validation Report
 After running a check, PrintProof3D outputs a unified validation report. The most important field is the **`status`**, which can return one of three results:
 
-1. **`pass` (Green)**: The file matches all profiles. It is safe to print.
+1. **`pass` (Green)**: The file matches all profiles. It passes PrintProof3D profile and file validation checks.
 2. **`warning` (Yellow)**: Non-blocking issues were found. You should review them, but the file is not dangerous to the machine. Common warnings include low bed contact area or steep overhangs.
 3. **`fail` (Red)**: Critical errors were detected (such as coordinates that exceed your printer's physical dimensions or temperatures that exceed safety limits). Printing is blocked.
 
@@ -288,12 +288,16 @@ Because WASM runs in an isolated sandbox, data is exchanged by passing pointers 
    cargo build --target wasm32-unknown-unknown --release
    ```
 5. **Run the Plugin**:
+   Invoke using the locally compiled binary or a globally installed CLI:
    ```bash
-   printproof3d validate-model \
-     --model fixtures/tetrahedron.stl \
-     --printer profiles/prusa_mk4.json \
-     --material profiles/pla.json \
-     --plugin target/wasm32-unknown-unknown/release/my_plugin.wasm
+   # Local path (Windows example)
+   target\debug\printproof3d.exe validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json --plugin target/wasm32-unknown-unknown/release/my_plugin.wasm
+
+   # Local path (Unix example)
+   ./target/debug/printproof3d validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json --plugin target/wasm32-unknown-unknown/release/my_plugin.wasm
+
+   # Globally installed CLI
+   printproof3d validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json --plugin target/wasm32-unknown-unknown/release/my_plugin.wasm
    ```
 
 ---

@@ -36,95 +36,158 @@ PrintProof3D is organized as a Cargo workspace with decoupled crates:
 
 ---
 
-## ⚙️ Installation & Setup
+## 🚀 10-Minute Developer Quickstart
 
-PrintProof3D must be compiled from source. Follow these steps to build the workspace locally:
+Get up and running with PrintProof3D in 10 minutes or less.
 
-### 1. Build from Source (Recommended Local Path)
+### 1. Prerequisites & Compilation
+Ensure you have the Rust toolchain installed. Since PrintProof3D utilizes a WebAssembly runtime for sandboxed plugins, add the WASM build target:
 ```bash
-# Clone the repository
-git clone https://github.com/scottconverse/PrintProof3D.git
-cd PrintProof3D
+rustup target add wasm32-unknown-unknown
+```
 
+Build the workspace locally:
+```bash
 # Compile the entire workspace in release mode
 cargo build --release
 ```
-The compiled binaries are written to the target subdirectory:
-* **CLI tool**: `./target/release/printproof3d` (or `./target/release/printproof3d.exe` on Windows)
-* **REST server**: `./target/release/printproof3d-rest` (or `./target/release/printproof3d-rest.exe` on Windows)
+The compiled binaries are generated in:
+- **CLI Utility**: `target/release/printproof3d` (or `target/release/printproof3d.exe` on Windows)
+- **REST Daemon**: `target/release/printproof3d-rest` (or `target/release/printproof3d-rest.exe` on Windows)
 
-### 2. Global Installation
-If you want to invoke `printproof3d` globally in your path, compile and install via cargo path:
+*Note: For global system CLI usage, you can run `cargo install --path crates/cli` to make `printproof3d` available in your path, but we recommend local testing/build paths first.*
+
+### 2. Verify Workspace Health
+Run the comprehensive agent health check script from the project root to ensure everything is set up correctly:
 ```bash
-# Install the command-line tool globally
-cargo install --path crates/cli
-
-# Verify CLI installation
-printproof3d --version
-
-# Install the REST API server globally
-cargo install --path crates/rest
-
-# Verify REST server installation
-printproof3d-rest --help
+python devtools/agent_health_check.py
 ```
-> [!NOTE]
-> Ensure that Cargo's binary installation path (typically `~/.cargo/bin` on Unix systems, or `%USERPROFILE%\.cargo\bin` on Windows) is present in your system's `PATH` environment variable.
+This runs workspace formatting checks, clippy lints, the unit/integration test suite, builds the binary, and runs validation smoke tests.
+
+### 3. Run STL Mesh Geometry Audits
+Validate a raw 3D mesh asset against target printer capabilities and material properties. The CLI validates coordinates, watertightness (manifold edges), circular bed distance thresholds, steep overhangs, and bed adhesion contact footprint area.
+
+**Using Repository-Local Release Binary:**
+```bash
+# Windows
+target\release\printproof3d.exe validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
+
+# Unix
+./target/release/printproof3d validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
+```
+
+**Using Globally Installed CLI:**
+```bash
+printproof3d validate-model --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
+```
+
+### 4. Run Sliced G-Code Audits
+Validate stateful travel motions, nozzle temperatures, and bed thermal limits.
+
+**Using Repository-Local Release Binary:**
+```bash
+# Windows
+target\release\printproof3d.exe validate-gcode --gcode fixtures/safe_print.gcode --printer profiles/prusa_mk4.json --material profiles/pla.json
+
+# Unix
+./target/release/printproof3d validate-gcode --gcode fixtures/safe_print.gcode --printer profiles/prusa_mk4.json --material profiles/pla.json
+```
+
+**Using Globally Installed CLI:**
+```bash
+printproof3d validate-gcode --gcode fixtures/safe_print.gcode --printer profiles/prusa_mk4.json --material profiles/pla.json
+```
+
+### 5. Integration Channels
+- **WASM Plugins**: Compile guest plugins to the WASM target and run validations using `--plugin <path_to_wasm>`.
+- **Axum REST API**: Spin up the local HTTP daemon using `cargo run --package printproof3d-rest` (listening on port `3000`, protected by Bearer token authentication).
+- **AI Agentic Workflows (MCP)**: Run the Model Context Protocol JSON-RPC server over stdout/stdin using `printproof3d mcp`.
+- **Crate Dependencies**: `printproof3d-core` and `printproof3d-adapters` are usable as path/git dependencies in your external Rust application's `Cargo.toml` unless/until published to crates.io.
 
 ---
 
-## Quickstart & Commands
+## 📋 Validation Report JSON Contract
 
-### 1. Compile the Example Plugin
-Build all native crates, unit tests, and compile the example WebAssembly validation plugin:
-```bash
-# Build the native project crates
-cargo build --release
+Commands output a unified machine-readable JSON report. External applications should parse the following contract structure:
 
-# Compile the sample WASM rules plugin
-cargo build --package example-plugin --target wasm32-unknown-unknown --release
+```json
+{
+  "status": "pass",
+  "target_printer_profile": "Prusa_MK4",
+  "target_material_profile": "Polylactic Acid",
+  "model": {
+    "file_name": "tetrahedron.stl",
+    "units": "mm",
+    "bounding_box": {
+      "min_x": 0.0,
+      "min_y": 0.0,
+      "min_z": 0.0,
+      "max_x": 10.0,
+      "max_y": 8.66,
+      "max_z": 8.16
+    }
+  },
+  "issues": [
+    {
+      "id": "MESH_NOT_MANIFOLD",
+      "severity": "critical",
+      "message": "Model mesh is not watertight/manifold. Found 3 open/non-manifold edges.",
+      "location": {
+        "region": "mesh_boundaries",
+        "geometry": null
+      },
+      "suggested_fixes": [
+        "Repair the 3D model in a mesh editor (e.g. Blender, Netfabb) to make it watertight."
+      ]
+    }
+  ],
+  "confidence_level": "high",
+  "sliced_settings_assumed": null
+}
 ```
 
-### 2. Execute Geometry Validation
-Audit raw 3D mesh assets against target hardware and material limits:
-```bash
-printproof3d validate-model \
-  --model fixtures/tetrahedron.stl \
-  --printer profiles/prusa_mk4.json \
-  --material profiles/pla.json
-```
+### Properties
+- `status`: String enum. Value can be `"pass"` (passes PrintProof3D profile and file validation checks), `"warning"` (non-blocking safety suggestions), or `"fail"` (critical hardware/extrusion issues detected).
+- `issues`: Array of validation issues.
+  - `id`: Unique upper-case machine identifier (e.g. `MESH_NOT_MANIFOLD`, `GCODE_OUT_OF_BOUNDS`, `HOTEND_TEMP_EXCEEDS_MAX`).
+  - `severity`: String enum (`info`, `minor`, `major`, `critical`, `blocker`).
+  - `message`: User-facing description.
+  - `suggested_fixes`: Actionable suggestions for slicers or CAD correction.
 
-### 3. Execute Toolpath Validation
-Audit sliced G-code instructions for safety bounds:
-```bash
-printproof3d validate-gcode \
-  --gcode fixtures/safe_print.gcode \
-  --printer profiles/prusa_mk4.json \
-  --material profiles/pla.json
-```
+---
 
-### 4. Run Validation with Custom WASM Plugins
-Inject custom compliance policies at runtime using the compiled WASM binary:
-```bash
-printproof3d validate-model \
-  --model fixtures/tetrahedron.stl \
-  --printer profiles/prusa_mk4.json \
-  --material profiles/pla.json \
-  --plugin target/wasm32-unknown-unknown/release/example_plugin.wasm
-```
+## 🚦 Exit Codes
+PrintProof3D returns standard shell exit codes for automated tooling integration (e.g., CI/CD pipelines or IDE task runners):
+- `0`: Validation status is `pass` (no errors, warnings, or failures).
+- `1`: Validation status is `warning` or `fail`, or a file reading/parsing error occurred.
 
-### 5. Spin up the REST Web Daemon
-Launch the HTTP validation microservice:
-```bash
-cargo run --package printproof3d-rest
-```
-*Secure routes enforce Bearer authentication. By default, the API key defaults to `secret_print_token`.*
+---
 
-### 6. Interface with AI Agents (MCP Server)
-Integrate validation rules into agentic software assistants (like Cursor or Claude Desktop):
-```bash
-printproof3d mcp
-```
+## ⚠️ Simulator-Only SDK & Adapter Limitations
+> [!WARNING]
+> PrintProof3D is **not hardware-validated**.
+> All physical communication protocols (Bambu MQTT/FTP, Moonraker/Klipper, OctoPrint, PrusaLink, RepRapFirmware, Marlin Serial) are verified solely using local, sandboxed twin simulator mocks.
+> Passing validation checks indicates protocol client compliance, but does **not** certify physical printer thermal safety, real nozzle movement limits, or safety from hardware failures. Physical printing safety remains the sole responsibility of the operator.
+
+---
+
+## 🔧 Troubleshooting Guide
+
+#### 1. Port Collisions in Mock Servers
+- **Symptom:** SDK tests fail to bind or report "address already in use."
+- **Solution:** PrintProof3D mocks default to binding to dynamic ephemeral port `0` (`127.0.0.1:0`), letting the operating system select an available port. If configuring custom connection profiles, make sure to use port `0` or ensure target ports are fully free.
+
+#### 2. Auth Failures (`401 Unauthorized`) in REST API
+- **Symptom:** REST endpoint requests fail with authorization errors.
+- **Solution:** Ensure you pass the header `Authorization: Bearer <token>`. By default, the API token defaults to `secret_print_token`. You can override this token by starting the server with the environment variable `PRINTPROOF3D_API_TOKEN` set.
+
+#### 3. WASM Sandboxed Plugin compilation target
+- **Symptom:** Plugins fail to load or report architecture mismatch errors.
+- **Solution:** Sandboxed plugins must be compiled for target `wasm32-unknown-unknown` (e.g., `cargo build --target wasm32-unknown-unknown --release`). Verify that your Rust toolchain has the target added.
+
+#### 4. Isolated adapters/SDK compile errors
+- **Symptom:** Compiling `printproof3d-adapters` or `printproof3d-sdk` in isolation fails with errors like `could not find fs in tokio`.
+- **Solution:** Verify that `crates/adapters/Cargo.toml` has the `fs` feature enabled on the `tokio` dependency (i.e. `tokio = { features = ["sync", "time", "fs"], ... }`). This resolves feature union leakage requirements.
 
 ---
 

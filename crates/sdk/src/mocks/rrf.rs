@@ -38,7 +38,10 @@ impl RrfMockServer {
                                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n",
                                 r#"{"err": 0, "session": 12345}"#,
                             )
-                        } else if request.contains("/rr_upload") {
+                        } else if request.contains("/rr_upload")
+                            || request.contains("/rr_gcode")
+                            || request.contains("/rr_disconnect")
+                        {
                             (
                                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n",
                                 r#"{"err": 0}"#,

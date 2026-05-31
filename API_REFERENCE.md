@@ -74,7 +74,7 @@ The unified report structure returned by validation passes.
 
 #### Fields:
 * **`status: ValidationStatus`**: Consolidation of safety checks.
-  * `ValidationStatus::Pass`: The file matches all profiles and is safe to print.
+  * `ValidationStatus::Pass`: The file matches all profiles and passes PrintProof3D profile and file validation checks.
   * `ValidationStatus::Warning`: The file contains non-blocking warnings (e.g. small contact footprint).
   * `ValidationStatus::Fail`: The file violates physical safety boundaries (e.g. out of bounds or excessive temperatures).
 * **`target_printer_profile: String`**: Concatened manufacturer and model used during validation.
