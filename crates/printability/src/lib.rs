@@ -450,7 +450,7 @@ impl ModelValidator for StlModelValidator {
                 ),
                 location: Some(IssueLocation {
                     region: "overhangs".to_string(),
-                    geometry: Some(LocationGeometry::Triangles(overhang_triangles)),
+                    geometry: Some(LocationGeometry::Triangles { triangles: overhang_triangles }),
                 }),
                 suggested_fixes: vec![
                     "Add support structures in your slicer software.".to_string(),
@@ -469,7 +469,7 @@ impl ModelValidator for StlModelValidator {
                 ),
                 location: Some(IssueLocation {
                     region: "bridges".to_string(),
-                    geometry: Some(LocationGeometry::Triangles(bridge_triangles)),
+                    geometry: Some(LocationGeometry::Triangles { triangles: bridge_triangles }),
                 }),
                 suggested_fixes: vec![
                     "Enable bridging settings in the slicer.".to_string(),

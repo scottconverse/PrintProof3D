@@ -203,17 +203,18 @@
           }
         },
         {
-          "type": [
-            "object",
-            "array"
-          ],
-          "items": {
-            "$ref": "#/definitions/Triangle"
-          },
+          "type": "object",
           "required": [
+            "triangles",
             "type"
           ],
           "properties": {
+            "triangles": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Triangle"
+              }
+            },
             "type": {
               "type": "string",
               "enum": [

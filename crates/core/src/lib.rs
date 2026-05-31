@@ -324,7 +324,7 @@ pub struct Triangle {
 pub enum LocationGeometry {
     Point { x: f32, y: f32, z: f32 },
     BoundingBox(BoundingBox),
-    Triangles(Vec<Triangle>),
+    Triangles { triangles: Vec<Triangle> },
 }
 
 /// Spatial location coordinates or geometric boundaries of a printability alert.
@@ -515,6 +515,58 @@ mod tests {
 
         // Report should fail invariant checks due to critical issue on passing status
         assert!(report.validate().is_err());
+    }
+
+    #[test]
+    fn test_validation_report_serialization_roundtrip() {
+        let report = ValidationReport {
+            status: ValidationStatus::Warning,
+            target_printer_profile: "prusa_mk4_default".to_string(),
+            target_material_profile: "generic_pla".to_string(),
+            model: ModelMetadata {
+                file_name: "test_bracket.stl".to_string(),
+                units: "mm".to_string(),
+                bounding_box: BoundingBox {
+                    min_x: 0.0,
+                    min_y: 0.0,
+                    min_z: 0.0,
+                    max_x: 50.0,
+                    max_y: 30.0,
+                    max_z: 20.0,
+                },
+            },
+            issues: vec![ValidationIssue {
+                id: "OVERHANG_UNSUPPORTED".to_string(),
+                severity: IssueSeverity::Major,
+                message: "Steep overhang.".to_string(),
+                location: Some(IssueLocation {
+                    region: "overhangs".to_string(),
+                    geometry: Some(LocationGeometry::Triangles {
+                        triangles: vec![Triangle {
+                            v0: [0.0, 0.0, 0.0],
+                            v1: [1.0, 0.0, 0.0],
+                            v2: [0.0, 1.0, 0.0],
+                        }],
+                    }),
+                }),
+                suggested_fixes: vec![],
+            }],
+            confidence_level: "high".to_string(),
+            sliced_settings_assumed: None,
+        };
+
+        // Serialize report to string
+        let serialized = serde_json::to_string(&report);
+        assert!(serialized.is_ok(), "Serialization failed: {:?}", serialized.err());
+        let serialized_str = serialized.unwrap();
+
+        // Deserialize report from string
+        let deserialized: Result<ValidationReport, _> = serde_json::from_str(&serialized_str);
+        assert!(deserialized.is_ok(), "Deserialization failed: {:?}", deserialized.err());
+        let deserialized_report = deserialized.unwrap();
+
+        // Verify matches original
+        assert_eq!(deserialized_report, report);
     }
 
     #[test]
