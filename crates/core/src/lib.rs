@@ -2,6 +2,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub mod connection;
+
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

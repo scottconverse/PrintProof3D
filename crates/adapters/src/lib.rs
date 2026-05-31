@@ -68,3 +68,11 @@ pub trait PrinterAdapter: Send + Sync {
     async fn cancel_job(&self) -> Result<(), AdapterError>;
     async fn emergency_stop(&self) -> Result<(), AdapterError>;
 }
+
+pub mod bambu;
+pub mod factory;
+pub mod moonraker;
+pub mod octoprint;
+pub mod prusalink;
+pub mod rrf;
+pub mod serial;
