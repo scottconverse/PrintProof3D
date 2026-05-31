@@ -592,6 +592,7 @@ dependencies = [
  "printproof3d-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

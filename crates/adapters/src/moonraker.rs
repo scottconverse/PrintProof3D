@@ -1,5 +1,5 @@
 // Klipper Moonraker Printer Adapter
-use crate::{AdapterError, PrinterAdapter, PrinterState, PrinterTelemetry};
+use crate::{AdapterError, PrinterAdapter, PrinterTelemetry};
 use async_trait::async_trait;
 use printproof3d_core::{connection::PrinterConnectionConfig, PrinterProfile};
 use std::path::Path;
@@ -25,19 +25,11 @@ impl PrinterAdapter for MoonrakerAdapter {
     }
 
     async fn disconnect(&mut self) -> Result<(), AdapterError> {
-        Ok(())
+        Err(AdapterError::CommandFailed("Not implemented".to_string()))
     }
 
     async fn get_status(&self) -> Result<PrinterTelemetry, AdapterError> {
-        Ok(PrinterTelemetry {
-            state: PrinterState::Idle,
-            tool_temp: 0.0,
-            tool_target: 0.0,
-            bed_temp: 0.0,
-            bed_target: 0.0,
-            progress: 0.0,
-            current_file: None,
-        })
+        Err(AdapterError::CommandFailed("Not implemented".to_string()))
     }
 
     async fn upload_file(

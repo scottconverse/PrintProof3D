@@ -16,9 +16,9 @@ impl PrinterAdapterFactory {
     ) -> Result<Box<dyn PrinterAdapter>, AdapterError> {
         // Run validations first
         config.validate().map_err(AdapterError::ValidationError)?;
-        profile
-            .validate()
-            .map_err(|e| AdapterError::ValidationError(format!("Invalid printer profile: {}", e)))?;
+        profile.validate().map_err(|e| {
+            AdapterError::ValidationError(format!("Invalid printer profile: {}", e))
+        })?;
 
         // Check protocol consistency
         if profile.protocol_family != config.protocol_family {
@@ -252,5 +252,104 @@ mod tests {
 
         let adapter = PrinterAdapterFactory::build(&profile, &config);
         assert!(adapter.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_skeleton_adapters_fail_loudly() {
+        let protocols = vec![
+            (
+                ProtocolFamily::BambuMqtt,
+                Some("127.0.0.1".to_string()),
+                None,
+                None,
+            ),
+            (
+                ProtocolFamily::Klipper,
+                Some("http://127.0.0.1".to_string()),
+                None,
+                None,
+            ),
+            (
+                ProtocolFamily::OctoPrint,
+                Some("http://127.0.0.1".to_string()),
+                None,
+                None,
+            ),
+            (
+                ProtocolFamily::PrusaLink,
+                Some("http://127.0.0.1".to_string()),
+                None,
+                None,
+            ),
+            (
+                ProtocolFamily::RepRapFirmware,
+                Some("http://127.0.0.1".to_string()),
+                None,
+                None,
+            ),
+            (
+                ProtocolFamily::MarlinSerial,
+                None,
+                Some("COM3".to_string()),
+                Some(115200),
+            ),
+        ];
+
+        for (proto, url, path, baud) in protocols {
+            let profile = dummy_profile(proto.clone());
+            let config = PrinterConnectionConfig {
+                name: format!("{:?} target", proto),
+                mode: ConnectionMode::Simulator,
+                protocol_family: proto,
+                base_url: url,
+                serial_path: path,
+                serial_baud_rate: baud,
+                auth_type: AuthType::None,
+                api_key_env_var: None,
+                username: None,
+                password_env_var: None,
+                tls_enabled: false,
+                dispatch_policy: DispatchPolicy::AllowStart,
+                simulator_scenario: None,
+            };
+
+            let mut adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
+
+            // Verifying connect fails
+            let conn_res = adapter.connect().await;
+            assert!(
+                conn_res.is_err(),
+                "connect should fail for protocol: {:?}",
+                config.protocol_family
+            );
+
+            // Verifying disconnect fails loudly
+            let disc_res = adapter.disconnect().await;
+            assert!(
+                disc_res.is_err(),
+                "disconnect should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let disc_err = disc_res.err().unwrap().to_string();
+            assert!(
+                disc_err.contains("Not implemented"),
+                "expected 'Not implemented' for disconnect on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying get_status fails loudly
+            let status_res = adapter.get_status().await;
+            assert!(
+                status_res.is_err(),
+                "get_status should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let status_err = status_res.err().unwrap().to_string();
+            assert!(
+                status_err.contains("Not implemented"),
+                "expected 'Not implemented' for get_status on {:?}",
+                config.protocol_family
+            );
+        }
     }
 }
