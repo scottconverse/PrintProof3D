@@ -537,10 +537,8 @@ impl ModelValidator for StlModelValidator {
                     status = ValidationStatus::Fail;
                     break;
                 }
-                IssueSeverity::Major => {
-                    if status != ValidationStatus::Fail {
-                        status = ValidationStatus::Warning;
-                    }
+                IssueSeverity::Major if status != ValidationStatus::Fail => {
+                    status = ValidationStatus::Warning;
                 }
                 _ => {}
             }
@@ -903,10 +901,8 @@ impl GcodeValidator for StandardGcodeValidator {
                     status = ValidationStatus::Fail;
                     break;
                 }
-                IssueSeverity::Major => {
-                    if status != ValidationStatus::Fail {
-                        status = ValidationStatus::Warning;
-                    }
+                IssueSeverity::Major if status != ValidationStatus::Fail => {
+                    status = ValidationStatus::Warning;
                 }
                 _ => {}
             }
