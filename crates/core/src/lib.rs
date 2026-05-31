@@ -557,12 +557,20 @@ mod tests {
 
         // Serialize report to string
         let serialized = serde_json::to_string(&report);
-        assert!(serialized.is_ok(), "Serialization failed: {:?}", serialized.err());
+        assert!(
+            serialized.is_ok(),
+            "Serialization failed: {:?}",
+            serialized.err()
+        );
         let serialized_str = serialized.unwrap();
 
         // Deserialize report from string
         let deserialized: Result<ValidationReport, _> = serde_json::from_str(&serialized_str);
-        assert!(deserialized.is_ok(), "Deserialization failed: {:?}", deserialized.err());
+        assert!(
+            deserialized.is_ok(),
+            "Deserialization failed: {:?}",
+            deserialized.err()
+        );
         let deserialized_report = deserialized.unwrap();
 
         // Verify matches original

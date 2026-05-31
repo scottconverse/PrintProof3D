@@ -469,7 +469,9 @@ impl ModelValidator for StlModelValidator {
                 ),
                 location: Some(IssueLocation {
                     region: "bridges".to_string(),
-                    geometry: Some(LocationGeometry::Triangles { triangles: bridge_triangles }),
+                    geometry: Some(LocationGeometry::Triangles {
+                        triangles: bridge_triangles,
+                    }),
                 }),
                 suggested_fixes: vec![
                     "Enable bridging settings in the slicer.".to_string(),
@@ -1096,7 +1098,7 @@ mod tests {
         let (_, printer, material) = get_fixtures_and_profiles();
         // Create a temporary G-code file with multiple duplicate GCODE_OUT_OF_BOUNDS coordinates
         let gcode_content = "G28\nG1 X300 Y300 Z300\nG1 X300 Y300 Z300\nG1 X300 Y300 Z300\n";
-        
+
         let temp_dir = std::env::temp_dir();
         let file_path = temp_dir.join("temp_test_dedup.gcode");
         std::fs::write(&file_path, gcode_content).unwrap();
