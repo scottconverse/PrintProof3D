@@ -45,6 +45,12 @@
       padding: 0;
     }
 
+    /* Custom Focus Outline */
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--secondary);
+      outline-offset: 4px;
+    }
+
     body {
       background-color: var(--bg);
       color: var(--text);
@@ -368,7 +374,7 @@
       display: none;
       opacity: 0;
       transition: opacity 0.4s ease;
-      font-family: 'Space Grotesk', monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 0.9rem;
       line-height: 1.5;
       overflow-x: auto;
@@ -432,13 +438,13 @@
     <h2>Validation Engine in Action</h2>
     <p>Audit print files via CLI or inspect the unified, machine-readable validation reports.</p>
     <div class="preview-container">
-      <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('terminal')">Terminal Command</button>
-        <button class="tab-btn" onclick="switchTab('json')">ValidationReport JSON</button>
+      <div class="tab-bar" role="tablist">
+        <button id="tab-terminal" role="tab" aria-selected="true" aria-controls="pane-terminal" class="tab-btn active" onclick="switchTab('terminal')">Terminal Command</button>
+        <button id="tab-json" role="tab" aria-selected="false" aria-controls="pane-json" class="tab-btn" onclick="switchTab('json')">ValidationReport JSON</button>
       </div>
       <div class="code-viewer">
         <!-- Tab 1: Terminal -->
-        <div id="pane-terminal" class="code-pane active terminal-pane"><span class="terminal-prompt">$</span> printproof3d validate-model --model fixtures/overhang_flange.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
+        <div id="pane-terminal" role="tabpanel" aria-labelledby="tab-terminal" tabindex="0" class="code-pane active terminal-pane"><span class="terminal-prompt">$</span> printproof3d validate-model --model fixtures/overhang_flange.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
 <span class="terminal-info">{
   "status": "warning",
   "target_printer_profile": "Prusa_MK4",
@@ -497,7 +503,7 @@
 }</span></div>
         
         <!-- Tab 2: JSON Report -->
-        <div id="pane-json" class="code-pane"><code class="json-code">{
+        <div id="pane-json" role="tabpanel" aria-labelledby="tab-json" tabindex="0" class="code-pane"><code class="json-code">{
   <span class="json-key">"status"</span>: <span class="json-string">"warning"</span>,
   <span class="json-key">"target_printer_profile"</span>: <span class="json-string">"Prusa_MK4"</span>,
   <span class="json-key">"target_material_profile"</span>: <span class="json-string">"Polylactic Acid"</span>,
@@ -641,7 +647,10 @@
   <script>
     function switchTab(tab) {
       // Deactivate all tab buttons and panes
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      });
       document.querySelectorAll('.code-pane').forEach(pane => {
         pane.classList.remove('active');
         pane.style.opacity = 0;
@@ -655,6 +664,7 @@
 
       if (activeBtn && activePane) {
         activeBtn.classList.add('active');
+        activeBtn.setAttribute('aria-selected', 'true');
         activePane.classList.add('active');
         // Force layout repaint and trigger transition fade-in
         setTimeout(() => {
@@ -662,6 +672,25 @@
         }, 50);
       }
     }
+
+    // Keyboard navigation for tabs
+    document.querySelector('.tab-bar').addEventListener('keydown', e => {
+      const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+      let index = tabs.indexOf(document.activeElement);
+      if (index > -1) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          let nextIndex = (index + 1) % tabs.length;
+          tabs[nextIndex].focus();
+          tabs[nextIndex].click();
+          e.preventDefault();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          let prevIndex = (index - 1 + tabs.length) % tabs.length;
+          tabs[prevIndex].focus();
+          tabs[prevIndex].click();
+          e.preventDefault();
+        }
+      }
+    });
   </script>
 </body>
 </html>

@@ -90,6 +90,33 @@ The unified report structure returned by validation passes.
 
 ---
 
+### 1.4 `PrinterConnectionConfig` (Struct)
+Defines the connection parameters, credentials, endpoints, and pre-flight execution policies required to communicate with a remote printer or simulator.
+
+#### Fields:
+* **`name: String`**: A descriptive human-readable label for the target. Must be non-empty.
+* **`mode: ConnectionMode`**: Indicates whether to route to a simulation host or physical hardware (`Simulator` or `Physical`).
+* **`protocol_family: ProtocolFamily`**: Network/communication protocol enum.
+* **`base_url: Option<String>`**: Base URL or IP address. Required for physical network protocol targets.
+* **`serial_path: Option<String>`**: Serial port device endpoint path. Required for physical MarlinSerial connections.
+* **`serial_baud_rate: Option<u32>`**: Serial connection baud rate.
+* **`auth_type: AuthType`**: Authentication mechanism (`None`, `ApiKey`, `Digest`, `Password`).
+* **`api_key_env_var: Option<String>`**: Name of the environment variable storing the API key. Required for `AuthType::ApiKey`.
+* **`username: Option<String>`**: Username for authentication. Required for `AuthType::Password`.
+* **`password_env_var: Option<String>`**: Name of the environment variable storing the password. Required for `AuthType::Password`.
+* **`tls_enabled: bool`**: Activates secure socket TLS.
+* **`dispatch_policy: DispatchPolicy`**: Pre-flight action permission rules (`DryRunOnly`, `UploadOnly`, `AllowStart`).
+
+#### Key Invariants & Validations:
+* `PrinterConnectionConfig::validate(&self) -> Result<(), String>`:
+  * Rejects empty target names.
+  * For physical mode, checks that `serial_path` is set if protocol is `MarlinSerial`.
+  * For physical mode, checks that `base_url` is set if protocol is network-based.
+  * For API Key auth, ensures `api_key_env_var` is specified.
+  * For Password auth, ensures both `username` and `password_env_var` are specified.
+
+---
+
 ## 2. `printproof3d-printability` — Verification Engines
 
 This crate provides the core validation traits and algorithms for mesh parsing and static path analysis.
@@ -191,13 +218,45 @@ pub enum AdapterError {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PrinterTelemetry {
-    pub state: String,
+    pub state: PrinterState,
     pub tool_temp: f32,
     pub tool_target: f32,
     pub bed_temp: f32,
     pub bed_target: f32,
     pub progress: f32,
     pub current_file: Option<String>,
+}
+```
+
+---
+
+### 3.3 `PrinterAdapterFactory` (Struct)
+Central registry factory to build dynamic adapter instances from profiles and configurations.
+
+```rust
+pub struct PrinterAdapterFactory;
+
+impl PrinterAdapterFactory {
+    /// Validates the connection config and returns an initialized dynamic box adapter matching the target protocol.
+    pub fn build(
+        profile: &PrinterProfile,
+        config: &PrinterConnectionConfig,
+    ) -> Result<Box<dyn PrinterAdapter>, AdapterError>;
+}
+```
+
+---
+
+### 3.4 Telemetry Enums
+```rust
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PrinterState {
+    Idle,
+    Printing,
+    Paused,
+    Error,
+    Unknown,
 }
 ```
 

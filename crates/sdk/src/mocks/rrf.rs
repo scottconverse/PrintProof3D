@@ -22,6 +22,7 @@ impl RrfMockServer {
             while running_clone.load(Ordering::Relaxed) {
                 if let Ok((mut stream, _)) = listener.accept() {
                     stream.set_nonblocking(false).unwrap();
+                    stream.set_read_timeout(Some(std::time::Duration::from_millis(100))).unwrap();
                     let mut buffer = [0; 1024];
                     if let Ok(bytes_read) = stream.read(&mut buffer) {
                         let request = String::from_utf8_lossy(&buffer[..bytes_read]);

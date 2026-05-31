@@ -60,23 +60,43 @@ pub struct PrinterConnectionConfig {
     /// Network protocol family.
     pub protocol_family: ProtocolFamily,
     /// Base URL or network IP address.
+    #[serde(default)]
     pub base_url: Option<String>,
     /// Serial port device endpoint path.
+    #[serde(default)]
     pub serial_path: Option<String>,
     /// Serial connection baud rate.
+    #[serde(default)]
     pub serial_baud_rate: Option<u32>,
     /// Authentication protocol selection.
+    #[serde(default = "default_auth_type")]
     pub auth_type: AuthType,
     /// Environment variable storing the API token/secret.
+    #[serde(default)]
     pub api_key_env_var: Option<String>,
     /// Username for credential verification.
+    #[serde(default)]
     pub username: Option<String>,
     /// Environment variable storing the client password.
+    #[serde(default)]
     pub password_env_var: Option<String>,
     /// Secure socket TLS state.
+    #[serde(default)]
     pub tls_enabled: bool,
     /// Pre-flight print execution policy.
+    #[serde(default = "default_dispatch_policy")]
     pub dispatch_policy: DispatchPolicy,
+    /// Optional simulator scenario.
+    #[serde(default)]
+    pub simulator_scenario: Option<SimulatorScenario>,
+}
+
+fn default_auth_type() -> AuthType {
+    AuthType::None
+}
+
+fn default_dispatch_policy() -> DispatchPolicy {
+    DispatchPolicy::DryRunOnly
 }
 
 impl PrinterConnectionConfig {
@@ -89,15 +109,27 @@ impl PrinterConnectionConfig {
             );
         }
 
+        let is_blank = |opt: &Option<String>| {
+            opt.as_ref().map(|s| s.trim().is_empty()).unwrap_or(true)
+        };
+
         // Physical validation invariants
         if self.mode == ConnectionMode::Physical {
+            if self.protocol_family == ProtocolFamily::Unknown {
+                return Err("Validation Error: Physical connections cannot use protocol family 'unknown'.".to_string());
+            }
+
             if self.protocol_family == ProtocolFamily::MarlinSerial {
-                if self.serial_path.is_none() {
+                if is_blank(&self.serial_path) {
                     return Err("Validation Error: For physical 'marlin_serial' connections, 'serial_path' must be specified (e.g., 'COM3' or '/dev/ttyUSB0').".to_string());
                 }
+                if let Some(baud) = self.serial_baud_rate {
+                    if baud == 0 {
+                        return Err("Validation Error: Baud rate must be greater than 0.".to_string());
+                    }
+                }
             } else {
-                let need_base_url = !matches!(self.protocol_family, ProtocolFamily::Unknown);
-                if need_base_url && self.base_url.is_none() {
+                if is_blank(&self.base_url) {
                     return Err(format!(
                         "Validation Error: For physical network target '{}' (protocol: {:?}), 'base_url' must be specified.",
                         self.name, self.protocol_family
@@ -109,19 +141,19 @@ impl PrinterConnectionConfig {
         // Authentication validation invariants
         match self.auth_type {
             AuthType::ApiKey => {
-                if self.api_key_env_var.is_none() {
+                if is_blank(&self.api_key_env_var) {
                     return Err("Validation Error: Auth type 'api_key' requires setting the 'api_key_env_var' field with the environment variable name containing the secret key.".to_string());
                 }
             }
-            AuthType::Password => {
-                if self.username.is_none() {
+            AuthType::Password | AuthType::Digest => {
+                if is_blank(&self.username) {
                     return Err(
-                        "Validation Error: Auth type 'password' requires a 'username' value."
+                        "Validation Error: Auth type requires a non-empty 'username' value."
                             .to_string(),
                     );
                 }
-                if self.password_env_var.is_none() {
-                    return Err("Validation Error: Auth type 'password' requires setting the 'password_env_var' field with the environment variable name containing the password.".to_string());
+                if is_blank(&self.password_env_var) {
+                    return Err("Validation Error: Auth type requires setting the 'password_env_var' field with the environment variable name containing the password.".to_string());
                 }
             }
             _ => {}
@@ -150,6 +182,7 @@ mod tests {
             password_env_var: None,
             tls_enabled: false,
             dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
         };
         assert!(config.validate().is_ok());
     }
@@ -169,6 +202,7 @@ mod tests {
             password_env_var: None,
             tls_enabled: false,
             dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
         };
         let res = config.validate();
         assert!(res.is_err());
@@ -190,6 +224,7 @@ mod tests {
             password_env_var: None,
             tls_enabled: false,
             dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
         };
         let res = config.validate();
         assert!(res.is_err());
@@ -211,9 +246,61 @@ mod tests {
             password_env_var: None,
             tls_enabled: false,
             dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
         };
         let res = config.validate();
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("api_key_env_var"));
+    }
+
+    #[test]
+    fn test_digest_auth_requires_credentials() {
+        let mut config = PrinterConnectionConfig {
+            name: "PrusaLink Digest".to_string(),
+            mode: ConnectionMode::Simulator,
+            protocol_family: ProtocolFamily::PrusaLink,
+            base_url: Some("http://localhost".to_string()),
+            serial_path: None,
+            serial_baud_rate: None,
+            auth_type: AuthType::Digest,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+        assert!(config.validate().is_err()); // empty username/password
+
+        config.username = Some("   ".to_string());
+        config.password_env_var = Some("PRUSALINK_PASSWORD".to_string());
+        assert!(config.validate().is_err()); // whitespace username
+
+        config.username = Some("admin".to_string());
+        config.password_env_var = Some("".to_string());
+        assert!(config.validate().is_err()); // empty password env var
+
+        config.password_env_var = Some("PRUSALINK_PASSWORD".to_string());
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_baud_rate_zero_invalid() {
+        let config = PrinterConnectionConfig {
+            name: "Marlin Physical Zero Baud".to_string(),
+            mode: ConnectionMode::Physical,
+            protocol_family: ProtocolFamily::MarlinSerial,
+            base_url: None,
+            serial_path: Some("COM3".to_string()),
+            serial_baud_rate: Some(0),
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+        assert!(config.validate().is_err());
     }
 }

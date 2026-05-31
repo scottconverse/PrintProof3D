@@ -22,6 +22,7 @@ pub enum AdapterError {
     AuthenticationFailed(String),
     UploadFailed(String),
     CommandFailed(String),
+    ValidationError(String),
     Timeout,
     Unknown(String),
 }
@@ -33,6 +34,7 @@ impl fmt::Display for AdapterError {
             AdapterError::AuthenticationFailed(msg) => write!(f, "Authentication failed: {}", msg),
             AdapterError::UploadFailed(msg) => write!(f, "Upload failed: {}", msg),
             AdapterError::CommandFailed(msg) => write!(f, "Command failed: {}", msg),
+            AdapterError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
             AdapterError::Timeout => write!(f, "Timeout"),
             AdapterError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
         }

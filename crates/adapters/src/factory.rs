@@ -14,8 +14,19 @@ impl PrinterAdapterFactory {
         profile: &PrinterProfile,
         config: &PrinterConnectionConfig,
     ) -> Result<Box<dyn PrinterAdapter>, AdapterError> {
-        // Run config validations first
-        config.validate().map_err(AdapterError::ConnectionFailed)?;
+        // Run validations first
+        config.validate().map_err(AdapterError::ValidationError)?;
+        profile
+            .validate()
+            .map_err(|e| AdapterError::ValidationError(format!("Invalid printer profile: {}", e)))?;
+
+        // Check protocol consistency
+        if profile.protocol_family != config.protocol_family {
+            return Err(AdapterError::ValidationError(format!(
+                "Protocol family mismatch: profile uses {:?}, connection config uses {:?}",
+                profile.protocol_family, config.protocol_family
+            )));
+        }
 
         match config.protocol_family {
             ProtocolFamily::BambuMqtt => {
@@ -40,7 +51,7 @@ impl PrinterAdapterFactory {
                 profile.clone(),
                 config.clone(),
             ))),
-            _ => Err(AdapterError::ConnectionFailed(format!(
+            _ => Err(AdapterError::ValidationError(format!(
                 "Unsupported protocol family: {:?}",
                 config.protocol_family
             ))),
@@ -56,11 +67,11 @@ mod tests {
         BedShape, BuildVolume, FirmwareFlavor,
     };
 
-    fn dummy_profile() -> PrinterProfile {
+    fn dummy_profile(protocol: ProtocolFamily) -> PrinterProfile {
         PrinterProfile {
             manufacturer: "Prusa".to_string(),
             model: "MK4".to_string(),
-            protocol_family: ProtocolFamily::PrusaLink,
+            protocol_family: protocol,
             build_volume: BuildVolume::Rectangular {
                 x: 250.0,
                 y: 210.0,
@@ -91,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_factory_builds_bambu() {
-        let profile = dummy_profile();
+        let profile = dummy_profile(ProtocolFamily::BambuMqtt);
         let config = PrinterConnectionConfig {
             name: "Bambu Simulator".to_string(),
             mode: ConnectionMode::Simulator,
@@ -105,6 +116,7 @@ mod tests {
             password_env_var: None,
             tls_enabled: false,
             dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
         };
 
         let adapter = PrinterAdapterFactory::build(&profile, &config);
@@ -112,8 +124,116 @@ mod tests {
     }
 
     #[test]
+    fn test_factory_builds_all_protocols() {
+        let protocols = vec![
+            (ProtocolFamily::Klipper, "http://127.0.0.1"),
+            (ProtocolFamily::OctoPrint, "http://127.0.0.1"),
+            (ProtocolFamily::PrusaLink, "http://127.0.0.1"),
+            (ProtocolFamily::RepRapFirmware, "http://127.0.0.1"),
+        ];
+
+        for (proto, url) in protocols {
+            let profile = dummy_profile(proto.clone());
+            let config = PrinterConnectionConfig {
+                name: format!("{:?} target", proto),
+                mode: ConnectionMode::Simulator,
+                protocol_family: proto,
+                base_url: Some(url.to_string()),
+                serial_path: None,
+                serial_baud_rate: None,
+                auth_type: AuthType::None,
+                api_key_env_var: None,
+                username: None,
+                password_env_var: None,
+                tls_enabled: false,
+                dispatch_policy: DispatchPolicy::AllowStart,
+                simulator_scenario: None,
+            };
+
+            let adapter = PrinterAdapterFactory::build(&profile, &config);
+            assert!(
+                adapter.is_ok(),
+                "Failed to build for protocol: {:?}",
+                config.protocol_family
+            );
+        }
+
+        // Test Serial port adapter build
+        let profile = dummy_profile(ProtocolFamily::MarlinSerial);
+        let config = PrinterConnectionConfig {
+            name: "Marlin Serial Target".to_string(),
+            mode: ConnectionMode::Simulator,
+            protocol_family: ProtocolFamily::MarlinSerial,
+            base_url: None,
+            serial_path: Some("COM3".to_string()),
+            serial_baud_rate: Some(115200),
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+        let adapter = PrinterAdapterFactory::build(&profile, &config);
+        assert!(adapter.is_ok());
+    }
+
+    #[test]
+    fn test_factory_mismatched_protocol_fails() {
+        let profile = dummy_profile(ProtocolFamily::Klipper);
+        let config = PrinterConnectionConfig {
+            name: "Bambu Config".to_string(),
+            mode: ConnectionMode::Simulator,
+            protocol_family: ProtocolFamily::BambuMqtt,
+            base_url: Some("127.0.0.1".to_string()),
+            serial_path: None,
+            serial_baud_rate: None,
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+
+        let adapter = PrinterAdapterFactory::build(&profile, &config);
+        assert!(adapter.is_err());
+        let err = adapter.err().unwrap();
+        assert!(err.to_string().contains("Protocol family mismatch"));
+    }
+
+    #[test]
+    fn test_factory_invalid_profile_fails() {
+        let mut profile = dummy_profile(ProtocolFamily::BambuMqtt);
+        profile.max_hotend_temp = 600.0; // Unsafe temperature
+
+        let config = PrinterConnectionConfig {
+            name: "Bambu Config".to_string(),
+            mode: ConnectionMode::Simulator,
+            protocol_family: ProtocolFamily::BambuMqtt,
+            base_url: Some("127.0.0.1".to_string()),
+            serial_path: None,
+            serial_baud_rate: None,
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+
+        let adapter = PrinterAdapterFactory::build(&profile, &config);
+        assert!(adapter.is_err());
+        let err = adapter.err().unwrap();
+        assert!(err.to_string().contains("Invalid printer profile"));
+    }
+
+    #[test]
     fn test_factory_invalid_config_fails() {
-        let profile = dummy_profile();
+        let profile = dummy_profile(ProtocolFamily::BambuMqtt);
         let config = PrinterConnectionConfig {
             name: "".to_string(), // Invalid
             mode: ConnectionMode::Simulator,
@@ -127,6 +247,7 @@ mod tests {
             password_env_var: None,
             tls_enabled: false,
             dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
         };
 
         let adapter = PrinterAdapterFactory::build(&profile, &config);

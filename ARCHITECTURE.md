@@ -52,6 +52,34 @@ graph TD
 * **`printproof3d-cli`**: The shell interface. It handles command line option parsing, compiles output validation files, and runs the MCP JSON-RPC 2.0 server.
 * **`printproof3d-rest`**: The network service layer. It wraps validation operations in an Axum web daemon, enforcing Bearer token authentication middleware on secure endpoints.
 
+### 1.3 Connection Lifecycle & Adapter Instantiation Flow
+The diagram below shows the runtime sequence where an integration client parses a connection file, validates it, and instantiates the resolved adapter using the factory:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Application Client
+    participant Core as Core Crate (PrinterConnectionConfig)
+    participant Factory as Adapters Crate (PrinterAdapterFactory)
+    participant Adapter as Concrete Adapter (e.g. MarlinSerialAdapter)
+
+    App->>Core: Deserializes connection profile JSON
+    Note over Core: Maps to PrinterConnectionConfig struct
+    App->>Factory: PrinterAdapterFactory::build(profile, config)
+    Factory->>Core: config.validate()
+    alt Validation fails
+        Core-->>Factory: Err(String)
+        Factory-->>App: Err(AdapterError::ConnectionFailed)
+    else Validation passes
+        Core-->>Factory: Ok(())
+        Factory->>Factory: Match config.protocol_family
+        create participant Adapter
+        Factory->>Adapter: ConcreteAdapter::new(profile, config)
+        Adapter-->>Factory: Returns Box<dyn PrinterAdapter>
+        Factory-->>App: Ok(Box<dyn PrinterAdapter>)
+    end
+```
+
 ---
 
 ## 2. WebAssembly Memory Sandbox Flow

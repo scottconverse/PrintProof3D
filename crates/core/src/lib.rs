@@ -583,38 +583,59 @@ mod tests {
     fn generate_schemas() {
         use schemars::schema_for;
         use std::fs::create_dir_all;
-        use std::fs::File;
-        use std::io::Write;
         use std::path::Path;
 
         let schema_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schemas");
-        create_dir_all(&schema_dir).unwrap();
 
         let printer_schema = schema_for!(PrinterProfile);
-        let mut file = File::create(schema_dir.join("printer_profile.schema.json")).unwrap();
-        file.write_all(
-            serde_json::to_string_pretty(&printer_schema)
-                .unwrap()
-                .as_bytes(),
-        )
-        .unwrap();
+        let printer_schema_str = serde_json::to_string_pretty(&printer_schema).unwrap();
+        let printer_path = schema_dir.join("printer_profile.schema.json");
 
         let material_schema = schema_for!(MaterialProfile);
-        let mut file = File::create(schema_dir.join("material_profile.schema.json")).unwrap();
-        file.write_all(
-            serde_json::to_string_pretty(&material_schema)
-                .unwrap()
-                .as_bytes(),
-        )
-        .unwrap();
+        let material_schema_str = serde_json::to_string_pretty(&material_schema).unwrap();
+        let material_path = schema_dir.join("material_profile.schema.json");
 
         let report_schema = schema_for!(ValidationReport);
-        let mut file = File::create(schema_dir.join("validation_report.schema.json")).unwrap();
-        file.write_all(
-            serde_json::to_string_pretty(&report_schema)
-                .unwrap()
-                .as_bytes(),
-        )
-        .unwrap();
+        let report_schema_str = serde_json::to_string_pretty(&report_schema).unwrap();
+        let report_path = schema_dir.join("validation_report.schema.json");
+
+        let connection_schema = schema_for!(connection::PrinterConnectionConfig);
+        let connection_schema_str = serde_json::to_string_pretty(&connection_schema).unwrap();
+        let connection_path = schema_dir.join("connection_config.schema.json");
+
+        if std::env::var("UPDATE_SCHEMAS").is_ok() {
+            create_dir_all(&schema_dir).unwrap();
+            std::fs::write(&printer_path, &printer_schema_str).unwrap();
+            std::fs::write(&material_path, &material_schema_str).unwrap();
+            std::fs::write(&report_path, &report_schema_str).unwrap();
+            std::fs::write(&connection_path, &connection_schema_str).unwrap();
+        } else {
+            let read_schema = |path: &Path| -> String {
+                std::fs::read_to_string(path)
+                    .unwrap_or_default()
+                    .replace("\r\n", "\n")
+            };
+
+            assert_eq!(
+                read_schema(&printer_path),
+                printer_schema_str.replace("\r\n", "\n"),
+                "Schema mismatch for printer_profile. Run with UPDATE_SCHEMAS=1 to update."
+            );
+            assert_eq!(
+                read_schema(&material_path),
+                material_schema_str.replace("\r\n", "\n"),
+                "Schema mismatch for material_profile. Run with UPDATE_SCHEMAS=1 to update."
+            );
+            assert_eq!(
+                read_schema(&report_path),
+                report_schema_str.replace("\r\n", "\n"),
+                "Schema mismatch for validation_report. Run with UPDATE_SCHEMAS=1 to update."
+            );
+            assert_eq!(
+                read_schema(&connection_path),
+                connection_schema_str.replace("\r\n", "\n"),
+                "Schema mismatch for connection_config. Run with UPDATE_SCHEMAS=1 to update."
+            );
+        }
     }
 }
