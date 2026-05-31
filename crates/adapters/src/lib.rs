@@ -22,6 +22,7 @@ pub enum AdapterError {
     AuthenticationFailed(String),
     UploadFailed(String),
     CommandFailed(String),
+    ValidationError(String),
     Timeout,
     Unknown(String),
 }
@@ -33,6 +34,7 @@ impl fmt::Display for AdapterError {
             AdapterError::AuthenticationFailed(msg) => write!(f, "Authentication failed: {}", msg),
             AdapterError::UploadFailed(msg) => write!(f, "Upload failed: {}", msg),
             AdapterError::CommandFailed(msg) => write!(f, "Command failed: {}", msg),
+            AdapterError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
             AdapterError::Timeout => write!(f, "Timeout"),
             AdapterError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
         }
@@ -68,3 +70,11 @@ pub trait PrinterAdapter: Send + Sync {
     async fn cancel_job(&self) -> Result<(), AdapterError>;
     async fn emergency_stop(&self) -> Result<(), AdapterError>;
 }
+
+pub mod bambu;
+pub mod factory;
+pub mod moonraker;
+pub mod octoprint;
+pub mod prusalink;
+pub mod rrf;
+pub mod serial;

@@ -39,6 +39,34 @@ This file defines the thermal requirements and printing limits of your filament 
 * **Warp Risk**: The likelihood of the plastic curling as it cools. High-warp materials (like ABS) trigger strict warnings if the model's footprint touching the bed is too small.
 * **Overhang & Bridge Difficulty**: Mapped to cooling properties to evaluate overhang angles.
 
+### 2.3 The Connection Configuration Profile (`.json`)
+This file details network endpoints, serial configurations, and authentication details required to establish remote control channels:
+
+```json
+{
+  "name": "OctoPrint Studio",
+  "mode": "physical",
+  "protocol_family": "octoprint",
+  "base_url": "http://192.168.1.50",
+  "auth_type": "api_key",
+  "api_key_env_var": "OCTOPRINT_API_KEY",
+  "tls_enabled": false,
+  "dispatch_policy": "allow_start"
+}
+```
+
+* **Target Modes (`mode`)**:
+  * `simulator`: Route commands to test and simulator endpoints.
+  * `physical`: Route commands to active machine hardware.
+* **Authentication Policies (`auth_type`)**:
+  * `none`: Unauthenticated access.
+  * `api_key`: Relies on environment variable specified in `api_key_env_var`.
+  * `password`: Relies on `username` and password environment variable specified in `password_env_var`.
+* **Dispatch Policies (`dispatch_policy`)**:
+  * `dry_run_only`: Restricts execution.
+  * `upload_only`: Restricts actions to file upload; job starting is blocked.
+  * `allow_start`: Full control permission.
+
 ---
 
 ## 3. Reading the Validation Report
@@ -287,4 +315,11 @@ If you are developing a custom connection adapter (e.g. supporting a new network
        assert!(result.is_ok(), "Conformance failed: {:?}", result);
    }
    ```
-The test suite automatically verifies that connection handshakes, telemetry polling, pauses, resumes, and cancellation actions execute reliably and return standard `AdapterError` responses under simulated failures.
+The test suite runs a linear happy-path execution sequence, checking that basic connection handshakes, telemetry polling, pauses, resumes, and cancellation actions execute reliably and return standard `AdapterError` responses under standard operation.
+
+### 3.1 Registry Integration Flow
+To make your custom adapter reachable by the system:
+1. Add the protocol name to the `ProtocolFamily` enum in `crates/core/src/lib.rs`.
+2. Update `PrinterConnectionConfig::validate()` in `crates/core/src/connection.rs` to configure any protocol-specific validation checks.
+3. Import your adapter and add its instantiation branch to the pattern match block in `PrinterAdapterFactory::build()` inside `crates/adapters/src/factory.rs`.
+4. Run the conformance tests in a unit test to confirm integration.

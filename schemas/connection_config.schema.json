@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PrinterConnectionConfig",
+  "description": "Structure detailing connection parameters, keys, endpoints, and policies.",
+  "type": "object",
+  "required": [
+    "mode",
+    "name",
+    "protocol_family"
+  ],
+  "properties": {
+    "api_key_env_var": {
+      "description": "Environment variable storing the API token/secret.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "auth_type": {
+      "description": "Authentication protocol selection.",
+      "default": "none",
+      "allOf": [
+        {
+          "$ref": "#/definitions/AuthType"
+        }
+      ]
+    },
+    "base_url": {
+      "description": "Base URL or network IP address.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dispatch_policy": {
+      "description": "Pre-flight print execution policy.",
+      "default": "dry_run_only",
+      "allOf": [
+        {
+          "$ref": "#/definitions/DispatchPolicy"
+        }
+      ]
+    },
+    "mode": {
+      "description": "Connection target mode (simulator or physical).",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ConnectionMode"
+        }
+      ]
+    },
+    "name": {
+      "description": "Human readable target target label.",
+      "type": "string"
+    },
+    "password_env_var": {
+      "description": "Environment variable storing the client password.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "protocol_family": {
+      "description": "Network protocol family.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ProtocolFamily"
+        }
+      ]
+    },
+    "serial_baud_rate": {
+      "description": "Serial connection baud rate.",
+      "default": null,
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "serial_path": {
+      "description": "Serial port device endpoint path.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "simulator_scenario": {
+      "description": "Optional simulator scenario.",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SimulatorScenario"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tls_enabled": {
+      "description": "Secure socket TLS state.",
+      "default": false,
+      "type": "boolean"
+    },
+    "username": {
+      "description": "Username for credential verification.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "definitions": {
+    "AuthType": {
+      "description": "Authentication protocol type utilized by the target adapter.",
+      "type": "string",
+      "enum": [
+        "none",
+        "api_key",
+        "digest",
+        "password"
+      ]
+    },
+    "ConnectionMode": {
+      "description": "Connection target mode indicating whether to route to a simulation host or physical hardware.",
+      "type": "string",
+      "enum": [
+        "simulator",
+        "physical"
+      ]
+    },
+    "DispatchPolicy": {
+      "description": "Dispatch rules stating whether execution is allowed or restricted to staging/dry-runs.",
+      "type": "string",
+      "enum": [
+        "dry_run_only",
+        "upload_only",
+        "allow_start"
+      ]
+    },
+    "ProtocolFamily": {
+      "description": "The connection protocol family used to communicate with the printer or print host.",
+      "type": "string",
+      "enum": [
+        "klipper",
+        "octo_print",
+        "marlin_serial",
+        "prusa_link",
+        "rep_rap_firmware",
+        "bambu_mqtt",
+        "elegoo_sdcp",
+        "creality_os",
+        "anycubic_lan",
+        "flash_forge_tcp",
+        "unknown"
+      ]
+    },
+    "SimulatorScenario": {
+      "description": "The set of standard simulation scenarios used to dry-run and QA printer state transitions.",
+      "type": "string",
+      "enum": [
+        "idle",
+        "already_printing",
+        "paused",
+        "heating",
+        "upload_accepted",
+        "upload_rejected",
+        "bad_credentials",
+        "offline_or_connection_refused",
+        "timeout_or_slow_response",
+        "malformed_telemetry",
+        "storage_full",
+        "unsupported_file_type",
+        "emergency_stop_accepted",
+        "emergency_stop_rejected"
+      ]
+    }
+  }
+}
