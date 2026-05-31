@@ -438,54 +438,119 @@
       </div>
       <div class="code-viewer">
         <!-- Tab 1: Terminal -->
-        <div id="pane-terminal" class="code-pane active terminal-pane"><span class="terminal-prompt">$</span> printproof3d validate-model --model fixtures/bracket.stl --printer profiles/prusa_mk4.json
-<span class="terminal-info">[+] Loading Printer Profile: profiles/prusa_mk4.json
-[+] Loading Material Profile: profiles/pla.json
-[+] Parsing STL file: fixtures/bracket.stl</span>
-<span class="terminal-warning">[!] Warning: STEEP_OVERHANG detected at overhang_layer_3 (Z: 15.00mm)
-[!] Overhang slope of 58.4° exceeds filament limit of 50.0°.</span>
-
-<span class="terminal-info">Validation Status: WARNING (1 warning, 0 failures)
-Confidence Level: High</span></div>
+        <div id="pane-terminal" class="code-pane active terminal-pane"><span class="terminal-prompt">$</span> printproof3d validate-model --model fixtures/overhang_flange.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
+<span class="terminal-info">{
+  "status": "warning",
+  "target_printer_profile": "Prusa_MK4",
+  "target_material_profile": "Polylactic Acid",
+  "model": {
+    "file_name": "overhang_flange.stl",
+    "units": "mm",
+    "bounding_box": {
+      "min_x": 0.0,
+      "min_y": 0.0,
+      "min_z": 5.0,
+      "max_x": 10.0,
+      "max_y": 10.0,
+      "max_z": 30.0
+    }
+  },
+  "issues": [
+    {
+      "id": "OVERHANG_UNSUPPORTED",
+      "severity": "major",
+      "message": "Found 1 steep unsupported overhang triangles exceeding material limits (45.0°).",
+      "location": {
+        "region": "overhangs",
+        "geometry": {
+          "type": "triangles",
+          "triangles": [
+            {
+              "v0": [0.0, 0.0, 5.0],
+              "v1": [5.0, 10.0, 22.32],
+              "v2": [10.0, 0.0, 5.0]
+            }
+          ]
+        }
+      },
+      "suggested_fixes": [
+        "Add support structures in your slicer software.",
+        "Reorient the model to reduce overhang angles."
+      ]
+    },
+    {
+      "id": "POOR_BED_ADHESION",
+      "severity": "minor",
+      "message": "Low bed contact area (0.00 mm², 0.0% of footprint). High risk of model detaching during print.",
+      "location": {
+        "region": "bed_contact",
+        "geometry": null
+      },
+      "suggested_fixes": [
+        "Add a brim or raft around the model base.",
+        "Use bed adhesive (glue stick, hairspray) to improve stickiness."
+      ]
+    }
+  ],
+  "confidence_level": "high",
+  "sliced_settings_assumed": null
+}</span></div>
         
         <!-- Tab 2: JSON Report -->
         <div id="pane-json" class="code-pane"><code class="json-code">{
   <span class="json-key">"status"</span>: <span class="json-string">"warning"</span>,
-  <span class="json-key">"target_printer_profile"</span>: <span class="json-string">"prusa_mk4.json"</span>,
-  <span class="json-key">"target_material_profile"</span>: <span class="json-string">"pla.json"</span>,
+  <span class="json-key">"target_printer_profile"</span>: <span class="json-string">"Prusa_MK4"</span>,
+  <span class="json-key">"target_material_profile"</span>: <span class="json-string">"Polylactic Acid"</span>,
   <span class="json-key">"model"</span>: {
-    <span class="json-key">"file_name"</span>: <span class="json-string">"bracket.stl"</span>,
+    <span class="json-key">"file_name"</span>: <span class="json-string">"overhang_flange.stl"</span>,
     <span class="json-key">"units"</span>: <span class="json-string">"mm"</span>,
     <span class="json-key">"bounding_box"</span>: {
-      <span class="json-key">"min_x"</span>: <span class="json-number">-45.2</span>,
-      <span class="json-key">"min_y"</span>: <span class="json-number">-30.0</span>,
-      <span class="json-key">"min_z"</span>: <span class="json-number">0.0</span>,
-      <span class="json-key">"max_x"</span>: <span class="json-number">45.2</span>,
-      <span class="json-key">"max_y"</span>: <span class="json-number">30.0</span>,
-      <span class="json-key">"max_z"</span>: <span class="json-number">65.5</span>
+      <span class="json-key">"min_x"</span>: <span class="json-number">0.0</span>,
+      <span class="json-key">"min_y"</span>: <span class="json-number">0.0</span>,
+      <span class="json-key">"min_z"</span>: <span class="json-number">5.0</span>,
+      <span class="json-key">"max_x"</span>: <span class="json-number">10.0</span>,
+      <span class="json-key">"max_y"</span>: <span class="json-number">10.0</span>,
+      <span class="json-key">"max_z"</span>: <span class="json-number">30.0</span>
     }
   },
   <span class="json-key">"issues"</span>: [
     {
-      <span class="json-key">"id"</span>: <span class="json-string">"STEEP_OVERHANG"</span>,
-      <span class="json-key">"severity"</span>: <span class="json-string">"Major"</span>,
-      <span class="json-key">"message"</span>: <span class="json-string">"Overhang slope of 58.4° exceeds filament limit of 50.0°."</span>,
+      <span class="json-key">"id"</span>: <span class="json-string">"OVERHANG_UNSUPPORTED"</span>,
+      <span class="json-key">"severity"</span>: <span class="json-string">"major"</span>,
+      <span class="json-key">"message"</span>: <span class="json-string">"Found 1 steep unsupported overhang triangles exceeding material limits (45.0°)."</span>,
       <span class="json-key">"location"</span>: {
-        <span class="json-key">"region"</span>: <span class="json-string">"overhang_layer_3"</span>,
+        <span class="json-key">"region"</span>: <span class="json-string">"overhangs"</span>,
         <span class="json-key">"geometry"</span>: {
-          <span class="json-key">"type"</span>: <span class="json-string">"point"</span>,
-          <span class="json-key">"x"</span>: <span class="json-number">12.5</span>,
-          <span class="json-key">"y"</span>: <span class="json-number">-8.2</span>,
-          <span class="json-key">"z"</span>: <span class="json-number">15.0</span>
+          <span class="json-key">"type"</span>: <span class="json-string">"triangles"</span>,
+          <span class="json-key">"triangles"</span>: [
+            {
+              <span class="json-key">"v0"</span>: [<span class="json-number">0.0</span>, <span class="json-number">0.0</span>, <span class="json-number">5.0</span>],
+              <span class="json-key">"v1"</span>: [<span class="json-number">5.0</span>, <span class="json-number">10.0</span>, <span class="json-number">22.32</span>],
+              <span class="json-key">"v2"</span>: [<span class="json-number">10.0</span>, <span class="json-number">0.0</span>, <span class="json-number">5.0</span>]
+            }
+          ]
         }
       },
       <span class="json-key">"suggested_fixes"</span>: [
-        <span class="json-string">"Enable support structures in your slicer"</span>,
-        <span class="json-string">"Rotate the model to decrease the overhang angle"</span>
+        <span class="json-string">"Add support structures in your slicer software."</span>,
+        <span class="json-string">"Reorient the model to reduce overhang angles."</span>
+      ]
+    },
+    {
+      <span class="json-key">"id"</span>: <span class="json-string">"POOR_BED_ADHESION"</span>,
+      <span class="json-key">"severity"</span>: <span class="json-string">"minor"</span>,
+      <span class="json-key">"message"</span>: <span class="json-string">"Low bed contact area (0.00 mm², 0.0% of footprint). High risk of model detaching during print."</span>,
+      <span class="json-key">"location"</span>: {
+        <span class="json-key">"region"</span>: <span class="json-string">"bed_contact"</span>,
+        <span class="json-key">"geometry"</span>: <span class="json-null">null</span>
+      },
+      <span class="json-key">"suggested_fixes"</span>: [
+        <span class="json-string">"Add a brim or raft around the model base."</span>,
+        <span class="json-string">"Use bed adhesive (glue stick, hairspray) to improve stickiness."</span>
       ]
     }
   ],
-  <span class="json-key">"confidence_level"</span>: <span class="json-string">"High"</span>,
+  <span class="json-key">"confidence_level"</span>: <span class="json-string">"high"</span>,
   <span class="json-key">"sliced_settings_assumed"</span>: <span class="json-null">null</span>
 }</code></div>
       </div>

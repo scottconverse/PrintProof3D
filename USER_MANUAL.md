@@ -85,7 +85,7 @@ graph TD
 
     %% Infrastructure
     Printability -->|STL/G-code Geometry Checks| Core
-    Adapters -->|Moonraker/OctoPrint/Serial| Core
+    Adapters -->|PrinterAdapter Trait / Configs| Core
 
     %% Sandboxed Plugins
     Plugins -->|Instantiates wasmi| Sandbox[Restricted Guest Sandbox]
