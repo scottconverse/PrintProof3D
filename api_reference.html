@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintProof3D — API Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090b10;
+      --card-bg: rgba(18, 22, 33, 0.65);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #4f46e5;
+      --secondary: #06b6d4;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    header {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-link {
+      text-decoration: none;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 30%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.05em;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-left: 2rem;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--secondary);
+    }
+
+    .doc-layout {
+      max-width: 1400px;
+      margin: 3rem auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 3rem;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 2rem;
+      height: calc(100vh - 4rem);
+      overflow-y: auto;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem 1.5rem;
+    }
+
+    .sidebar h4 {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 2rem;
+    }
+
+    .sidebar li {
+      margin-bottom: 0.75rem;
+    }
+
+    .sidebar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: color 0.3s ease;
+      display: block;
+    }
+
+    .sidebar a:hover {
+      color: var(--secondary);
+    }
+
+    .doc-content {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3.5rem;
+      max-width: 900px;
+    }
+
+    .doc-content h1, .doc-content h2, .doc-content h3 {
+      font-family: var(--font-display);
+      margin-top: 2.5rem;
+      margin-bottom: 1.25rem;
+      color: #fff;
+      scroll-margin-top: 2rem;
+    }
+
+    .doc-content h1 {
+      font-size: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+
+    .doc-content h2 {
+      font-size: 1.85rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+    }
+
+    .doc-content h3 {
+      font-size: 1.35rem;
+    }
+
+    .doc-content p {
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+
+    .doc-content ul {
+      margin-left: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+    }
+
+    .doc-content li {
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    hr {
+      border: 0;
+      height: 1px;
+      background: var(--border);
+      margin: 3rem 0;
+    }
+
+    /* Code styling */
+    pre {
+      background: #090b10;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      text-align: left;
+    }
+    code {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.9rem;
+      color: #06b6d4;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: #e2e8f0;
+    }
+
+    footer {
+      text-align: center;
+      padding: 4rem 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 300;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html" class="logo-link"><div class="logo">PrintProof3D</div></a>
+    <div class="nav-links">
+      <a href="README.md">README</a>
+      <a href="user_manual.html">Manual</a>
+      <a href="api_reference.html" class="active">API</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </header>
+
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h4>API Navigation</h4>
+      <ul>
+        <li><a href="#core-models">1. printproof3d-core</a></li>
+        <li><a href="#printability-engines">2. printproof3d-printability</a></li>
+        <li><a href="#adapters-protocols">3. printproof3d-adapters</a></li>
+        <li><a href="#compliance-sdk">4. printproof3d-sdk</a></li>
+        <li><a href="#wasm-plugins">5. printproof3d-plugins</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-content">
+      <section>
+        <h1>Core API Reference Manual</h1>
+        <p>This document is the canonical developer API reference manual for the PrintProof3D crates. It details public data structures, validation traits, communication protocols, memory allocation functions, and plugin sandbox APIs.</p>
+      </section>
+
+      <hr>
+
+      <!-- Section 1 -->
+      <section id="core-models">
+        <h2>1. <code>printproof3d-core</code> — Shared Models & Schemas</h2>
+        <p>The <code>printproof3d-core</code> crate houses the shared data structures and configuration profiles. All configurations enforce strict validation invariants on initialization.</p>
+
+        <h3 id="printer-profile">1.1 <code>PrinterProfile</code> (Struct)</h3>
+        <p>Defines the physical boundaries, capacities, kinematics, and communication capabilities of the machine.</p>
+        <ul>
+          <li><strong><code>manufacturer: String</code></strong>: The manufacturer name (e.g. <code>"Prusa"</code>). Must be non-empty.</li>
+          <li><strong><code>model: String</code></strong>: The specific model name (e.g. <code>"MK4"</code>). Must be non-empty.</li>
+          <li><strong><code>protocol_family: ProtocolFamily</code></strong>: Communication protocol enum used to determine the adapter type. Valid options:
+            <ul>
+              <li><code>Klipper</code>, <code>OctoPrint</code>, <code>MarlinSerial</code>, <code>PrusaLink</code>, <code>RepRapFirmware</code>, <code>BambuMqtt</code>, <code>ElegooSdcp</code>, <code>CrealityOs</code>, <code>AnycubicLan</code>, <code>FlashForgeTcp</code>, <code>Unknown</code>.</li>
+            </ul>
+          </li>
+          <li><strong><code>build_volume: BuildVolume</code></strong>: Represents the physical limits of the print volume.
+            <ul>
+              <li><code>BuildVolume::Rectangular { x: f32, y: f32, z: f32 }</code></li>
+              <li><code>BuildVolume::Cylindrical { diameter: f32, z: f32 }</code></li>
+            </ul>
+          </li>
+          <li><strong><code>bed_shape: BedShape</code></strong>: Physical bed layout: <code>Rectangular</code>, <code>Circular</code>, or <code>Custom(String)</code>.</li>
+          <li><strong><code>nozzle_diameters: Vec&lt;f32&gt;</code></strong>: List of nozzle diameters supported (in mm). Every value must be greater than 0.0.</li>
+          <li><strong><code>default_nozzle_diameter: f32</code></strong>: Nozzle size loaded on the machine by default. Must exist within nozzle list.</li>
+          <li><strong><code>max_hotend_temp: f32</code></strong>: Physical heating limit of the hotend. Must be positive and less than or equal to 500°C for safety.</li>
+          <li><strong><code>max_bed_temp: f32</code></strong>: Physical heating limit of the bed. Must be positive and less than or equal to 200°C for safety.</li>
+          <li><strong><code>unsafe_commands: Vec&lt;String&gt;</code></strong>: Blacklisted G-code instructions.</li>
+        </ul>
+
+        <h3 id="material-profile">1.2 <code>MaterialProfile</code> (Struct)</h3>
+        <p>Defines the filament properties and thermal processing ranges.</p>
+        <ul>
+          <li><strong><code>name: String</code></strong>: Chemical or branding name (e.g. <code>"Polylactic Acid"</code>). Must be non-empty.</li>
+          <li><strong><code>abbreviations: Vec&lt;String&gt;</code></strong>: Abbreviated identifiers (e.g., <code>["PLA", "PLA+"]</code>).</li>
+          <li><strong><code>min_nozzle_temp: f32</code></strong> / <strong><code>max_nozzle_temp: f32</code></strong>: extrusion temperature bounds.</li>
+          <li><strong><code>min_bed_temp: f32</code></strong> / <strong><code>max_bed_temp: f32</code></strong>: bed temperature bounds.</li>
+          <li><strong><code>warp_risk: RiskLevel</code></strong>: Relative warping risk: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
+          <li><strong><code>overhang_difficulty: RiskLevel</code></strong>: Difficulty cooling steep overhang slopes: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
+        </ul>
+
+        <h3 id="validation-report">1.3 <code>ValidationReport</code> (Struct)</h3>
+        <p>The unified report structure returned by validation passes.</p>
+        <ul>
+          <li><strong><code>status: ValidationStatus</code></strong>: Consolidation of safety checks (<code>Pass</code>, <code>Warning</code>, or <code>Fail</code>).</li>
+          <li><strong><code>target_printer_profile: String</code></strong>: Printer model name.</li>
+          <li><strong><code>target_material_profile: String</code></strong>: Material profile name.</li>
+          <li><strong><code>model: ModelMetadata</code></strong>: Bounding box size and filename metadata.</li>
+          <li><strong><code>issues: Vec&lt;ValidationIssue&gt;</code></strong>: List of compatibility warnings or failures.</li>
+          <li><strong><code>confidence_level: String</code></strong>: Analysis confidence ranking: <code>"high"</code>, <code>"medium"</code>, or <code>"low"</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <!-- Section 2 -->
+      <section id="printability-engines">
+        <h2>2. <code>printproof3d-printability</code> — Verification Engines</h2>
+        <p>This crate provides the core validation traits and algorithms for mesh parsing and static path analysis.</p>
+
+        <h3>2.1 <code>ModelValidator</code> (Trait)</h3>
+        <pre><code>pub trait ModelValidator {
+    /// Parses an STL file and validates mesh watertightness, 
+    /// build volume limits, overhang angles, and bed contact area.
+    fn validate_mesh(
+        &amp;self,
+        file_path: &amp;Path,
+        printer: &amp;PrinterProfile,
+        material: &amp;MaterialProfile,
+    ) -> Result&lt;ValidationReport, String&gt;;
+}</code></pre>
+
+        <h3>2.2 <code>GcodeValidator</code> (Trait)</h3>
+        <pre><code>pub trait GcodeValidator {
+    /// Scans a G-code file line-by-line, tracking kinematic positions 
+    /// and temperature targets to ensure they conform to printer boundaries.
+    fn validate_gcode(
+        &amp;self,
+        file_path: &amp;Path,
+        printer: &amp;PrinterProfile,
+        material: &amp;MaterialProfile,
+    ) -> Result&lt;ValidationReport, String&gt;;
+}</code></pre>
+      </section>
+
+      <hr>
+
+      <!-- Section 3 -->
+      <section id="adapters-protocols">
+        <h2>3. <code>printproof3d-adapters</code> — Communication Protocols</h2>
+        <p>This crate standardizes communication interfaces across printer connection protocols.</p>
+
+        <h3>3.1 <code>PrinterAdapter</code> (Trait)</h3>
+        <pre><code>#[async_trait]
+pub trait PrinterAdapter: Send + Sync {
+    /// Opens the communication socket or serial channel.
+    async fn connect(&amp;mut self) -> Result&lt;(), AdapterError&gt;;
+    
+    /// Gracefully closes connection streams.
+    async fn disconnect(&amp;mut self) -> Result&lt;(), AdapterError&gt;;
+    
+    /// Polls status parameters and active temperatures.
+    async fn get_status(&amp;self) -> Result&lt;PrinterTelemetry, AdapterError&gt;;
+    
+    /// Uploads a print file to the printer's local storage.
+    async fn upload_file(
+        &amp;self, 
+        local_path: &amp;Path, 
+        remote_name: &amp;str
+    ) -> Result&lt;String, AdapterError&gt;;
+    
+    /// Triggers job execution.
+    async fn start_job(&amp;self, file_id: &amp;str) -> Result&lt;(), AdapterError&gt;;
+    
+    /// Pauses execution.
+    async fn pause_job(&amp;self) -> Result&lt;(), AdapterError&gt;;
+    
+    /// Resumes execution.
+    async fn resume_job(&amp;self) -> Result&lt;(), AdapterError&gt;;
+    
+    /// Cancels execution.
+    async fn cancel_job(&amp;self) -> Result&lt;(), AdapterError&gt;;
+    
+    /// Halts motion and disables power immediately.
+    async fn emergency_stop(&amp;self) -> Result&lt;(), AdapterError&gt;;
+}</code></pre>
+
+        <h3>3.2 Error & Telemetry Structures</h3>
+        <pre><code>#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdapterError {
+    ConnectionFailed(String),
+    AuthenticationFailed(String),
+    UploadFailed(String),
+    CommandFailed(String),
+    Timeout,
+    Unknown(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PrinterTelemetry {
+    pub state: PrinterState,
+    pub tool_temp: f32,
+    pub tool_target: f32,
+    pub bed_temp: f32,
+    pub bed_target: f32,
+    pub progress: f32,
+    pub current_file: Option&lt;String&gt;,
+}</code></pre>
+      </section>
+
+      <hr>
+
+      <!-- Section 4 -->
+      <section id="compliance-sdk">
+        <h2>4. <code>printproof3d-sdk</code> — Developer Compliance SDK</h2>
+        <p>Exposes automated test verification harnesses to validate connection adapter trait implementations.</p>
+        <pre><code>/// Exercises connection handshake, status polling, and job pause/abort loops.
+pub async fn run_conformance_tests&lt;A: PrinterAdapter&gt;(adapter: &amp;mut A) -> Result&lt;(), String&gt;;</code></pre>
+      </section>
+
+      <hr>
+
+      <!-- Section 5 -->
+      <section id="wasm-plugins">
+        <h2>5. <code>printproof3d-plugins</code> — WebAssembly Runtime</h2>
+        <p>Provides the linear memory management interfaces and interpreter hooks to execute validation plugins.</p>
+        
+        <h3>5.1 <code>PluginEngine</code> &amp; <code>LoadedPlugin</code></h3>
+        <p>Exposes compilation loaders for guest WebAssembly filters, handling serialization copies over linear WASM memory boundaries automatically.</p>
+
+        <h3>5.2 Export Macro (<code>export_validation_plugin!</code>)</h3>
+        <pre><code>#[macro_export]
+macro_rules! export_validation_plugin {
+    ($validate_fn:expr) => {
+        #[no_mangle]
+        pub extern "C" fn alloc(size: u32) -> *mut u8 { ... }
+
+        #[no_mangle]
+        pub extern "C" fn dealloc(ptr: *mut u8, size: u32) { ... }
+
+        #[no_mangle]
+        pub extern "C" fn validate(ptr: *mut u8, len: u32) -> u64 { ... }
+    }
+}</code></pre>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 PrintProof3D. Released under the <a href="https://github.com/scottconverse/PrintProof3D/blob/main/LICENSE" style="color: var(--text-muted); text-decoration: underline;">MIT License</a>. View the source on <a href="https://github.com/scottconverse/PrintProof3D" style="color: var(--text-muted); text-decoration: underline;">GitHub</a>.</p>
+  </footer>
+</body>
+</html>

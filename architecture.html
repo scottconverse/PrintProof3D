@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintProof3D — Architecture Spec</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Load Mermaid Library for rendering live architecture diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        background: '#121621',
+        primaryColor: '#4f46e5',
+        primaryTextColor: '#fff',
+        lineColor: '#06b6d4',
+        secondaryColor: '#06b6d4',
+        tertiaryColor: '#10b981'
+      }
+    });
+  </script>
+  <style>
+    :root {
+      --bg: #090b10;
+      --card-bg: rgba(18, 22, 33, 0.65);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #4f46e5;
+      --secondary: #06b6d4;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    header {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-link {
+      text-decoration: none;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 30%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.05em;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-left: 2rem;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--secondary);
+    }
+
+    .doc-layout {
+      max-width: 1400px;
+      margin: 3rem auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 3rem;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 2rem;
+      height: calc(100vh - 4rem);
+      overflow-y: auto;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem 1.5rem;
+    }
+
+    .sidebar h4 {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 2rem;
+    }
+
+    .sidebar li {
+      margin-bottom: 0.75rem;
+    }
+
+    .sidebar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: color 0.3s ease;
+      display: block;
+    }
+
+    .sidebar a:hover {
+      color: var(--secondary);
+    }
+
+    .doc-content {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3.5rem;
+      max-width: 900px;
+    }
+
+    .doc-content h1, .doc-content h2, .doc-content h3 {
+      font-family: var(--font-display);
+      margin-top: 2.5rem;
+      margin-bottom: 1.25rem;
+      color: #fff;
+      scroll-margin-top: 2rem;
+    }
+
+    .doc-content h1 {
+      font-size: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+
+    .doc-content h2 {
+      font-size: 1.85rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+    }
+
+    .doc-content h3 {
+      font-size: 1.35rem;
+    }
+
+    .doc-content p {
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+
+    .doc-content ul {
+      margin-left: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+    }
+
+    .doc-content li {
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    hr {
+      border: 0;
+      height: 1px;
+      background: var(--border);
+      margin: 3rem 0;
+    }
+
+    /* Diagram wrapper styling */
+    .diagram-container {
+      background: rgba(9, 11, 16, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem 1rem;
+      margin: 2rem 0;
+      overflow-x: auto;
+    }
+
+    .mermaid {
+      background: transparent !important;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Code styling */
+    pre {
+      background: #090b10;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      text-align: left;
+    }
+    code {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.9rem;
+      color: #06b6d4;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: #e2e8f0;
+    }
+
+    footer {
+      text-align: center;
+      padding: 4rem 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 300;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html" class="logo-link"><div class="logo">PrintProof3D</div></a>
+    <div class="nav-links">
+      <a href="README.md">README</a>
+      <a href="user_manual.html">Manual</a>
+      <a href="api_reference.html">API</a>
+      <a href="architecture.html" class="active">Architecture</a>
+      <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </header>
+
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h4>Section Navigation</h4>
+      <ul>
+        <li><a href="#system-topology">1. System Topology</a></li>
+        <li><a href="#wasm-sandbox">2. WASM Memory Sandbox</a></li>
+        <li><a href="#conformance-tests">3. Conformance Suite</a></li>
+        <li><a href="#data-pipeline">4. Data Pipeline Flow</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-content">
+      <section>
+        <h1>System Architecture & Design Specification</h1>
+        <p>This document details the software architecture, design principles, crate boundaries, data flow pipelines, and runtime memory mechanics within the PrintProof3D engine.</p>
+      </section>
+
+      <hr>
+
+      <!-- Section 1 -->
+      <section id="system-topology">
+        <h2>1. System Topology & Integration Boundaries</h2>
+        <p>PrintProof3D is structured as a cargo workspace containing decoupled, specialized crates. This design maintains strict separation of concerns, ensures compilation boundaries are kept clean, and allows specific subsets of the project to be integrated into different environments (such as compiling plugins to WebAssembly without pulling in network server dependencies).</p>
+
+        <h3>1.1 Architectural Topology Diagram</h3>
+        <p>The diagram below illustrates how client interfaces (native developers, CLI pipelines, REST clients, and AI agents) route requests through the engine's modular layers:</p>
+
+        <div class="diagram-container">
+          <div class="mermaid">
+            graph TD
+              %% Clients & Entry Points
+              User[Developer / Slicer Client] -->|Native Imports| SDK[crates/sdk]
+              CI[CI/CD Pipelines / CLI] -->|CLI Commands| CLI[crates/cli]
+              Agent[AI Agent / Cursor] -->|MCP Line Protocol| MCP[MCP Server]
+              RemoteClient[Remote Management App] -->|Axum HTTP REST| REST[crates/rest]
+
+              %% Routing
+              CLI -->|Imports| Core[crates/core]
+              CLI -->|Imports| Printability[crates/printability]
+              CLI -->|Imports| Plugins[crates/plugins]
+
+              REST -->|Bearer Auth| Core
+              REST -->|Routes Validation| Printability
+              REST -->|Loads Hooks| Plugins
+
+              MCP -->|Tools Engine| Core
+              MCP -->|Tools Engine| Printability
+
+              SDK -->|Conformance Suite| Adapters[crates/adapters]
+              SDK -->|Imports| Core
+
+              %% Infrastructure
+              Printability -->|STL/G-code Geometry Checks| Core
+              Adapters -->|PrinterAdapter Trait / Configs| Core
+
+              %% Sandboxed Plugins
+              Plugins -->|Instantiates wasmi| Sandbox[Restricted Guest Sandbox]
+              Sandbox -->|Guest Exec| Guest[example-plugin.wasm]
+          </div>
+        </div>
+
+        <h3>1.2 Crate Responsibilities & Interfaces</h3>
+        <ul>
+          <li><strong><code>printproof3d-core</code></strong>: The absolute foundation of the project. It defines the shared, serializable domain models (<code>PrinterProfile</code>, <code>MaterialProfile</code>, <code>ValidationReport</code>). It compiles JSON schemas automatically to ensure other languages (e.g. JavaScript frontend clients) stay synchronized with the Rust core.</li>
+          <li><strong><code>printproof3d-printability</code></strong>: The mathematical geometry and path validation engine. It contains parsers for ASCII STL, binary STL, and raw G-code, running spatial and thermal audits against the core profiles. It depends only on <code>printproof3d-core</code> to remain highly embeddable.</li>
+          <li><strong><code>printproof3d-plugins</code></strong>: The WASM runtime supervisor. It instantiates the <code>wasmi</code> interpreter, loads compiled guest <code>.wasm</code> bytecode arrays, and manages memory writing and reading over linear memory buffers.</li>
+          <li><strong><code>printproof3d-adapters</code></strong>: The physical printer connection protocol layer. It defines the asynchronous <code>PrinterAdapter</code> trait and houses connection configurations. <em>Note: OctoPrint and Moonraker/Klipper adapters are defined as trait stubs and configuration outlines for future implementation; they do not have active connection clients in this release.</em></li>
+          <li><strong><code>printproof3d-sdk</code></strong>: The development and test integration SDK. It provides mock server implementations (Duet/RRF and Bambu FTP/MQTT) and exposes a conformance verification test suite to ensure connection clients operate reliably.</li>
+          <li><strong><code>printproof3d-cli</code></strong>: The shell interface. It handles command line option parsing, compiles output validation files, and runs the MCP JSON-RPC 2.0 server.</li>
+          <li><strong><code>printproof3d-rest</code></strong>: The network service layer. It wraps validation operations in an Axum web daemon, enforcing Bearer token authentication middleware on secure endpoints.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <!-- Section 2 -->
+      <section id="wasm-sandbox">
+        <h2>2. WebAssembly Memory Sandbox Flow</h2>
+        <p>Custom validation rules run inside a restricted WebAssembly linear memory sandbox using <code>wasmi</code>. Guest plugins have zero direct access to the filesystem, network sockets, or operating system calls, preventing malicious code execution.</p>
+
+        <h3>2.1 The Pointer-Length Exchange Protocol</h3>
+        <p>Because WebAssembly linear memory is isolated from the host application's memory space, data exchange must be performed by copying raw bytes over shared linear memory. PrintProof3D uses a pointer-length exchange protocol:</p>
+        <ol>
+          <li><strong>Allocation</strong>: The host queries the length of the serialized JSON input report, calling the guest's exported <code>alloc</code> function to reserve space in linear memory. The guest returns the starting memory offset (pointer).</li>
+          <li><strong>Writing</strong>: The host writes the JSON string bytes directly into the guest's linear memory at the designated pointer offset.</li>
+          <li><strong>Execution</strong>: The host triggers the guest's exported <code>validate</code> function, passing the pointer and length. The guest deserializes the JSON string into its local memory space, executes the custom rules, serializes the updated report back to a JSON string, and allocates an output buffer.</li>
+          <li><strong>Result Packaging</strong>: The guest packs the output pointer and output length into a single 64-bit unsigned integer to return it over the WebAssembly boundary:
+            <pre><code>result_u64 = (output_ptr << 32) | output_len</code></pre>
+          </li>
+          <li><strong>Reading & Cleanup</strong>: The host unpacks the integer, reads the result JSON string from the guest's memory, calls the guest's <code>dealloc</code> function to clean up both the input and output buffers, and deserializes the final report.</li>
+        </ol>
+
+        <div class="diagram-container">
+          <div class="mermaid">
+            sequenceDiagram
+                autonumber
+                participant Host as PrintProof3D Host (PluginEngine)
+                participant WASM as WebAssembly Instance (wasmi)
+                participant Memory as Linear WASM Memory
+
+                Host->>WASM: call alloc(input_len)
+                WASM-->>Host: returns input_ptr (offset in linear memory)
+                Host->>Memory: write input JSON string to input_ptr
+                Host->>WASM: call validate(input_ptr, input_len)
+                Note over WASM: Deserializes report,<br/>runs custom validation checks,<br/>serializes report to string,<br/>calls guest alloc() to store output
+                WASM-->>Host: returns result_u64 (output_ptr << 32 | output_len)
+                Host->>WASM: call dealloc(input_ptr, input_len)
+                Host->>Memory: read output JSON string from output_ptr
+                Host->>WASM: call dealloc(output_ptr, output_len)
+                Host->>Host: Deserializes final report and merges
+          </div>
+        </div>
+      </section>
+
+      <hr>
+
+      <!-- Section 3 -->
+      <section id="conformance-tests">
+        <h2>3. Conformance Test Suite Flow</h2>
+        <p>To ensure third-party communication adapters interact safely with physical hardware, the SDK provides a conformance validation suite. The harness tests connection handling, telemetry polling, status changes, and emergency abort controls:</p>
+
+        <div class="diagram-container">
+          <div class="mermaid">
+            flowchart TD
+                Start([Start Suite]) --> Connect[Call connect]
+                Connect -->|Err| FailConnect([Fail: Connection Error])
+                Connect -->|Ok| Status[Call get_status]
+                
+                Status -->|Err| FailStatus([Fail: Status Error])
+                Status -->|Ok: Telemetry| CheckState{Is telemetry.state valid?}
+                CheckState -->|No| FailState([Fail: Empty State])
+                CheckState -->|Yes| Control[Execute Control Loop]
+
+                Control --> Pause[Call pause_job]
+                Pause --> Resume[Call resume_job]
+                Resume --> Cancel[Call cancel_job]
+                
+                Cancel -->|Err| FailControl([Fail: Control Command Failed])
+                Cancel -->|Ok| Disconnect[Call disconnect]
+                Disconnect -->|Err| FailDisconnect([Fail: Disconnect Failed])
+                Disconnect -->|Ok| Pass([Pass: Conformance Confirmed])
+          </div>
+        </div>
+      </section>
+
+      <hr>
+
+      <!-- Section 4 -->
+      <section id="data-pipeline">
+        <h2>4. Decoupled Data Flow Pipeline</h2>
+        <p>The print verification pipeline routes files through incremental analysis and filtration layers, separating static geometry checks from custom user logic:</p>
+
+        <div class="diagram-container">
+          <div class="mermaid">
+            graph LR
+                Input[STL Mesh / G-code File] --> Parser[printproof3d-printability]
+                Parser --> Profile[Compare to Printer/Material JSON Profiles]
+                Profile --> RawReport[Generate baseline ValidationReport]
+                RawReport --> Filter{Has Custom Rules WASM Plugin?}
+                Filter -->|No| Output[Output final JSON report]
+                Filter -->|Yes| Plugins[wasmi Sandboxed validation]
+                Plugins --> Output
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 PrintProof3D. Released under the <a href="https://github.com/scottconverse/PrintProof3D/blob/main/LICENSE" style="color: var(--text-muted); text-decoration: underline;">MIT License</a>. View the source on <a href="https://github.com/scottconverse/PrintProof3D" style="color: var(--text-muted); text-decoration: underline;">GitHub</a>.</p>
+  </footer>
+</body>
+</html>

@@ -410,9 +410,9 @@
     <div class="logo">PrintProof3D</div>
     <div class="nav-links">
       <a href="README.md">README</a>
-      <a href="USER_MANUAL.md">Manual</a>
-      <a href="API_REFERENCE.md">API</a>
-      <a href="ARCHITECTURE.md">Architecture</a>
+      <a href="user_manual.html">Manual</a>
+      <a href="api_reference.html">API</a>
+      <a href="architecture.html">Architecture</a>
       <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
     </div>
   </header>
@@ -423,7 +423,7 @@
     <p>An open-source Rust engine and library for static printability and G-code validation, exposing CLI, REST, MCP, and WASM-plugin interfaces. Inspect meshes and paths before you print.</p>
     <div class="cta-buttons">
       <a class="btn btn-primary" href="README.md#⚙️-installation--setup">Install via cargo</a>
-      <a class="btn btn-secondary" href="USER_MANUAL.md">Read User Manual</a>
+      <a class="btn btn-secondary" href="user_manual.html">Read User Manual</a>
     </div>
   </section>
 
@@ -558,37 +558,37 @@
   </section>
 
   <section class="features-grid">
-    <a href="USER_MANUAL.md#2-profile-structures" class="card-link">
+    <a href="user_manual.html#profile-structures" class="card-link">
       <div class="card">
         <h3><span>🧪</span> Type-Safe Core</h3>
         <p>Ensure printer profile models and raw filament structures conform to automated JSON schemas. Never worry about configuration drift between Rust and integrations.</p>
       </div>
     </a>
-    <a href="USER_MANUAL.md#2-under-the-hood-mathematical-validation" class="card-link">
+    <a href="user_manual.html#mathematical-validation" class="card-link">
       <div class="card">
         <h3><span>📐</span> Geometry & Path Checkers</h3>
         <p>Detect non-manifold edges, bounds violations, and unsupported overhang normals on STL models. Run static coordinate and thermal limits audits on G-code paths.</p>
       </div>
     </a>
-    <a href="USER_MANUAL.md#2-writing-a-custom-wasm-validation-plugin" class="card-link">
+    <a href="user_manual.html#writing-plugins" class="card-link">
       <div class="card">
         <h3><span>🔒</span> WASM-Sandboxed Plugins</h3>
         <p>Write validation rules in Rust and run them dynamically in a hermetic WebAssembly sandbox with no socket or filesystem access. Fast, compiler-free, and safe.</p>
       </div>
     </a>
-    <a href="USER_MANUAL.md#3-custom-printer-connections--compliance-tests" class="card-link">
+    <a href="user_manual.html#compliance-tests" class="card-link">
       <div class="card">
         <h3><span>🛠</span> Adapter Conformance SDK</h3>
         <p>Exposes automated conformance verification testing harnesses to ensure third-party connectivity clients implement states and commands cleanly.</p>
       </div>
     </a>
-    <a href="USER_MANUAL.md#31-axum-rest-web-service" class="card-link">
+    <a href="user_manual.html#systems-integration" class="card-link">
       <div class="card">
         <h3><span>📡</span> Axum REST microservice</h3>
         <p>Condition-built HTTP REST server protected by bearer token middleware. Perfect for web interfaces, slicers, or newsroom workflow integrations.</p>
       </div>
     </a>
-    <a href="USER_MANUAL.md#32-model-context-protocol-mcp-server" class="card-link">
+    <a href="user_manual.html#systems-integration" class="card-link">
       <div class="card">
         <h3><span>🤖</span> Model Context Protocol</h3>
         <p>Expose validation and inspection capabilities to LLMs and agentic development assistants over standard JSON-RPC 2.0 stdin/stdout transport.</p>

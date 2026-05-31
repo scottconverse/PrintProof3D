@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintProof3D — User Manual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090b10;
+      --card-bg: rgba(18, 22, 33, 0.65);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #4f46e5;
+      --secondary: #06b6d4;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    header {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-link {
+      text-decoration: none;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 30%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.05em;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-left: 2rem;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--secondary);
+    }
+
+    .doc-layout {
+      max-width: 1400px;
+      margin: 3rem auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 3rem;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 2rem;
+      height: calc(100vh - 4rem);
+      overflow-y: auto;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem 1.5rem;
+    }
+
+    .sidebar h4 {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 2rem;
+    }
+
+    .sidebar li {
+      margin-bottom: 0.75rem;
+    }
+
+    .sidebar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: color 0.3s ease;
+      display: block;
+    }
+
+    .sidebar a:hover {
+      color: var(--secondary);
+    }
+
+    .doc-content {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3.5rem;
+      max-width: 900px;
+    }
+
+    .doc-content h1, .doc-content h2, .doc-content h3 {
+      font-family: var(--font-display);
+      margin-top: 2.5rem;
+      margin-bottom: 1.25rem;
+      color: #fff;
+      scroll-margin-top: 2rem;
+    }
+
+    .doc-content h1 {
+      font-size: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+
+    .doc-content h2 {
+      font-size: 1.85rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+    }
+
+    .doc-content h3 {
+      font-size: 1.35rem;
+    }
+
+    .doc-content p {
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+
+    .doc-content ul {
+      margin-left: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+    }
+
+    .doc-content li {
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    hr {
+      border: 0;
+      height: 1px;
+      background: var(--border);
+      margin: 3rem 0;
+    }
+
+    /* GitHub Alert Box Styles */
+    .alert {
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      margin: 1.5rem 0;
+      border-left: 4px solid transparent;
+      font-weight: 300;
+      font-size: 0.95rem;
+    }
+    .alert-note {
+      background: rgba(59, 130, 246, 0.1);
+      border-left-color: #3b82f6;
+      color: #93c5fd;
+    }
+    .alert-important {
+      background: rgba(139, 92, 246, 0.1);
+      border-left-color: #8b5cf6;
+      color: #c084fc;
+    }
+
+    /* Code styling */
+    pre {
+      background: #090b10;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      text-align: left;
+    }
+    code {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.9rem;
+      color: #06b6d4;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: #e2e8f0;
+    }
+
+    footer {
+      text-align: center;
+      padding: 4rem 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 300;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html" class="logo-link"><div class="logo">PrintProof3D</div></a>
+    <div class="nav-links">
+      <a href="README.md">README</a>
+      <a href="user_manual.html" class="active">Manual</a>
+      <a href="api_reference.html">API</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </header>
+
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h4>Part 1: Concepts</h4>
+      <ul>
+        <li><a href="#what-is-printproof3d">1. What is PrintProof3D?</a></li>
+        <li><a href="#profile-structures">2. Profile Structures</a></li>
+        <li><a href="#reading-the-validation-report">3. Validation Reports</a></li>
+      </ul>
+
+      <h4>Part 2: Technical</h4>
+      <ul>
+        <li><a href="#system-architecture">1. System Architecture</a></li>
+        <li><a href="#mathematical-validation">2. Mathematical Validation</a></li>
+        <li><a href="#systems-integration">3. Systems Integration</a></li>
+      </ul>
+
+      <h4>Part 3: Developers</h4>
+      <ul>
+        <li><a href="#local-setup">1. Local Setup</a></li>
+        <li><a href="#writing-plugins">2. Writing WASM Plugins</a></li>
+        <li><a href="#compliance-tests">3. Connection Compliance</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-content">
+      <section>
+        <h1>PrintProof3D User Manual & Integration Guide</h1>
+        <p>Welcome to the <strong>PrintProof3D User Manual</strong>. This document contains comprehensive documentation for understanding, configuring, and extending the printability engine.</p>
+      </section>
+
+      <hr>
+
+      <!-- Part 1 -->
+      <section id="part1">
+        <h2>Part 1 — Core Validation Concepts</h2>
+        <p>This section covers the core concepts, validation logic, and configuration models behind the PrintProof3D engine.</p>
+
+        <h3 id="what-is-printproof3d">1. What is PrintProof3D?</h3>
+        <p>PrintProof3D is a safety utility for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has holes, or if the slicer settings are wrong, you risk wasting filament, creating messy "spaghetti" prints, or even damaging your hardware (such as crashing the metal nozzle into the printbed or overheating the components).</p>
+        <p>PrintProof3D acts as a pre-flight checklist. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to ensure they are safe, watertight, and match the capabilities of your specific machine and filament.</p>
+
+        <h3 id="profile-structures">2. Profile Structures</h3>
+        <p>To validate prints, you must define the target machine and filament using two JSON files: the <strong>Printer Profile</strong> and the <strong>Material Profile</strong>.</p>
+
+        <h4>2.1 The Printer Profile (<code>.json</code>)</h4>
+        <p>This file defines the physical dimensions, safety thresholds, and capabilities of your 3D printer:</p>
+        <ul>
+          <li><strong>Manufacturer & Model</strong>: Identifies the machine (e.g. "Prusa MK4").</li>
+          <li><strong>Build Volume</strong>: The physical boundaries of the bed.
+            <ul>
+              <li><em>Rectangular</em>: Specified as <code>x</code> (width), <code>y</code> (depth), and <code>z</code> (height) in millimeters.</li>
+              <li><em>Cylindrical</em>: Specified as <code>diameter</code> and <code>z</code> height in millimeters (common for circular beds or delta printers).</li>
+            </ul>
+          </li>
+          <li><strong>Bed Shape</strong>: Tells the system the shape of your printbed. This must match the volume (a <code>circular</code> bed requires a <code>cylindrical</code> volume).</li>
+          <li><strong>Nozzle Diameters</strong>: The nozzle sizes you have available (e.g., <code>0.4</code> mm, <code>0.6</code> mm).</li>
+          <li><strong>Max Hotend & Bed Temperatures</strong>: Physical safety cutoffs. If a file attempts to heat the nozzle or bed past these limits, PrintProof3D flags it as a critical hazard.</li>
+          <li><strong>Unsafe Commands</strong>: A list of codes to block. For example, blocking <code>M500</code> prevents print files from saving random settings to your printer's permanent memory.</li>
+        </ul>
+
+        <h4>2.2 The Material Profile (<code>.json</code>)</h4>
+        <p>This file defines the thermal requirements and printing limits of your filament (e.g., PLA, PETG, ABS).</p>
+        <ul>
+          <li><strong>Min/Max Nozzle & Bed Temperature</strong>: The safe printing window recommended by the filament manufacturer.</li>
+          <li><strong>Warp Risk</strong>: The likelihood of the plastic curling as it cools. High-warp materials (like ABS) trigger strict warnings if the model's footprint touching the bed is too small.</li>
+          <li><strong>Overhang & Bridge Difficulty</strong>: Mapped to cooling properties to evaluate overhang angles.</li>
+        </ul>
+
+        <h3 id="reading-the-validation-report">3. Reading the Validation Report</h3>
+        <p>After running a check, PrintProof3D outputs a unified validation report. The most important field is the <strong><code>status</code></strong>, which can return one of three results:</p>
+        <ul>
+          <li><strong><code>pass</code> (Green)</strong>: The file matches all profiles. It is safe to print.</li>
+          <li><strong><code>warning</code> (Yellow)</strong>: Non-blocking issues were found. You should review them, but the file is not dangerous to the machine. Common warnings include low bed contact area or steep overhangs.</li>
+          <li><strong><code>fail</code> (Red)</strong>: Critical errors were detected (such as coordinates that exceed your printer's physical dimensions or temperatures that exceed safety limits). Printing is blocked.</li>
+        </ul>
+        <p>Every warning or failure includes a <strong>Suggested Fix</strong> explaining how to resolve it (e.g., "Add support structures in your slicer").</p>
+      </section>
+
+      <hr>
+
+      <!-- Part 2 -->
+      <section id="part2">
+        <h2>Part 2 — For Technical Operators</h2>
+        <p>This section covers the technical architecture, mathematical calculations, and remote interfaces for systems administrators and integrations.</p>
+
+        <h3 id="system-architecture">1. System Architecture & Crate Boundaries</h3>
+        <p>PrintProof3D is structured as a Cargo workspace containing decoupled, specialized crates. Below is the structural topology detailing how Native, CLI, REST API, and AI MCP channels route validation requests:</p>
+        
+        <div class="alert alert-note">
+          Please refer to the <a href="architecture.html" style="color: #93c5fd; text-decoration: underline;">System Architecture Spec</a> page to view the live dynamic dependency graph and sandbox sequence diagrams.
+        </div>
+
+        <h4 id="wasm-sandbox">1.1 WebAssembly Memory Sandbox Flow</h4>
+        <p>Custom validation rules are executed inside a sandboxed <code>wasmi</code> memory boundary. Because WASM linear memory is isolated, reports are serialized and copied over shared memory blocks. The host allocates buffers dynamically, writes input payload strings, triggers execution, and extracts results via pointer-length decoding.</p>
+
+        <h3 id="mathematical-validation">2. Under the Hood: Mathematical Validation</h3>
+
+        <h4>2.1 STL Geometry Auditing</h4>
+        <p>The engine parses STL files and performs geometric verification using the following logic:</p>
+        <ul>
+          <li><strong>Vertex Quantization</strong>: To prevent floating-point rounding errors (where adjacent faces don't align due to minor float variances), coordinates are scaled to micrometers and rounded to 3D integer keys:
+            <pre><code>K_v = [ round(x * 1000), round(y * 1000), round(z * 1000) ]</code></pre>
+          </li>
+          <li><strong>Manifold (Watertight) Verifier</strong>: The engine identifies edges by sorting vertex coordinates canonically. In a closed manifold shell, every edge must be shared by <strong>exactly two</strong> triangles. If an edge is shared by only <strong>1 triangle</strong> (a hole) or <strong>3+ triangles</strong> (self-intersection), it flags a <code>MESH_NOT_MANIFOLD</code> critical failure.</li>
+          <li><strong>Cylindrical Delta Bed Check</strong>: For circular beds, Cartesian coordinates are converted to a radial distance <code>R</code> from the bed center:
+            <pre><code>R^2 = x^2 + y^2</code></pre>
+            If <code>R^2 > (diameter / 2)^2</code> for any vertex, it triggers a <code>MODEL_OUT_OF_BOUNDS</code> error.
+          </li>
+          <li><strong>Overhang Slope Tilt Analysis</strong>: The engine checks the angle <code>θ</code> between the downward normal vector and each triangle face normal:
+            <pre><code>cos(θ) = -nz / ||n||</code></pre>
+            If <code>cos(θ) < cos(θ_limit)</code> (where <code>θ_limit</code> is derived from the material's cooling properties), the overhang is too steep and requires support structures.
+          </li>
+          <li><strong>Bed Adhesion Footprint Ratio</strong>: contact area is calculated using vector cross-products of facets touching the bed surface (<code>Z < 0.05</code> mm):
+            <pre><code>Area = 0.5 * ||(V1 - V0) x (V2 - V0)||</code></pre>
+            If the contact area is less than 5% of the model's 2D bounding footprint area, it flags a <code>POOR_BED_ADHESION</code> warning.
+          </li>
+        </ul>
+
+        <h4>2.2 G-Code Toolpath Analysis</h4>
+        <ul>
+          <li><strong>Stateful Coordinates Tracking</strong>: Tracks the toolhead's current position by monitoring motion coordinates (<code>G0</code>–<code>G3</code>), absolute positioning settings (<code>G90</code>), relative positioning (<code>G91</code>), and homing parameters (<code>G28</code>). If any motion segment falls outside printer spatial bounds, it flags <code>GCODE_OUT_OF_BOUNDS</code>.</li>
+          <li><strong>Thermal Target Monitoring</strong>: Intercepts hotend commands (<code>M104</code>/<code>M109</code>) and bed commands (<code>M140</code>/<code>M190</code>). Targets exceeding printer limits flag <code>Critical</code> errors, while targets outside material temp windows flag <code>Major</code> errors.</li>
+        </ul>
+
+        <h3 id="systems-integration">3. Systems Integration & Remote APIs</h3>
+
+        <h4>3.1 Axum REST Web Service</h4>
+        <p>Start the REST validation microservice:</p>
+        <pre><code>cargo run --package printproof3d-rest</code></pre>
+        <ul>
+          <li><strong>Binds to</strong>: <code>127.0.0.1:3000</code></li>
+          <li><strong>Security</strong>: Enforces Bearer token headers (<code>Authorization: Bearer secret_print_token</code>). Override via <code>PRINTPROOF3D_API_TOKEN</code>.</li>
+        </ul>
+        <p>Endpoints include <code>GET /profiles/printers</code>, <code>POST /validate/model</code>, and <code>POST /validate/gcode</code>.</p>
+
+        <h4>3.2 Model Context Protocol (MCP) Server</h4>
+        <p>Integrate validation directly into AI agents (like Claude Desktop or Cursor) over standard I/O:</p>
+        <pre><code>printproof3d mcp</code></pre>
+        <p>Exposes tools <code>validate_model_printability</code>, <code>validate_gcode</code>, <code>list_printer_profiles</code>, and <code>explain_validation_report</code>.</p>
+      </section>
+
+      <hr>
+
+      <!-- Part 3 -->
+      <section id="part3">
+        <h2>Part 3 — For Developers</h2>
+        <p>This section details how to compile, test, write WASM plugins, and contribute to the PrintProof3D codebase.</p>
+
+        <h3 id="local-setup">1. Local Setup & Compilation</h3>
+        <p>Requires the Rust toolchain (edition 2021) and the WebAssembly compile target:</p>
+        <pre><code>rustup target add wasm32-unknown-unknown
+
+# Compile and run workspace test suite
+cargo test --workspace
+
+# Compile the example WASM rules plugin
+cargo build --package example-plugin --target wasm32-unknown-unknown --release</code></pre>
+
+        <h3 id="writing-plugins">2. Writing a Custom WASM Validation Plugin</h3>
+        <p>PrintProof3D supports extending validation using WebAssembly plugins running in a sandboxed runtime.</p>
+        
+        <h4>2.1 The Memory Sharing Protocol</h4>
+        <p>Data exchange follows a specific pointer-length allocation protocol where the host writes the serialized report JSON to the guest memory space, triggers execution, and reads the serialized result back via a packed 64-bit reference address.</p>
+
+        <h4>2.2 Step-by-Step Plugin Implementation</h4>
+        <p>Initialize a standard library with <code>cdylib</code> target layout, import core types, write custom filter logic, and export it using the validation macro:</p>
+        <pre><code>use printproof3d_plugins::{
+    export_validation_plugin, ValidationReport, ValidationIssue, IssueSeverity, ValidationStatus
+};
+
+fn enforce_safety_margin(report: &mut ValidationReport) {
+    if report.model.bounding_box.max_x > 200.0 {
+        report.issues.push(ValidationIssue {
+            id: "SAFETY_MARGIN_EXCEEDED".to_string(),
+            severity: IssueSeverity::Major,
+            message: "Model exceeds 200mm safety margin on the X axis.".to_string(),
+            location: None,
+            suggested_fixes: vec!["Center or scale down the model.".to_string()],
+        });
+        report.status = ValidationStatus::Fail;
+    }
+}
+
+export_validation_plugin!(enforce_safety_margin);</code></pre>
+
+        <h3 id="compliance-tests">3. Custom Printer Connections & Compliance Tests</h3>
+        <p>Implement the <code>PrinterAdapter</code> trait on your custom connection client and verify it using the conformance testing suite:</p>
+        <pre><code>use printproof3d_adapters::PrinterAdapter;
+use printproof3d_sdk::run_conformance_tests;
+
+#[tokio::test]
+async fn test_my_custom_client() {
+    let mut client = MyOctoPrintClient::new("192.168.1.100");
+    let result = run_conformance_tests(&mut client).await;
+    assert!(result.is_ok(), "Conformance failed: {:?}", result);
+}</code></pre>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 PrintProof3D. Released under the <a href="https://github.com/scottconverse/PrintProof3D/blob/main/LICENSE" style="color: var(--text-muted); text-decoration: underline;">MIT License</a>. View the source on <a href="https://github.com/scottconverse/PrintProof3D" style="color: var(--text-muted); text-decoration: underline;">GitHub</a>.</p>
+  </footer>
+</body>
+</html>
