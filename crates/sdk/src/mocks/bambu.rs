@@ -66,7 +66,7 @@ impl BambuFtpMock {
                                                         if e.kind()
                                                             == std::io::ErrorKind::WouldBlock
                                                             || e.kind()
-                                                            == std::io::ErrorKind::TimedOut =>
+                                                                == std::io::ErrorKind::TimedOut =>
                                                     {
                                                         continue;
                                                     }
@@ -167,13 +167,8 @@ impl BambuMqttMock {
                                         if n >= 4 {
                                             let packet_id_msb = buffer[2];
                                             let packet_id_lsb = buffer[3];
-                                            let suback = [
-                                                0x90,
-                                                0x03,
-                                                packet_id_msb,
-                                                packet_id_lsb,
-                                                0x00,
-                                            ];
+                                            let suback =
+                                                [0x90, 0x03, packet_id_msb, packet_id_lsb, 0x00];
                                             if stream_write.write_all(&suback).is_err() {
                                                 break;
                                             }
@@ -181,10 +176,11 @@ impl BambuMqttMock {
 
                                         if !telemetry_spawned {
                                             telemetry_spawned = true;
-                                            let mut telemetry_stream = match stream_write.try_clone() {
-                                                Ok(s) => s,
-                                                Err(_) => break,
-                                            };
+                                            let mut telemetry_stream =
+                                                match stream_write.try_clone() {
+                                                    Ok(s) => s,
+                                                    Err(_) => break,
+                                                };
                                             let running_telemetry = running_clone.clone();
                                             thread::spawn(move || {
                                                 while running_telemetry.load(Ordering::Relaxed) {
@@ -212,7 +208,9 @@ impl BambuMqttMock {
                                                     if telemetry_stream.write_all(&pkt).is_err() {
                                                         break;
                                                     }
-                                                    thread::sleep(std::time::Duration::from_secs(1));
+                                                    thread::sleep(std::time::Duration::from_secs(
+                                                        1,
+                                                    ));
                                                 }
                                             });
                                         }

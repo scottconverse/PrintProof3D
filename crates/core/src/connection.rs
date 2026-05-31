@@ -109,32 +109,47 @@ impl PrinterConnectionConfig {
             );
         }
 
-        let is_blank = |opt: &Option<String>| {
-            opt.as_ref().map(|s| s.trim().is_empty()).unwrap_or(true)
-        };
+        let is_blank =
+            |opt: &Option<String>| opt.as_ref().map(|s| s.trim().is_empty()).unwrap_or(true);
 
-        // Physical validation invariants
-        if self.mode == ConnectionMode::Physical {
-            if self.protocol_family == ProtocolFamily::Unknown {
-                return Err("Validation Error: Physical connections cannot use protocol family 'unknown'.".to_string());
+        // Protocol support check
+        match self.protocol_family {
+            ProtocolFamily::BambuMqtt
+            | ProtocolFamily::Klipper
+            | ProtocolFamily::OctoPrint
+            | ProtocolFamily::PrusaLink
+            | ProtocolFamily::RepRapFirmware
+            | ProtocolFamily::MarlinSerial => {}
+            _ => {
+                return Err(format!(
+                    "Validation Error: Unsupported protocol family: {:?}",
+                    self.protocol_family
+                ));
             }
+        }
 
-            if self.protocol_family == ProtocolFamily::MarlinSerial {
-                if is_blank(&self.serial_path) {
-                    return Err("Validation Error: For physical 'marlin_serial' connections, 'serial_path' must be specified (e.g., 'COM3' or '/dev/ttyUSB0').".to_string());
-                }
-                if let Some(baud) = self.serial_baud_rate {
-                    if baud == 0 {
-                        return Err("Validation Error: Baud rate must be greater than 0.".to_string());
-                    }
-                }
-            } else {
-                if is_blank(&self.base_url) {
+        // Endpoint validation (required for both simulator and physical mode targets to be routeable)
+        if self.protocol_family == ProtocolFamily::MarlinSerial {
+            if is_blank(&self.serial_path) {
+                return Err("Validation Error: For 'marlin_serial' connections, 'serial_path' must be specified (e.g., 'COM3' or '/dev/ttyUSB0').".to_string());
+            }
+            if let Some(baud) = self.serial_baud_rate {
+                let standard_bauds = [
+                    2400, 4800, 9600, 19200, 38400, 57600, 115200, 250000, 500000,
+                ];
+                if !standard_bauds.contains(&baud) {
                     return Err(format!(
-                        "Validation Error: For physical network target '{}' (protocol: {:?}), 'base_url' must be specified.",
-                        self.name, self.protocol_family
+                        "Validation Error: Baud rate {} is not a standard speed. Expected one of: {:?}",
+                        baud, standard_bauds
                     ));
                 }
+            }
+        } else {
+            if is_blank(&self.base_url) {
+                return Err(format!(
+                    "Validation Error: For network target '{}' (protocol: {:?}), 'base_url' must be specified.",
+                    self.name, self.protocol_family
+                ));
             }
         }
 
@@ -237,7 +252,7 @@ mod tests {
             name: "OctoPrint".to_string(),
             mode: ConnectionMode::Simulator,
             protocol_family: ProtocolFamily::OctoPrint,
-            base_url: None,
+            base_url: Some("http://localhost".to_string()),
             serial_path: None,
             serial_baud_rate: None,
             auth_type: AuthType::ApiKey,
@@ -302,5 +317,49 @@ mod tests {
             simulator_scenario: None,
         };
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_unsupported_protocol_fails() {
+        let config = PrinterConnectionConfig {
+            name: "Elegoo SDCP Target".to_string(),
+            mode: ConnectionMode::Simulator,
+            protocol_family: ProtocolFamily::ElegooSdcp,
+            base_url: Some("http://localhost".to_string()),
+            serial_path: None,
+            serial_baud_rate: None,
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+        let res = config.validate();
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Unsupported protocol family"));
+    }
+
+    #[test]
+    fn test_non_standard_baud_rate_fails() {
+        let config = PrinterConnectionConfig {
+            name: "Marlin Non-Standard Baud".to_string(),
+            mode: ConnectionMode::Simulator,
+            protocol_family: ProtocolFamily::MarlinSerial,
+            base_url: None,
+            serial_path: Some("COM3".to_string()),
+            serial_baud_rate: Some(12345),
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: false,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+        let res = config.validate();
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("not a standard speed"));
     }
 }
