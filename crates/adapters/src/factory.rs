@@ -315,11 +315,17 @@ mod tests {
 
             let mut adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
 
-            // Verifying connect fails
+            // Verifying connect fails loudly
             let conn_res = adapter.connect().await;
             assert!(
                 conn_res.is_err(),
                 "connect should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let conn_err = conn_res.err().unwrap().to_string();
+            assert!(
+                conn_err.contains("Not implemented"),
+                "expected 'Not implemented' for connect on {:?}",
                 config.protocol_family
             );
 
@@ -348,6 +354,91 @@ mod tests {
             assert!(
                 status_err.contains("Not implemented"),
                 "expected 'Not implemented' for get_status on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying upload_file fails loudly
+            let dummy_path = std::path::Path::new("dummy.gcode");
+            let upload_res = adapter.upload_file(dummy_path, "dummy.gcode").await;
+            assert!(
+                upload_res.is_err(),
+                "upload_file should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let upload_err = upload_res.err().unwrap().to_string();
+            assert!(
+                upload_err.contains("Not implemented"),
+                "expected 'Not implemented' for upload_file on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying start_job fails loudly
+            let start_res = adapter.start_job("dummy_file").await;
+            assert!(
+                start_res.is_err(),
+                "start_job should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let start_err = start_res.err().unwrap().to_string();
+            assert!(
+                start_err.contains("Not implemented"),
+                "expected 'Not implemented' for start_job on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying pause_job fails loudly
+            let pause_res = adapter.pause_job().await;
+            assert!(
+                pause_res.is_err(),
+                "pause_job should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let pause_err = pause_res.err().unwrap().to_string();
+            assert!(
+                pause_err.contains("Not implemented"),
+                "expected 'Not implemented' for pause_job on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying resume_job fails loudly
+            let resume_res = adapter.resume_job().await;
+            assert!(
+                resume_res.is_err(),
+                "resume_job should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let resume_err = resume_res.err().unwrap().to_string();
+            assert!(
+                resume_err.contains("Not implemented"),
+                "expected 'Not implemented' for resume_job on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying cancel_job fails loudly
+            let cancel_res = adapter.cancel_job().await;
+            assert!(
+                cancel_res.is_err(),
+                "cancel_job should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let cancel_err = cancel_res.err().unwrap().to_string();
+            assert!(
+                cancel_err.contains("Not implemented"),
+                "expected 'Not implemented' for cancel_job on {:?}",
+                config.protocol_family
+            );
+
+            // Verifying emergency_stop fails loudly
+            let estop_res = adapter.emergency_stop().await;
+            assert!(
+                estop_res.is_err(),
+                "emergency_stop should fail for protocol: {:?}",
+                config.protocol_family
+            );
+            let estop_err = estop_res.err().unwrap().to_string();
+            assert!(
+                estop_err.contains("Not implemented"),
+                "expected 'Not implemented' for emergency_stop on {:?}",
                 config.protocol_family
             );
         }
