@@ -21,7 +21,7 @@ This report documents the Audit Lite results for the developer readiness pass of
 
 ### B. Documentation Accuracy
 - **AGENT_PRINTER_VALIDATION.md**: Correctly lays out CLI, REST, MCP, and SDK entrypoints with exact copy-pasteable snippets.
-- **Disclaimers**: Formally documents that PrintProof3D communication is simulator-only and must not be used for real hardware safety certifications.
+- **Disclaimers**: Formally documents that PrintProof3D communication is simulator-only and must not be used for physical hardware validation certifications.
 - **Section Integrity**: Contains the exact required section `"Using PrintProof3D From KimCad"` mapping the 5-point integration roadmap.
 
 ---

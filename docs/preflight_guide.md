@@ -10,7 +10,7 @@ This guide details the `preflight` subcommand, which provides a single, unified 
 > **Simulator Verification Only**
 > PrintProof3D preflight checks verify client conformance and retrieve telemetry via simulator twin mocks (`--simulator <protocol>`).
 > - A "pass" status indicates that the model or G-code **passes PrintProof3D profile and file validation checks**.
-> - It does **NOT** imply physical print safety, actual print success, or hardware certification.
+> - It does **NOT** imply physical print safety, actual print completion outcomes, or hardware certification.
 > - Always perform manual verification and follow printer manufacturer safety instructions before initiating a physical print.
 
 ---

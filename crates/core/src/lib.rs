@@ -226,7 +226,7 @@ pub struct MaterialProfile {
     pub bridge_difficulty: RiskLevel,
     /// Overhang print angle cooling difficulty.
     pub overhang_difficulty: RiskLevel,
-    /// True if an enclosure is required for print success.
+    /// True if an enclosure is recommended for this material.
     pub enclosure_recommended: bool,
     /// True if the raw material absorbs ambient moisture easily (hygroscopic).
     pub dryness_sensitive: bool,

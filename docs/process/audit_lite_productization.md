@@ -24,7 +24,7 @@ This report documents the Audit Lite results for the developer productization pa
 - **Troubleshooting**: Addresses port collisions (ephemeral port `0`), authentication failures (Bearer tokens), WASM targets, and isolated compilation errors.
 
 ### C. Safety Boundaries & Disclaimers
-- **No Hardware Safety Claims**: Formal simulator-only limitations are clearly highlighted. No hardware validation is claimed.
+- **No Physical Hardware Validation Claims**: Formal simulator-only limitations are clearly highlighted. No hardware validation is claimed.
 
 ---
 

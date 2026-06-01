@@ -23,6 +23,11 @@ jobs:
       with:
         components: rustfmt, clippy
 
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev
+
     - name: Cache Cargo build artifacts
       uses: actions/cache@v4
       with:

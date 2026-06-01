@@ -51,7 +51,7 @@
       "type": "boolean"
     },
     "enclosure_recommended": {
-      "description": "True if an enclosure is required for print success.",
+      "description": "True if an enclosure is recommended for this material.",
       "type": "boolean"
     },
     "max_bed_temp": {
