@@ -4,6 +4,16 @@ All notable changes to the PrintProof3D project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-rc1] - 2026-06-01
+
+### Added
+- **Directory Validation**: Introduced the `validate-profile-directory` command to validate all printer and material profiles in a folder, returning non-zero codes on any invalid configuration files.
+- **Multidimensional Compatibility Check**: Added the `check-compatibility` command and corresponding REST endpoint `/validate/compatibility` to audit the alignment of printer limits, material limits, STL mesh geometry, and G-code tools.
+- **Advanced STL Geometry Validation**: Static mesh checks for bounding box limits (`MODEL_OVERSIZED`), bed surface alignment (`BELOW_BED_GEOMETRY`), and zero-area or quantized duplicates (`DEGENERATE_TRIANGLES`).
+- **Stateful G-code Path Auditing**: Static path checks for disallowed formats (`UNSUPPORTED_FILE_TYPE`), blacklisted command profiles (`UNSAFE_COMMAND_BLOCKED`), homing setup validation (`MISSING_HOMING`), and cold extrusion checks (`COLD_EXTRUSION`).
+- **Profile Generation Utilities**: Commands to output standard default profile templates for printers and materials.
+- **Axum API Server Completeness**: Bearer-authenticated endpoints for profile inspection (`POST /profiles/inspect`), profile validation (`POST /profiles/validate/printer`, `POST /profiles/validate/material`), and compatibility verification.
+
 ---
 
 ## [0.4.0] - 2026-05-30
