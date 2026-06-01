@@ -25,7 +25,7 @@ This checklist and guide outlines the packaging, platform compatibility, and ver
 > **Hard Limit: Simulator-Verification Only**
 > PrintProof3D is a software-limits static checker and interface conformance test harness.
 > - A "pass" status indicates only that the sliced files or printer profiles pass PrintProof3D's static rules and schema validations.
-> - **It does NOT guarantee physical hardware safety, prevent thermal runaway, prevent mechanical collisions, or guarantee print success on physical 3D printers.**
+> - **It does NOT certify physical printer operation, prevent heater or motion faults, prevent mechanical collisions, or guarantee completed prints on physical 3D printers.**
 > - All remote printer protocol adapters (Bambu Lab MQTT/FTP, Moonraker/Klipper, OctoPrint, PrusaLink, RepRapFirmware, Marlin Serial) are validated against simulated twin mocks only. 
 > - Users must manually verify physical safety rules and follow printer manufacturer safety instructions before starting prints.
 

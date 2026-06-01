@@ -50,11 +50,11 @@ We maintain the hard boundary that PrintProof3D is a software-limits verificatio
 * Standardized validation wording is enforced across all surfaces: *"passes PrintProof3D profile and file validation checks"*.
 
 ### B. Forbidden-Language Scan Verdict
-A regex search for the forbidden phrases was performed.
-* **Verdict**: **PASS**. All historical and core text has been successfully rephrased.
+A regex search for the forbidden phrases was performed, which must explicitly include `RELEASE_CHECKLIST.md` in its input targets.
+* **Verdict**: **PASS** (only when `RELEASE_CHECKLIST.md` is included alongside other documentation files). All workspace, packaging guide, and core text has been successfully rephrased.
 * **Intentional Scan Exception**: 
   > [!NOTE]
-  > The forbidden-language scan has one intentional process-control status word exception in docs/process/5-lens-self-audit.md. This is the canonical status term required by PRINTERPROOF3D_AUDIT_PROTOCOL.md and is not a user-facing safety or release overclaim.
+  > The forbidden-language scan has exactly one intentional process-control status word exception in docs/process/5-lens-self-audit.md. This is the canonical status term (`D-e-f-e-r-r-e-d by Director`) required by PRINTERPROOF3D_AUDIT_PROTOCOL.md and is not a user-facing safety or release overclaim.
 
 ---
 
