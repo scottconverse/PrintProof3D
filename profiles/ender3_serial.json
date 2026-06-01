@@ -1,0 +1,31 @@
+{
+  "manufacturer": "Creality",
+  "model": "Ender 3",
+  "protocol_family": "marlin_serial",
+  "build_volume": {
+    "type": "rectangular",
+    "x": 220.0,
+    "y": 220.0,
+    "z": 250.0
+  },
+  "bed_shape": "rectangular",
+  "nozzle_diameters": [0.4],
+  "default_nozzle_diameter": 0.4,
+  "min_layer_height": 0.1,
+  "max_layer_height": 0.3,
+  "max_hotend_temp": 250.0,
+  "max_bed_temp": 100.0,
+  "has_enclosure": false,
+  "supports_mmu": false,
+  "firmware_flavor": "marlin",
+  "supported_file_types": ["gcode"],
+  "supports_direct_upload": false,
+  "supports_pause_resume": false,
+  "supports_cancel": false,
+  "supports_job_progress": false,
+  "supports_webcam": false,
+  "supports_chamber_temp": false,
+  "known_quirks": [],
+  "unsafe_commands": [],
+  "filename_restrictions": null
+}

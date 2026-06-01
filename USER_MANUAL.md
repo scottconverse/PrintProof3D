@@ -80,6 +80,12 @@ Every warning or failure includes a **Suggested Fix** explaining how to resolve 
 
 ---
 
+## 4. The CLI Preflight Subcommand
+The `preflight` subcommand provides a single, unified print job verification workflow. You can validate a model file (`--model`) or pre-sliced G-code (`--gcode`) against a printer profile (`--printer`) and optional material profile (`--material`).
+
+Additionally, you can run simulator-backed printer connectivity checks using the `--simulator <protocol>` argument (e.g., `--simulator prusalink`, `--simulator rrf`, etc.). This spins up an in-process mock server twin, validates adapter client communication/telemetry retrieval, and embeds the telemetry status in the JSON report under `sliced_settings_assumed.simulator_telemetry`.
+
+
 # Part 2 — For Technical Operators
 
 This section covers the technical architecture, mathematical calculations, and remote interfaces for systems administrators and integrations.

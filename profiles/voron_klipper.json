@@ -1,0 +1,31 @@
+{
+  "manufacturer": "Voron",
+  "model": "Voron_Klipper_Printer",
+  "protocol_family": "klipper",
+  "build_volume": {
+    "type": "rectangular",
+    "x": 350.0,
+    "y": 350.0,
+    "z": 350.0
+  },
+  "bed_shape": "rectangular",
+  "nozzle_diameters": [0.4, 0.6, 0.8],
+  "default_nozzle_diameter": 0.4,
+  "min_layer_height": 0.05,
+  "max_layer_height": 0.35,
+  "max_hotend_temp": 350.0,
+  "max_bed_temp": 120.0,
+  "has_enclosure": true,
+  "supports_mmu": true,
+  "firmware_flavor": "klipper",
+  "supported_file_types": ["gcode"],
+  "supports_direct_upload": true,
+  "supports_pause_resume": true,
+  "supports_cancel": true,
+  "supports_job_progress": true,
+  "supports_webcam": true,
+  "supports_chamber_temp": true,
+  "known_quirks": [],
+  "unsafe_commands": [],
+  "filename_restrictions": null
+}

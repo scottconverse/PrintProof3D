@@ -98,7 +98,26 @@ target\release\printproof3d.exe validate-gcode --gcode fixtures/safe_print.gcode
 printproof3d validate-gcode --gcode fixtures/safe_print.gcode --printer profiles/prusa_mk4.json --material profiles/pla.json
 ```
 
-### 5. Integration Channels
+### 5. Unified Print Job Preflight Validation
+Perform a single coherent print job preflight validation for STL geometry or sliced G-code, optionally testing connection adapter telemetry against simulator twins.
+
+**Example 1: STL Preflight Validation**
+```bash
+target\release\printproof3d.exe preflight --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json
+```
+
+**Example 2: G-code Preflight Validation**
+```bash
+target\release\printproof3d.exe preflight --gcode fixtures/safe_print.gcode --printer profiles/prusa_mk4.json
+```
+
+**Example 3: Simulator-Twin Preflight Connectivity Check (matching protocol)**
+```bash
+target\release\printproof3d.exe preflight --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json --simulator prusalink
+```
+
+### 6. Integration Channels
+
 - **WASM Plugins**: Compile guest plugins to the WASM target and run validations using `--plugin <path_to_wasm>`.
 - **Axum REST API**: Spin up the local HTTP daemon using `cargo run --package printproof3d-rest` (listening on port `3000`, protected by Bearer token authentication).
 - **AI Agentic Workflows (MCP)**: Run the Model Context Protocol JSON-RPC server over stdout/stdin using `printproof3d mcp`.

@@ -1347,8 +1347,10 @@ dependencies = [
  "printproof3d-core",
  "printproof3d-plugins",
  "printproof3d-printability",
+ "printproof3d-sdk",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

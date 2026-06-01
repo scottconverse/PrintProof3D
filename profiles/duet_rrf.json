@@ -1,0 +1,31 @@
+{
+  "manufacturer": "Duet3D",
+  "model": "Duet_RRF_Printer",
+  "protocol_family": "rep_rap_firmware",
+  "build_volume": {
+    "type": "rectangular",
+    "x": 300.0,
+    "y": 300.0,
+    "z": 300.0
+  },
+  "bed_shape": "rectangular",
+  "nozzle_diameters": [0.4, 0.6],
+  "default_nozzle_diameter": 0.4,
+  "min_layer_height": 0.05,
+  "max_layer_height": 0.3,
+  "max_hotend_temp": 300.0,
+  "max_bed_temp": 120.0,
+  "has_enclosure": true,
+  "supports_mmu": false,
+  "firmware_flavor": "rep_rap_firmware",
+  "supported_file_types": ["gcode"],
+  "supports_direct_upload": true,
+  "supports_pause_resume": true,
+  "supports_cancel": true,
+  "supports_job_progress": true,
+  "supports_webcam": false,
+  "supports_chamber_temp": false,
+  "known_quirks": [],
+  "unsafe_commands": [],
+  "filename_restrictions": null
+}

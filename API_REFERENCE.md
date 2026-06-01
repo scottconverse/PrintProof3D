@@ -82,7 +82,8 @@ The unified report structure returned by validation passes.
 * **`model: ModelMetadata`**: Bounding box size and filename metadata.
 * **`issues: Vec<ValidationIssue>`**: List of compatibility warnings or failures.
 * **`confidence_level: String`**: Analysis confidence ranking: `"high"`, `"medium"`, or `"low"`.
-* **`sliced_settings_assumed: Option<serde_json::Value>`**: Optional key-value storage for slicing parameters.
+* **`sliced_settings_assumed: Option<serde_json::Value>`**: Optional key-value storage for slicing parameters. In preflight checks utilizing simulated printer adapter twin checks (`--simulator <protocol>`), this field embeds the `"simulator_telemetry"` key containing the retrieved printer state telemetry.
+
 
 #### Key Invariants & Validations:
 * `ValidationReport::validate(&self) -> Result<(), String>`:
