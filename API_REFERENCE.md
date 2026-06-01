@@ -398,6 +398,201 @@ Audits interactions between target printers, materials, and geometric files (STL
 #### Examples:
 ```bash
 # Verify printer + material profile compatibility
+### 3.2 Error & Telemetry Structures
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdapterError {
+    ConnectionFailed(String),
+    AuthenticationFailed(String),
+    UploadFailed(String),
+    CommandFailed(String),
+    Timeout,
+    Unknown(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PrinterTelemetry {
+    pub state: PrinterState,
+    pub tool_temp: f32,
+    pub tool_target: f32,
+    pub bed_temp: f32,
+    pub bed_target: f32,
+    pub progress: f32,
+    pub current_file: Option<String>,
+}
+```
+
+---
+
+### 3.3 `PrinterAdapterFactory` (Struct)
+Central registry factory to build dynamic adapter instances from profiles and configurations.
+
+```rust
+pub struct PrinterAdapterFactory;
+
+impl PrinterAdapterFactory {
+    /// Validates the connection config and returns an initialized dynamic box adapter matching the target protocol.
+    pub fn build(
+        profile: &PrinterProfile,
+        config: &PrinterConnectionConfig,
+    ) -> Result<Box<dyn PrinterAdapter>, AdapterError>;
+}
+```
+
+---
+
+### 3.4 Telemetry Enums
+```rust
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PrinterState {
+    Idle,
+    Printing,
+    Paused,
+    Error,
+    Unknown,
+}
+```
+
+---
+
+## 4. `printproof3d-sdk` — Developer Compliance SDK
+
+Exposes automated test verification harnesses to validate connection adapter trait implementations.
+
+### 4.1 Conformance Runner
+Runs a suite of automated state machine checks, verifying connection state transitions and state reporting.
+
+```rust
+/// Exercises connection handshake, status polling, and job pause/abort loops.
+pub async fn run_conformance_tests<A: PrinterAdapter>(adapter: &mut A) -> Result<(), String>;
+```
+
+---
+
+## 5. `printproof3d-plugins` — WebAssembly Runtime
+
+Provides the linear memory management interfaces and interpreter hooks to execute validation plugins.
+
+### 5.1 `PluginEngine` (Struct)
+Compiles and instantiates guest WASM modules.
+* `pub fn new() -> Self`: Initializes the underlying WASM compilation engine.
+* `pub fn load_plugin(&self, wasm_bytes: &[u8]) -> Result<LoadedPlugin, String>`: Compiles a raw bytecode slice, linking standard allocation stubs and returning an executable plugin.
+
+### 5.2 `LoadedPlugin` (Struct)
+Manages the memory boundary and executes validation functions.
+* `pub fn execute_validation(&mut self, report_json: &str) -> Result<String, String>`:
+  1. Calls `alloc` on the guest to reserve memory.
+  2. Writes the input report JSON string into the guest's linear memory.
+  3. Executes the guest's `validate` function.
+  4. Reads the result JSON bytes from the guest's memory.
+  5. Cleans up guest allocations via `dealloc`.
+
+### 5.3 Export Macro (`export_validation_plugin!`)
+Developer macro to export required guest symbols (`alloc`, `dealloc`, `validate`):
+
+```rust
+#[macro_export]
+macro_rules! export_validation_plugin {
+    ($validate_fn:expr) => {
+        #[no_mangle]
+        pub extern "C" fn alloc(size: u32) -> *mut u8 { ... }
+
+        #[no_mangle]
+        pub extern "C" fn dealloc(ptr: *mut u8, size: u32) { ... }
+
+        #[no_mangle]
+        pub extern "C" fn validate(ptr: *mut u8, len: u32) -> u64 { ... }
+    }
+}
+```
+* **Memory Management**: Allocation uses `std::alloc::alloc` and `std::alloc::dealloc` with an alignment of 8 bytes.
+* **Return Packaging**: Packs the 32-bit output pointer and 32-bit output length into a single `u64`:
+  `((output_ptr as u64) << 32) | (output_len as u64)`
+
+---
+
+## 6. `printproof3d` Command-Line Interface (CLI) & JSON Serialization Contracts
+
+The CLI executable integrates the core modules and exposes profile discovery, schema validation, and multi-dimensional compatibility check capabilities.
+
+### 6.1 Discover Profiles
+Discover valid JSON profiles located in a given directory path.
+
+#### Commands:
+* **`list-printers`**: Scans a directory for printer profiles.
+* **`list-materials`**: Scans a directory for material profiles.
+
+#### Arguments & Options:
+* `-d, --directory <PATH>`: Custom directory path to scan. Defaults to `profiles/`.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Print printers text list
+target/release/printproof3d.exe list-printers --format text
+
+# Print materials JSON structure (alphabetically sorted by name)
+target/release/printproof3d.exe list-materials --format json
+```
+
+### 6.2 Profile Inspection
+Read, auto-detect profile structure, and display decoded parameters.
+
+#### Commands:
+* **`inspect-profile <FILE>`**: Auto-detects profile type (printer or material) and inspects its internal field structures.
+
+#### Arguments & Options:
+* `<FILE>`: Path to JSON file to inspect.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Inspect printer profile in human-readable text
+target/release/printproof3d.exe inspect-profile profiles/prusa_mk4.json
+
+# Inspect material profile in wrapped JSON
+target/release/printproof3d.exe inspect-profile profiles/pla.json --format json
+```
+
+### 6.3 Profile Validation
+Verify JSON schema structures and enforce safety bounds (e.g. maximum temperatures).
+
+#### Commands:
+* **`validate-printer-profile <FILE>`**: Validates printer JSON file structure.
+* **`validate-material-profile <FILE>`**: Validates material JSON file structure.
+
+#### Arguments & Options:
+* `<FILE>`: Path to JSON file to validate.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Validate printer profile
+target/release/printproof3d.exe validate-printer-profile profiles/prusa_mk4.json
+
+# Validate material profile (JSON output format)
+target/release/printproof3d.exe validate-material-profile profiles/pla.json --format json
+```
+
+### 6.4 Compatibility Checks
+Audits interactions between target printers, materials, and geometric files (STL models or G-code toolpaths).
+
+#### Commands:
+* **`check-compatibility`**: Runs multi-dimensional audits to verify alignment between machine specifications, material limits, and geometric assets.
+
+#### Arguments & Options:
+* `-p, --printer <PRINTER_FILE>`: (Required) Target printer profile path.
+* `-a, --material <MATERIAL_FILE>`: (Optional) Material profile path.
+* `-m, --model <MODEL_FILE>`: (Optional) STL model geometry path.
+* `-g, --gcode <GCODE_FILE>`: (Optional) Sliced G-code toolpath.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Verify printer + material profile compatibility
 target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --material profiles/pla.json
 
 # Verify printer + model volume footprint compatibility
@@ -406,3 +601,72 @@ target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4
 # Verify printer + sliced G-code compatibility
 target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --gcode fixtures/safe_print.gcode
 ```
+
+### 6.5 Profile Generation Templates
+Generate default template configurations for printer hardware and materials.
+
+#### Commands:
+* **`generate-printer-profile`**: Generates a default printer template profile. Note: this command always emits JSON and does not accept the `--format` option.
+* **`generate-material-profile`**: Generates a default material template profile. Note: this command always emits JSON and does not accept the `--format` option.
+
+#### Arguments & Options:
+* `-o, --output <FILE>`: (Optional) Output file path to write template JSON. If omitted, prints to stdout.
+
+### 6.6 Directory Validation
+Validate all profile JSON files inside a target directory.
+
+#### Commands:
+* **`validate-profile-directory`**: Scans and validates all JSON profiles within the directory.
+
+#### Arguments & Options:
+* `<DIRECTORY>`: Target directory path.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+* `-o, --output <FILE>`: (Optional) Output file path to write validation summary results.
+
+---
+
+## 7. Axum REST API Router Parity
+
+The Axum REST server (binds to port `3000` by default) exposes the following endpoints:
+
+### GET `/`
+* **Auth**: None
+* **Description**: Home route, returns system status indicator.
+
+### GET `/profiles/printers`
+* **Auth**: None
+* **Description**: Lists names of available printer profiles.
+
+### GET `/profiles/materials`
+* **Auth**: None
+* **Description**: Lists details of available material profiles.
+
+### POST `/validate/model`
+* **Auth**: Bearer Token
+* **Request**: Multipart form data with fields `model` (STL file), `printer` (JSON profile), `material` (JSON profile).
+* **Description**: Analyzes mesh geometry against profiles.
+
+### POST `/validate/gcode`
+* **Auth**: Bearer Token
+* **Request**: Multipart form data with fields `gcode` (G-code file), `printer` (JSON profile), and optional `material` (JSON profile).
+* **Description**: Analyzes toolpath kinematics and temperature targets.
+
+### POST `/profiles/inspect`
+* **Auth**: Bearer Token
+* **Request**: Multipart form data with field `profile` (JSON profile file).
+* **Description**: Decodes and inspects printer or material profile.
+
+### POST `/profiles/validate/printer`
+* **Auth**: Bearer Token
+* **Request**: Multipart form data with field `printer` (JSON profile file).
+* **Description**: Validates printer profile against structural schemas.
+
+### POST `/profiles/validate/material`
+* **Auth**: Bearer Token
+* **Request**: Multipart form data with field `material` (JSON profile file).
+* **Description**: Validates material profile against structural schemas.
+
+### POST `/validate/compatibility`
+* **Auth**: Bearer Token
+* **Request**: Multipart form data with fields `printer` (JSON profile, required), and optional `material` (JSON profile), `model` (STL file), and `gcode` (G-code file).
+* **Description**: Audits multi-dimensional alignment and returns status (`pass`, `warning`, `fail`).

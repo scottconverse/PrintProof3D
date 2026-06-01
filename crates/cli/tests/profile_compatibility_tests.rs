@@ -562,3 +562,160 @@ fn test_docs_examples_run_successfully() {
         .unwrap();
     assert!(output.status.success());
 }
+
+#[test]
+fn test_stage3_new_commands() {
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    // 1. generate-printer-profile
+    let printer_path = temp_dir.path().join("gen_printer.json");
+    let output = Command::new(get_bin_path())
+        .arg("generate-printer-profile")
+        .arg("--output")
+        .arg(&printer_path)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(printer_path.exists());
+    let printer_content = fs::read_to_string(&printer_path).unwrap();
+    let printer_val: serde_json::Value = serde_json::from_str(&printer_content).unwrap();
+    assert_eq!(printer_val["manufacturer"], "TemplateManufacturer");
+
+    // 2. generate-material-profile
+    let material_path = temp_dir.path().join("gen_material.json");
+    let output = Command::new(get_bin_path())
+        .arg("generate-material-profile")
+        .arg("--output")
+        .arg(&material_path)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(material_path.exists());
+    let material_content = fs::read_to_string(&material_path).unwrap();
+    let material_val: serde_json::Value = serde_json::from_str(&material_content).unwrap();
+    assert_eq!(material_val["name"], "Template PLA");
+
+    // 3. validate-profile-directory (on temp_dir containing the two generated profiles)
+    let output = Command::new(get_bin_path())
+        .arg("validate-profile-directory")
+        .arg(temp_dir.path())
+        .arg("--format")
+        .arg("json")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout_val = String::from_utf8_lossy(&output.stdout);
+    let results: serde_json::Value = serde_json::from_str(&stdout_val).unwrap();
+    assert!(results.is_array());
+    let arr = results.as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    assert!(arr
+        .iter()
+        .any(|item| item["type"] == "printer" && item["valid"] == true));
+    assert!(arr
+        .iter()
+        .any(|item| item["type"] == "material" && item["valid"] == true));
+
+    // 4. validate-profile-directory in text mode
+    let output = Command::new(get_bin_path())
+        .arg("validate-profile-directory")
+        .arg(temp_dir.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout_val_text = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout_val_text.contains("Printer profile"));
+    assert!(stdout_val_text.contains("is valid"));
+}
+
+#[test]
+fn test_validate_profile_directory_defaults_and_options() {
+    // 1. No directory defaults to "profiles"
+    let output = Command::new(get_bin_path())
+        .arg("validate-profile-directory")
+        .current_dir(workspace_path(""))
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("prusa_mk4.json") && stdout.contains("is valid"));
+
+    // 2. Using option --directory profiles
+    let output = Command::new(get_bin_path())
+        .arg("validate-profile-directory")
+        .arg("--directory")
+        .arg("profiles")
+        .current_dir(workspace_path(""))
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("prusa_mk4.json") && stdout.contains("is valid"));
+
+    // 3. Using option -d profiles
+    let output = Command::new(get_bin_path())
+        .arg("validate-profile-directory")
+        .arg("-d")
+        .arg("profiles")
+        .current_dir(workspace_path(""))
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+}
+
+#[test]
+fn test_generate_printer_profile_contract() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let file_path = temp_dir.path().join("printer_test.json");
+
+    let output = Command::new(get_bin_path())
+        .arg("generate-printer-profile")
+        .arg("--output")
+        .arg(&file_path)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(file_path.exists());
+    let content = std::fs::read_to_string(&file_path).unwrap();
+    let val: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(val["manufacturer"], "TemplateManufacturer");
+    assert_eq!(val["model"], "TemplateModel");
+
+    // Check conflict when using format parameter (it is Option B, format option doesn't exist)
+    let output = Command::new(get_bin_path())
+        .arg("generate-printer-profile")
+        .arg("--format")
+        .arg("json")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+}
+
+#[test]
+fn test_generate_material_profile_contract() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let file_path = temp_dir.path().join("material_test.json");
+
+    let output = Command::new(get_bin_path())
+        .arg("generate-material-profile")
+        .arg("--output")
+        .arg(&file_path)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(file_path.exists());
+    let content = std::fs::read_to_string(&file_path).unwrap();
+    let val: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(val["name"], "Template PLA");
+
+    // Check conflict when using format parameter
+    let output = Command::new(get_bin_path())
+        .arg("generate-material-profile")
+        .arg("--format")
+        .arg("json")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+}

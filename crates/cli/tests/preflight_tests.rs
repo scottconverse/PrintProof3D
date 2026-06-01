@@ -174,3 +174,26 @@ fn test_simulator_profile_mismatch_fails() {
     let message = conn_fail_issue["message"].as_str().unwrap();
     assert!(message.contains("Protocol family mismatch"));
 }
+
+#[test]
+fn test_preflight_text_no_overclaiming() {
+    let output = Command::new(get_bin_path())
+        .arg("preflight")
+        .arg("--model")
+        .arg(workspace_path("fixtures/tetrahedron.stl"))
+        .arg("--printer")
+        .arg(workspace_path("profiles/prusa_mk4.json"))
+        .arg("--material")
+        .arg(workspace_path("profiles/pla.json"))
+        .arg("--format")
+        .arg("text")
+        .output()
+        .expect("failed to execute printproof3d binary");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Ready for slicing/printing"));
+    assert!(
+        stdout.contains("No issues detected by PrintProof3D profile and file validation checks.")
+    );
+}

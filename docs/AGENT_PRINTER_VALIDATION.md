@@ -161,13 +161,18 @@ Validation commands output a report structured as follows:
 ```
 
 ### Exit Codes
-- `0`: Validation/compatibility checks pass. Specifically:
-  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `Pass` exits with `0`.
-  - For `check-compatibility`, a status of `Pass` or `Warning` (advisory warning) exits with `0`.
-- `1`: Validation/compatibility checks fail, warnings are treated as errors (where applicable), or a system/usage error occurs. Specifically:
-  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `Warning` or `Fail` exits with `1`.
-  - For `check-compatibility`, a status of `Fail` exits with `1`.
-  - Any parse, file reading, or command-line usage errors exit with `1`.
+- `0`: Success. Specifically:
+  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `pass` exits with `0`.
+  - For `check-compatibility`, a status of `pass` or `warning` (advisory warning) exits with `0`.
+  - For `validate-printer-profile` and `validate-material-profile`, a status of `valid` exits with `0`.
+  - For `validate-profile-directory`, if all profiles in the directory are valid, it exits with `0`.
+  - For `generate-printer-profile` and `generate-material-profile`, successful template generation exits with `0`.
+- `1`: Failure or warning error. Specifically:
+  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `warning` or `fail` exits with `1`.
+  - For `check-compatibility`, a status of `fail` exits with `1`.
+  - For `validate-printer-profile` and `validate-material-profile`, a status of `invalid` exits with `1`.
+  - For `validate-profile-directory`, if any profile in the directory is invalid, it exits with `1`.
+  - Any parse, file reading, command-line parameter, or write errors exit with `1`.
 
 ### How to Surface Errors back to KimCad
 If `issues` contains alerts, parse the list:

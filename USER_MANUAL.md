@@ -122,30 +122,66 @@ PrintProof3D provides utility commands to discover profiles, inspect and validat
   * *Arguments/Flags*:
     * `<FILE>`: Path to target profile JSON.
     * `-f, --format <text|json>`: Output format (defaults to `text`).
+    * `-o, --output <FILE>`: Optional path to write the output report.
   * *Examples*:
     ```bash
     # Human-readable printer profile inspection details
     target/release/printproof3d.exe inspect-profile profiles/prusa_mk4.json
-
     # JSON-formatted material profile inspection
     target/release/printproof3d.exe inspect-profile profiles/pla.json --format json
     ```
+  * *Output Redirection*: All profile inspection tasks support saving validation structures directly to a file via the `-o, --output <FILE>` argument.
 
 ### 5.3 Profile Validation
 * **`validate-printer-profile <FILE>`**: Validates printer profile JSON structure and runs safety boundaries checks (e.g. bed shape volume alignment, maximum nozzle/bed temps). Exits with `0` if valid, `1` if invalid.
+  * *Arguments/Flags*:
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+    * `-o, --output <FILE>`: Optional path to write the output report.
   * *Examples*:
     ```bash
     # Text validation confirmation
     target/release/printproof3d.exe validate-printer-profile profiles/prusa_mk4.json
     ```
 * **`validate-material-profile <FILE>`**: Validates material profile JSON structure and runs bounds checks (e.g. extrusion and fan speed parameters). Exits with `0` if valid, `1` if invalid.
+  * *Arguments/Flags*:
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+    * `-o, --output <FILE>`: Optional path to write the output report.
   * *Examples*:
     ```bash
     # JSON-formatted validation confirmation
     target/release/printproof3d.exe validate-material-profile profiles/pla.json --format json
     ```
 
-### 5.4 Compatibility Verification
+### 5.4 Directory Validation
+* **`validate-profile-directory <DIRECTORY>`**: Validates all JSON files inside a target directory, checking if they are printer or material profiles and validating their schemas. Exits with `0` if all files are valid; exits with `1` if any file is invalid or cannot be parsed.
+  * *Arguments/Flags*:
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+    * `-o, --output <FILE>`: Optional path to write the directory validation summary.
+  * *Examples*:
+    ```bash
+    # Validate entire profiles folder in text format
+    target/release/printproof3d.exe validate-profile-directory profiles/ --format text
+    ```
+
+### 5.5 Template Profile Generation
+* **`generate-printer-profile`**: Generates a default, conformant printer profile template JSON payload. This command always emits JSON and does not accept the `--format` option.
+  * *Arguments/Flags*:
+    * `-o, --output <FILE>`: Optional path to write the template file. If omitted, templates are printed to standard output.
+  * *Examples*:
+    ```bash
+    # Generate and save template to custom location
+    target/release/printproof3d.exe generate-printer-profile --output my_custom_printer.json
+    ```
+* **`generate-material-profile`**: Generates a default, conformant material profile template JSON payload. This command always emits JSON and does not accept the `--format` option.
+  * *Arguments/Flags*:
+    * `-o, --output <FILE>`: Optional path to write the template file. If omitted, templates are printed to standard output.
+  * *Examples*:
+    ```bash
+    # Generate and save template to custom location
+    target/release/printproof3d.exe generate-material-profile --output my_custom_material.json
+    ```
+
+### 5.6 Compatibility Verification
 * **`check-compatibility`**: Runs multi-dimensional audits to verify alignment between machine specifications, material limits, and geometric assets.
   * *Flags*:
     * `-p, --printer <PRINTER_FILE>`: (Required) Target printer profile.
@@ -153,6 +189,7 @@ PrintProof3D provides utility commands to discover profiles, inspect and validat
     * `-m, --model <MODEL_FILE>`: (Optional) STL geometry to verify.
     * `-g, --gcode <GCODE_FILE>`: (Optional) Pre-sliced G-code to verify.
     * `-f, --format <text|json>`: Output format (defaults to `text`).
+    * `-o, --output <FILE>`: Optional path to write the compatibility report.
   * *Rules Evaluated*:
     * **Nozzle Temperature**: material thermal envelope vs printer physical capabilities.
     * **Bed Temperature**: material bed temperature vs printer bed capability.
@@ -165,8 +202,8 @@ PrintProof3D provides utility commands to discover profiles, inspect and validat
     # Verify printer + material profile compatibility
     target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --material profiles/pla.json
 
-    # Verify printer + model volume footprint compatibility
-    target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --model fixtures/tetrahedron.stl
+    # Verify printer + model volume footprint compatibility and write output to file
+    target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --model fixtures/tetrahedron.stl --output comp_report.txt
 
     # Verify printer + sliced G-code compatibility
     target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --gcode fixtures/safe_print.gcode

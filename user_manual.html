@@ -295,6 +295,8 @@
         <li><a href="#what-is-printproof3d">1. What is PrintProof3D?</a></li>
         <li><a href="#profile-structures">2. Profile Structures</a></li>
         <li><a href="#reading-the-validation-report">3. Validation Reports</a></li>
+        <li><a href="#preflight-command">4. Preflight Command</a></li>
+        <li><a href="#profile-management">5. Profile Management & Compatibility</a></li>
       </ul>
 
       <h4>Part 2: Technical</h4>
@@ -364,6 +366,21 @@
           <li><strong><code>fail</code> (Red)</strong>: Critical errors were detected (such as coordinates that exceed the printer profile's build volume or temperatures that exceed profile limits). Validation fails.</li>
         </ul>
         <p>Every warning or failure includes a <strong>Suggested Fix</strong> explaining how to resolve it (e.g., "Add support structures in your slicer").</p>
+
+        <h3 id="preflight-command">4. The CLI Preflight Subcommand</h3>
+        <p>The <code>preflight</code> subcommand provides a single, unified print job verification workflow. You can validate a model file (<code>--model</code>) or pre-sliced G-code (<code>--gcode</code>) against a printer profile (<code>--printer</code>) and optional material profile (<code>--material</code>).</p>
+        <p>Additionally, you can run simulator-backed printer connectivity checks using the <code>--simulator &lt;protocol&gt;</code> argument. This spins up an in-process mock server twin, validates adapter client communication/telemetry retrieval, and embeds the telemetry status in the JSON report under <code>sliced_settings_assumed.simulator_telemetry</code>. Preflight supports outputting in either <code>text</code> or <code>json</code> formats via the <code>-f, --format</code> option.</p>
+
+        <h3 id="profile-management">5. Profile Management & Compatibility CLI Commands</h3>
+        <p>PrintProof3D provides utility commands to manage printer and material profiles:</p>
+        <ul>
+          <li><strong><code>list-printers</code> / <code>list-materials</code></strong>: Discovers profiles in a folder.</li>
+          <li><strong><code>inspect-profile &lt;FILE&gt;</code></strong>: Prints structural parameters. Supports <code>-o, --output</code>.</li>
+          <li><strong><code>validate-printer-profile</code> / <code>validate-material-profile</code></strong>: Audits profiles for safety boundaries.</li>
+          <li><strong><code>validate-profile-directory &lt;DIR&gt;</code></strong>: Validates all profiles inside a directory in one run.</li>
+          <li><strong><code>generate-printer-profile</code> / <code>generate-material-profile</code></strong>: Outputs default templates for new profiles. Note: these commands always emit JSON and do not accept the <code>--format</code> option.</li>
+          <li><strong><code>check-compatibility</code></strong>: Evaluates compatibility alignments between files and profiles.</li>
+        </ul>
       </section>
 
       <hr>

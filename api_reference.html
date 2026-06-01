@@ -277,6 +277,8 @@
         <li><a href="#adapters-protocols">3. printproof3d-adapters</a></li>
         <li><a href="#compliance-sdk">4. printproof3d-sdk</a></li>
         <li><a href="#wasm-plugins">5. printproof3d-plugins</a></li>
+        <li><a href="#cli-contracts">6. CLI Contracts</a></li>
+        <li><a href="#rest-router">7. REST Router</a></li>
       </ul>
     </aside>
 
@@ -472,6 +474,39 @@ macro_rules! export_validation_plugin {
         pub extern "C" fn validate(ptr: *mut u8, len: u32) -> u64 { ... }
     }
 }</code></pre>
+      </section>
+
+      <hr>
+
+      <!-- Section 6 -->
+      <section id="cli-contracts">
+        <h2>6. CLI Contracts & Subcommands</h2>
+        <p>The <code>printproof3d</code> CLI includes dedicated subcommands for managing configurations, executing compatibility grids, and validating profile directories.</p>
+
+        <h3>6.1 Subcommand Suite</h3>
+        <ul>
+          <li><strong><code>generate-printer-profile</code></strong>: Exports a conformant printer profile template JSON payload. Supports output redirection via <code>-o, --output</code>. Note: this command always emits JSON and does not accept the <code>--format</code> option.</li>
+          <li><strong><code>generate-material-profile</code></strong>: Exports a conformant material profile template JSON payload. Supports output redirection via <code>-o, --output</code>. Note: this command always emits JSON and does not accept the <code>--format</code> option.</li>
+          <li><strong><code>validate-profile-directory</code></strong>: Iterates through files in a target directory to ensure all profile structures parse and validate correctly. Exits <code>0</code> on success, <code>1</code> if any file is invalid.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <!-- Section 7 -->
+      <section id="rest-router">
+        <h2>7. REST Router & Endpoint Specifications</h2>
+        <p>The Axum REST server binds on port <code>3000</code> and routes requests. Existing endpoints maintain full backward compatibility.</p>
+        <ul>
+          <li><strong><code>GET /profiles/printers</code></strong>: Lists available printer profiles (unauthenticated).</li>
+          <li><strong><code>GET /profiles/materials</code></strong>: Lists available material profiles (unauthenticated).</li>
+          <li><strong><code>POST /validate/model</code></strong>: Validates uploaded STL files (Bearer token authenticated).</li>
+          <li><strong><code>POST /validate/gcode</code></strong>: Validates uploaded G-code files (Bearer token authenticated).</li>
+          <li><strong><code>POST /profiles/inspect</code></strong>: Inspects a printer or material profile (Bearer token authenticated).</li>
+          <li><strong><code>POST /profiles/validate/printer</code></strong>: Validates a printer profile schema (Bearer token authenticated).</li>
+          <li><strong><code>POST /profiles/validate/material</code></strong>: Validates a material profile schema (Bearer token authenticated).</li>
+          <li><strong><code>POST /validate/compatibility</code></strong>: Checks multi-dimensional compatibility (Bearer token authenticated).</li>
+        </ul>
       </section>
     </main>
   </div>

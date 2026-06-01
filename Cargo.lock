@@ -1350,6 +1350,7 @@ dependencies = [
  "printproof3d-sdk",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

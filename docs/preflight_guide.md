@@ -24,7 +24,8 @@ The `preflight` subcommand compiles validations for STL files and G-code under a
 * `-g, --gcode <GCODE>`: Path to a sliced G-code file. (Required for G-code validation; mutually exclusive with `--model`).
 * `-p, --printer <PRINTER>`: Path to the target printer profile JSON file. (Required).
 * `-a, --material <MATERIAL>`: Path to the material profile JSON file. (Required for `--model` validations; optional for `--gcode` validations).
-* `-o, --output <OUTPUT>`: Optional path to write the prettified JSON validation report.
+* `-f, --format <FORMAT>`: Optional output format. Supported: `text`, `json`. (Defaults to `json` to preserve preflight workflow).
+* `-o, --output <OUTPUT>`: Optional path to write the validation report in the selected format.
 * `-l, --plugin <PLUGIN>`: Optional path to a custom rules WASM validation plugin.
 * `-s, --simulator <PROTOCOL>`: Enable simulator check for a specific protocol. Supported: `rrf`, `octoprint`, `moonraker`, `prusalink`, `bambu`, `serial`.
 

@@ -68,3 +68,18 @@ For high-volume print farms, run the Axum REST server on a centralized server or
 
 ### Can PrintProof3D run on embedded devices like a Raspberry Pi?
 Yes. The core validation library and CLI are written in Rust, compile into a lightweight native binary, and execute with zero runtime dependencies. Running static G-code validation consumes minimal memory, making it well-suited for single-board computers running Klipper or OctoPrint.
+
+### Does PrintProof3D support generating printer and material profile templates?
+Yes. You can generate default template profiles using the CLI subcommands `generate-printer-profile` and `generate-material-profile` with the `--output` option.
+
+### Can I validate an entire directory of profiles at once?
+Yes. Use the `validate-profile-directory` command specifying the directory path. It will return a status of each profile file found and exit with `0` if all profiles are valid or `1` if any profile is invalid.
+
+### Are existing endpoints backward compatible in Stage 3?
+Yes. Existing REST API endpoints remain fully backward compatible:
+- `GET /profiles/printers` remains unauthenticated.
+- `POST /validate/model` remains Bearer-authenticated.
+- `POST /validate/gcode` remains Bearer-authenticated.
+
+### How do I direct CLI validation output to a file?
+All validation, profile, and compatibility subcommands support the `-o` or `--output <FILE>` option to write validation outputs directly to a file instead of stdout/stderr.

@@ -401,6 +401,113 @@ impl ModelValidator for StlModelValidator {
             });
         }
 
+        // 2a. Model Oversized Check
+        let mut is_oversized = false;
+        let (limit_x, limit_y, limit_z) = match &printer.build_volume {
+            BuildVolume::Rectangular { x, y, z } => (*x, *y, *z),
+            BuildVolume::Cylindrical { diameter, z } => (*diameter, *diameter, *z),
+        };
+        let model_w = max_x - min_x;
+        let model_d = max_y - min_y;
+        let model_h = max_z - min_z;
+        if model_w > limit_x || model_d > limit_y || model_h > limit_z {
+            is_oversized = true;
+        }
+
+        if is_oversized {
+            issues.push(ValidationIssue {
+                id: "MODEL_OVERSIZED".to_string(),
+                severity: IssueSeverity::Critical,
+                message: format!(
+                    "Model bounding box dimensions [W: {:.2}, D: {:.2}, H: {:.2}] mm exceed printer print volume limits [W: {:.2}, D: {:.2}, H: {:.2}] mm.",
+                    model_w, model_d, model_h, limit_x, limit_y, limit_z
+                ),
+                location: Some(IssueLocation {
+                    region: "outer_bounds".to_string(),
+                    geometry: Some(LocationGeometry::BoundingBox(BoundingBox {
+                        min_x, min_y, min_z, max_x, max_y, max_z
+                    })),
+                }),
+                suggested_fixes: vec![
+                    "Scale down the model to fit within the build volume.".to_string(),
+                ],
+            });
+        }
+
+        // 2b. Below Bed Geometry Check
+        if min_z < -0.05 {
+            issues.push(ValidationIssue {
+                id: "BELOW_BED_GEOMETRY".to_string(),
+                severity: IssueSeverity::Major,
+                message: format!(
+                    "Model coordinates extend below the bed surface (Z minimum is {:.2} mm).",
+                    min_z
+                ),
+                location: Some(IssueLocation {
+                    region: "outer_bounds".to_string(),
+                    geometry: None,
+                }),
+                suggested_fixes: vec![
+                    "Translate the model upward along the Z axis.".to_string(),
+                    "Cut off the bottom section of the model in the slicer.".to_string(),
+                ],
+            });
+        }
+
+        // 2c. Degenerate Triangles Check
+        let mut degenerate_count = 0;
+        for facet in &facets {
+            let u = [
+                facet.vertices[1][0] - facet.vertices[0][0],
+                facet.vertices[1][1] - facet.vertices[0][1],
+                facet.vertices[1][2] - facet.vertices[0][2],
+            ];
+            let v = [
+                facet.vertices[2][0] - facet.vertices[0][0],
+                facet.vertices[2][1] - facet.vertices[0][1],
+                facet.vertices[2][2] - facet.vertices[0][2],
+            ];
+            let cp = cross_product(u, v);
+            let area = 0.5 * magnitude(cp);
+
+            let q0 = [
+                (facet.vertices[0][0] * 1000.0).round() as i32,
+                (facet.vertices[0][1] * 1000.0).round() as i32,
+                (facet.vertices[0][2] * 1000.0).round() as i32,
+            ];
+            let q1 = [
+                (facet.vertices[1][0] * 1000.0).round() as i32,
+                (facet.vertices[1][1] * 1000.0).round() as i32,
+                (facet.vertices[1][2] * 1000.0).round() as i32,
+            ];
+            let q2 = [
+                (facet.vertices[2][0] * 1000.0).round() as i32,
+                (facet.vertices[2][1] * 1000.0).round() as i32,
+                (facet.vertices[2][2] * 1000.0).round() as i32,
+            ];
+
+            if area < 1e-6 || q0 == q1 || q1 == q2 || q2 == q0 {
+                degenerate_count += 1;
+            }
+        }
+        if degenerate_count > 0 {
+            issues.push(ValidationIssue {
+                id: "DEGENERATE_TRIANGLES".to_string(),
+                severity: IssueSeverity::Minor,
+                message: format!(
+                    "Model mesh contains {} degenerate or zero-area triangles.",
+                    degenerate_count
+                ),
+                location: Some(IssueLocation {
+                    region: "mesh_quality".to_string(),
+                    geometry: None,
+                }),
+                suggested_fixes: vec![
+                    "Repair degenerate facets in a mesh repair tool before slicing.".to_string(),
+                ],
+            });
+        }
+
         // 3. Overhang and Bridge Detection
         let mut overhang_triangles = Vec::new();
         let mut bridge_triangles = Vec::new();
@@ -650,14 +757,49 @@ impl GcodeValidator for StandardGcodeValidator {
         let mut max_z = f32::MIN;
 
         let mut issues = Vec::new();
+
+        // 1. Unsupported File Type Check
+        let ext = file_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+
+        let is_supported = printer
+            .supported_file_types
+            .iter()
+            .any(|t| t.to_lowercase() == ext);
+
+        if !is_supported {
+            issues.push(ValidationIssue {
+                id: "UNSUPPORTED_FILE_TYPE".to_string(),
+                severity: IssueSeverity::Critical,
+                message: format!(
+                    "File type extension '{}' is not supported by target printer profile. Supported: {:?}.",
+                    ext, printer.supported_file_types
+                ),
+                location: Some(IssueLocation {
+                    region: "file_format".to_string(),
+                    geometry: None,
+                }),
+                suggested_fixes: vec![
+                    "Slice the model using a file format supported by your printer profile.".to_string(),
+                ],
+            });
+        }
+
         let mut line_number = 0;
         let mut homed = false;
+        let mut current_nozzle_temp = 0.0f32;
 
         let mut alert_gcode_out_of_bounds = false;
         let mut alert_hotend_temp_exceeds_max = false;
         let mut alert_hotend_temp_out_of_range = false;
         let mut alert_bed_temp_exceeds_max = false;
         let mut alert_bed_temp_out_of_range = false;
+        let mut alert_cold_extrusion = false;
+        let mut alert_missing_homing = false;
+        let mut alert_unsafe_command = false;
 
         for line_opt in reader.lines() {
             line_number += 1;
@@ -678,6 +820,32 @@ impl GcodeValidator for StandardGcodeValidator {
             }
 
             let cmd = words[0].to_uppercase();
+
+            // 2. Unsafe Command Check
+            if printer
+                .unsafe_commands
+                .iter()
+                .any(|c| c.to_uppercase() == cmd)
+                && !alert_unsafe_command
+            {
+                alert_unsafe_command = true;
+                issues.push(ValidationIssue {
+                    id: "UNSAFE_COMMAND_BLOCKED".to_string(),
+                    severity: IssueSeverity::Critical,
+                    message: format!(
+                        "Unsafe G-code command '{}' detected at line {} is blocked by printer profile.",
+                        cmd, line_number
+                    ),
+                    location: Some(IssueLocation {
+                        region: "security_limits".to_string(),
+                        geometry: None,
+                    }),
+                    suggested_fixes: vec![
+                        "Remove the unsafe G-code command from custom script settings in your slicer.".to_string(),
+                    ],
+                });
+            }
+
             match cmd.as_str() {
                 "G90" => {
                     absolute_xyz = true;
@@ -708,6 +876,56 @@ impl GcodeValidator for StandardGcodeValidator {
                     );
                 }
                 "G0" | "G1" | "G2" | "G3" => {
+                    // 3. Missing Homing Check
+                    if !homed && !alert_missing_homing {
+                        alert_missing_homing = true;
+                        issues.push(ValidationIssue {
+                            id: "MISSING_HOMING".to_string(),
+                            severity: IssueSeverity::Major,
+                            message: format!(
+                                "Movement command '{}' detected at line {} before homing instruction (G28).",
+                                cmd, line_number
+                            ),
+                            location: Some(IssueLocation {
+                                region: "motion_limits".to_string(),
+                                geometry: None,
+                            }),
+                            suggested_fixes: vec![
+                                "Add a G28 homing command to your start G-code in the slicer.".to_string(),
+                            ],
+                        });
+                    }
+
+                    // 4. Cold Extrusion Check
+                    let de = get_gcode_param(&words, 'E');
+                    if let Some(e) = de {
+                        if e > 0.0 && !alert_cold_extrusion {
+                            let min_temp = if material.name != "Generic" {
+                                material.min_nozzle_temp.max(170.0)
+                            } else {
+                                170.0
+                            };
+                            if current_nozzle_temp < min_temp {
+                                alert_cold_extrusion = true;
+                                issues.push(ValidationIssue {
+                                    id: "COLD_EXTRUSION".to_string(),
+                                    severity: IssueSeverity::Major,
+                                    message: format!(
+                                        "Extrusion command at line {} attempts extrusion (E={:.4}) at cold nozzle temperature of {:.1}°C (minimum is {:.1}°C).",
+                                        line_number, e, current_nozzle_temp, min_temp
+                                    ),
+                                    location: Some(IssueLocation {
+                                        region: "thermal_limits".to_string(),
+                                        geometry: None,
+                                    }),
+                                    suggested_fixes: vec![
+                                        "Ensure the extruder is heated (using M109 or M104) before extrusion movements.".to_string(),
+                                    ],
+                                });
+                            }
+                        }
+                    }
+
                     let dx = get_gcode_param(&words, 'X');
                     let dy = get_gcode_param(&words, 'Y');
                     let dz = get_gcode_param(&words, 'Z');
@@ -787,6 +1005,7 @@ impl GcodeValidator for StandardGcodeValidator {
                 }
                 "M104" | "M109" => {
                     if let Some(temp) = get_gcode_param(&words, 'S') {
+                        current_nozzle_temp = temp;
                         if temp > printer.max_hotend_temp && !alert_hotend_temp_exceeds_max {
                             alert_hotend_temp_exceeds_max = true;
                             issues.push(ValidationIssue {
@@ -1113,5 +1332,118 @@ mod tests {
             .filter(|issue| issue.id == "GCODE_OUT_OF_BOUNDS")
             .count();
         assert_eq!(bounds_issues_count, 1);
+    }
+
+    #[test]
+    fn test_validate_mesh_oversized() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("oversized_cube.stl");
+
+        let validator = StlModelValidator;
+        let report = validator.validate_mesh(&path, &printer, &material).unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Fail);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "MODEL_OVERSIZED"));
+    }
+
+    #[test]
+    fn test_validate_mesh_below_bed() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("below_bed_cube.stl");
+
+        let validator = StlModelValidator;
+        let report = validator.validate_mesh(&path, &printer, &material).unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Fail);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "BELOW_BED_GEOMETRY"));
+    }
+
+    #[test]
+    fn test_validate_mesh_degenerate() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("degenerate_triangle.stl");
+
+        let validator = StlModelValidator;
+        let report = validator.validate_mesh(&path, &printer, &material).unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Pass);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "DEGENERATE_TRIANGLES"));
+    }
+
+    #[test]
+    fn test_validate_gcode_unsupported_file_type() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("unsupported_file.txt");
+
+        let validator = StandardGcodeValidator;
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Fail);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "UNSUPPORTED_FILE_TYPE"));
+    }
+
+    #[test]
+    fn test_validate_gcode_unsafe_command() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("unsafe_command.gcode");
+
+        let validator = StandardGcodeValidator;
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Fail);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "UNSAFE_COMMAND_BLOCKED"));
+    }
+
+    #[test]
+    fn test_validate_gcode_missing_homing() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("missing_homing.gcode");
+
+        let validator = StandardGcodeValidator;
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Warning);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "MISSING_HOMING"));
+    }
+
+    #[test]
+    fn test_validate_gcode_cold_extrusion() {
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("cold_extrusion.gcode");
+
+        let validator = StandardGcodeValidator;
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Warning);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.id == "COLD_EXTRUSION"));
     }
 }
