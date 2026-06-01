@@ -359,9 +359,9 @@
         <h3 id="reading-the-validation-report">3. Reading the Validation Report</h3>
         <p>After running a check, PrintProof3D outputs a unified validation report. The most important field is the <strong><code>status</code></strong>, which can return one of three results:</p>
         <ul>
-          <li><strong><code>pass</code> (Green)</strong>: The file matches all profiles. It is safe to print.</li>
-          <li><strong><code>warning</code> (Yellow)</strong>: Non-blocking issues were found. You should review them, but the file is not dangerous to the machine. Common warnings include low bed contact area or steep overhangs.</li>
-          <li><strong><code>fail</code> (Red)</strong>: Critical errors were detected (such as coordinates that exceed your printer's physical dimensions or temperatures that exceed safety limits). Printing is blocked.</li>
+          <li><strong><code>pass</code> (Green)</strong>: The file matches all profiles. It passes PrintProof3D profile and file validation checks.</li>
+          <li><strong><code>warning</code> (Yellow)</strong>: Non-blocking issues were found. You should review them, but they do not trigger validation failures under the active profiles. Common warnings include low bed contact area or steep overhangs.</li>
+          <li><strong><code>fail</code> (Red)</strong>: Critical errors were detected (such as coordinates that exceed the printer profile's build volume or temperatures that exceed profile limits). Validation fails.</li>
         </ul>
         <p>Every warning or failure includes a <strong>Suggested Fix</strong> explaining how to resolve it (e.g., "Add support structures in your slicer").</p>
       </section>

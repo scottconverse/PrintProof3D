@@ -175,3 +175,16 @@ The output JSON report contains the following fields:
   "sliced_settings_assumed": null
 }
 ```
+
+---
+
+## 6. Profile Management & Compatibility Auditing
+
+For tasks focused purely on profile management or specific isolated compatibility questions, PrintProof3D provides dedicated subcommands separate from `preflight`:
+
+* **Discovery**: Use `list-printers` and `list-materials` to locate profile definitions.
+* **Inspection**: Use `inspect-profile <FILE>` to auto-detect and detail profile parameters.
+* **Validation**: Use `validate-printer-profile <FILE>` and `validate-material-profile <FILE>` to check profile constraints.
+* **Compatibility Check**: Use `check-compatibility --printer <PRINTER> [--material <MAT>] [--model <STL>] [--gcode <GCODE>]` to audit specific alignments without doing a full file preflight verification.
+
+For detailed usage guidelines and examples on these specialized commands, refer to the [PrintProof3D User Manual](../USER_MANUAL.md).

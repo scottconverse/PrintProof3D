@@ -7,13 +7,13 @@ This document addresses common developer and operator questions regarding the ar
 ## 1. General & Conceptual Questions
 
 ### What is PrintProof3D?
-PrintProof3D is a modular static analysis and integration engine for additive manufacturing. Similar to how a code linter parses source code to identify bugs before compilation, PrintProof3D parses 3D models (STL meshes) and printer instructions (G-code files) to identify safety hazards, geometry failures, and configuration mismatches *before* execution on physical hardware.
+PrintProof3D is a modular static analysis and integration engine for additive manufacturing. Similar to how a code linter parses source code to identify bugs before compilation, PrintProof3D parses 3D models (STL meshes) and printer instructions (G-code files) to identify profile limit violations, geometry failures, and configuration mismatches.
 
 ### Does PrintProof3D replace my slicing software?
-No. Slicing software (such as PrusaSlicer, OrcaSlicer, or Cura) is responsible for converting 3D geometry into layers and toolpath movements. PrintProof3D acts as an independent auditor. It verifies that the G-code exported by the slicer does not exceed physical machine parameters (e.g. coordinates outside bed limits, or nozzle heat targets exceeding safety bounds) and checks compatibility with your filament properties.
+No. Slicing software (such as PrusaSlicer, OrcaSlicer, or Cura) is responsible for converting 3D geometry into layers and toolpath movements. PrintProof3D acts as an independent auditor. It verifies that the G-code exported by the slicer does not exceed printer profile parameters (e.g. coordinates outside bed limits, or nozzle heat targets exceeding profile temperature limits) and checks compatibility with your filament properties.
 
 ### What are the main benefits of static validation?
-1. **Hardware Safety**: Prevents nozzle crashes, mechanical binding, and heater runaways.
+1. **Static Validation**: Checks for profile limits, configuration mismatches, and G-code instruction anomalies before sending files to the printer.
 2. **Material Conservation**: Catches missing support structures, non-manifold geometry, and poor bed adhesion contact areas before wasting expensive filament.
 3. **Firmware Lifespan**: Blacklists G-code commands (like Marlin's `M500`) that cause EEPROM wear when executed repeatedly.
 4. **Agent Compatibility**: Provides structural validation reports that AI agents can parse to autonomously correct slicing configurations.

@@ -123,9 +123,9 @@ If you are developing **KimCad** or similar software, use the following integrat
 1. **KimCad calls the CLI health check during setup/CI**:
    Run `python devtools/agent_health_check.py` to ensure the harness environment is healthy before starting CAD verification routines.
 2. **KimCad invokes CLI validation for STL and G-code**:
-   When exporting/slicing in KimCad, run `printproof3d validate-model` or `printproof3d validate-gcode` to perform static printability and safety validations.
+   When exporting/slicing in KimCad, run `printproof3d validate-model` or `printproof3d validate-gcode` to perform static printability and profile-limit validations.
 3. **KimCad consumes structured JSON/exit status**:
-   Parse stdout for JSON reports or use files exported via `--output <path>`. Exit code `0` signals validation success; non-zero signals safety errors or warnings.
+   Parse stdout for JSON reports or use files exported via `--output <path>`. An exit code of `0` signals validation success (or advisory warnings under `check-compatibility`); a non-zero exit code signals validation failures or warnings (for standard validation commands).
 4. **KimCad may use SDK/mock adapters for simulated printer workflow tests**:
    Verify job dispatching, pause/resume, and telemetry status changes by wrapping tests with the twin simulators (e.g. `PrusaLinkMockServer`).
 5. **KimCad must not claim real hardware validation**:
@@ -161,8 +161,13 @@ Validation commands output a report structured as follows:
 ```
 
 ### Exit Codes
-- `0`: Validation status is `Pass` (no warnings or failures).
-- `1`: Validation status is `Warning` or `Fail`, or a file/parsing error occurred.
+- `0`: Validation/compatibility checks pass. Specifically:
+  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `Pass` exits with `0`.
+  - For `check-compatibility`, a status of `Pass` or `Warning` (advisory warning) exits with `0`.
+- `1`: Validation/compatibility checks fail, warnings are treated as errors (where applicable), or a system/usage error occurs. Specifically:
+  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `Warning` or `Fail` exits with `1`.
+  - For `check-compatibility`, a status of `Fail` exits with `1`.
+  - Any parse, file reading, or command-line usage errors exit with `1`.
 
 ### How to Surface Errors back to KimCad
 If `issues` contains alerts, parse the list:

@@ -1,4 +1,5 @@
 // PrintProof3D Printability Engine
+pub mod compatibility;
 use printproof3d_core::{
     BoundingBox, BuildVolume, IssueLocation, IssueSeverity, LocationGeometry, MaterialProfile,
     ModelMetadata, PrinterProfile, Triangle, ValidationIssue, ValidationReport, ValidationStatus,

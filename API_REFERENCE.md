@@ -316,3 +316,93 @@ macro_rules! export_validation_plugin {
 * **Memory Management**: Allocation uses `std::alloc::alloc` and `std::alloc::dealloc` with an alignment of 8 bytes.
 * **Return Packaging**: Packs the 32-bit output pointer and 32-bit output length into a single `u64`:
   `((output_ptr as u64) << 32) | (output_len as u64)`
+
+---
+
+## 6. `printproof3d` Command-Line Interface (CLI) & JSON Serialization Contracts
+
+The CLI executable integrates the core modules and exposes profile discovery, schema validation, and multi-dimensional compatibility check capabilities.
+
+### 6.1 Discover Profiles
+Discover valid JSON profiles located in a given directory path.
+
+#### Commands:
+* **`list-printers`**: Scans a directory for printer profiles.
+* **`list-materials`**: Scans a directory for material profiles.
+
+#### Arguments & Options:
+* `-d, --directory <PATH>`: Custom directory path to scan. Defaults to `profiles/`.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Print printers text list
+target/release/printproof3d.exe list-printers --format text
+
+# Print materials JSON structure (alphabetically sorted by name)
+target/release/printproof3d.exe list-materials --format json
+```
+
+### 6.2 Profile Inspection
+Read, auto-detect profile structure, and display decoded parameters.
+
+#### Commands:
+* **`inspect-profile <FILE>`**: Auto-detects profile type (printer or material) and inspects its internal field structures.
+
+#### Arguments & Options:
+* `<FILE>`: Path to JSON file to inspect.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Inspect printer profile in human-readable text
+target/release/printproof3d.exe inspect-profile profiles/prusa_mk4.json
+
+# Inspect material profile in wrapped JSON
+target/release/printproof3d.exe inspect-profile profiles/pla.json --format json
+```
+
+### 6.3 Profile Validation
+Verify JSON schema structures and enforce safety bounds (e.g. maximum temperatures).
+
+#### Commands:
+* **`validate-printer-profile <FILE>`**: Validates printer JSON file structure.
+* **`validate-material-profile <FILE>`**: Validates material JSON file structure.
+
+#### Arguments & Options:
+* `<FILE>`: Path to JSON file to validate.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Validate printer profile
+target/release/printproof3d.exe validate-printer-profile profiles/prusa_mk4.json
+
+# Validate material profile (JSON output format)
+target/release/printproof3d.exe validate-material-profile profiles/pla.json --format json
+```
+
+### 6.4 Compatibility Checks
+Audits interactions between target printers, materials, and geometric files (STL models or G-code toolpaths).
+
+#### Commands:
+* **`check-compatibility`**: Runs multi-dimensional audits to verify alignment between machine specifications, material limits, and geometric assets.
+
+#### Arguments & Options:
+* `-p, --printer <PRINTER_FILE>`: (Required) Target printer profile path.
+* `-a, --material <MATERIAL_FILE>`: (Optional) Material profile path.
+* `-m, --model <MODEL_FILE>`: (Optional) STL model geometry path.
+* `-g, --gcode <GCODE_FILE>`: (Optional) Sliced G-code toolpath.
+* `-f, --format <text|json>`: Output presentation structure. Defaults to `text`.
+
+#### Examples:
+```bash
+# Verify printer + material profile compatibility
+target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --material profiles/pla.json
+
+# Verify printer + model volume footprint compatibility
+target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --model fixtures/tetrahedron.stl
+
+# Verify printer + sliced G-code compatibility
+target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --gcode fixtures/safe_print.gcode
+```

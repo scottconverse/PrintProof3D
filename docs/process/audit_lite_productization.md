@@ -16,7 +16,7 @@ This report documents the Audit Lite results for the developer productization pa
 ### A. Correctness & Portability
 - **Release Verification**: Verified that compilation under `cargo build --release` produces valid executables on Windows (`target/release/printproof3d.exe`), which executes model and G-code validation runs correctly.
 - **Isolated Crate Compilation**: Verified that enabling the `fs` feature in `crates/adapters/Cargo.toml` resolves compiler errors during isolated SDK tests (`cargo test --package printproof3d-sdk`).
-- **Exit Codes**: The CLI utility conforms to standard exit code specs (`0` on pass, `1` on warnings, failures, or errors).
+- **Exit Codes**: Conforms to command-specific exit code rules (for `validate-model`/`validate-gcode`/`preflight`, warning or fail exits `1`; for `check-compatibility`, pass or advisory warning exits `0`, fail exits `1`; any parse, file, or usage errors exit `1`).
 
 ### B. Documentation & User Onboarding
 - **Quickstart Guide**: A new developer can get up and running, verify the workspace health, and run validations in under 10 minutes.

@@ -116,7 +116,50 @@ target\release\printproof3d.exe preflight --gcode fixtures/safe_print.gcode --pr
 target\release\printproof3d.exe preflight --model fixtures/tetrahedron.stl --printer profiles/prusa_mk4.json --material profiles/pla.json --simulator prusalink
 ```
 
-### 6. Integration Channels
+### 6. Profile Management & Compatibility CLI Commands
+
+PrintProof3D provides subcommands for managing JSON profiles and auditing compatibility:
+
+**Discover Profiles:**
+```bash
+# List printers in default profiles/ directory (JSON or text)
+target\release\printproof3d.exe list-printers --format json
+target\release\printproof3d.exe list-printers --directory profiles/ --format text
+
+# List materials (JSON or text)
+target\release\printproof3d.exe list-materials --format json
+target\release\printproof3d.exe list-materials --directory profiles/ --format text
+```
+
+**Inspect Profiles:**
+```bash
+# Auto-detect profile type and display all details
+target\release\printproof3d.exe inspect-profile profiles/prusa_mk4.json
+target\release\printproof3d.exe inspect-profile profiles/pla.json --format json
+```
+
+**Validate Profiles:**
+```bash
+# Validate printer profile safety constraints
+target\release\printproof3d.exe validate-printer-profile profiles/prusa_mk4.json
+
+# Validate material profile safety constraints
+target\release\printproof3d.exe validate-material-profile profiles/pla.json
+```
+
+**Auditing Multi-Dimensional Compatibility:**
+```bash
+# Audit printer + material profile compatibility
+target\release\printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --material profiles/pla.json
+
+# Audit printer + model compatibility
+target\release\printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --model fixtures/tetrahedron.stl
+
+# Audit printer + G-code compatibility
+target\release\printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --gcode fixtures/safe_print.gcode
+```
+
+### 7. Integration Channels
 
 - **WASM Plugins**: Compile guest plugins to the WASM target and run validations using `--plugin <path_to_wasm>`.
 - **Axum REST API**: Spin up the local HTTP daemon using `cargo run --package printproof3d-rest` (listening on port `3000`, protected by Bearer token authentication).
@@ -177,8 +220,13 @@ Commands output a unified machine-readable JSON report. External applications sh
 
 ## 🚦 Exit Codes
 PrintProof3D returns standard shell exit codes for automated tooling integration (e.g., CI/CD pipelines or IDE task runners):
-- `0`: Validation status is `pass` (no errors, warnings, or failures).
-- `1`: Validation status is `warning` or `fail`, or a file reading/parsing error occurred.
+- `0`: Validation/compatibility checks pass. Specifically:
+  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `pass` exits with `0`.
+  - For `check-compatibility`, a status of `pass` or `warning` (advisory warning) exits with `0`.
+- `1`: Validation/compatibility checks fail, warnings are treated as errors (where applicable), or a system error occurs. Specifically:
+  - For `validate-model`, `validate-gcode`, and `preflight`, a status of `warning` or `fail` exits with `1`.
+  - For `check-compatibility`, a status of `fail` exits with `1`.
+  - Any parse, file reading, or command-line usage errors exit with `1`.
 
 ---
 

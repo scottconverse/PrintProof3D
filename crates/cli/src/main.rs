@@ -96,6 +96,75 @@ enum Commands {
         #[arg(long, short = 's')]
         simulator: Option<String>,
     },
+    /// List available printer profiles in a directory
+    ListPrinters {
+        /// Directory containing printer profiles
+        #[arg(long, short = 'd')]
+        directory: Option<PathBuf>,
+
+        /// Output format (text, json)
+        #[arg(long, short = 'f', default_value = "text")]
+        format: String,
+    },
+    /// List available material profiles in a directory
+    ListMaterials {
+        /// Directory containing material profiles
+        #[arg(long, short = 'd')]
+        directory: Option<PathBuf>,
+
+        /// Output format (text, json)
+        #[arg(long, short = 'f', default_value = "text")]
+        format: String,
+    },
+    /// Inspect a printer or material profile detailing its fields
+    InspectProfile {
+        /// Path to the profile JSON file
+        path: PathBuf,
+
+        /// Output format (text, json)
+        #[arg(long, short = 'f', default_value = "text")]
+        format: String,
+    },
+    /// Validate a printer profile JSON file against safety invariants
+    ValidatePrinterProfile {
+        /// Path to the printer profile JSON file
+        path: PathBuf,
+
+        /// Output format (text, json)
+        #[arg(long, short = 'f', default_value = "text")]
+        format: String,
+    },
+    /// Validate a material profile JSON file against safety invariants
+    ValidateMaterialProfile {
+        /// Path to the material profile JSON file
+        path: PathBuf,
+
+        /// Output format (text, json)
+        #[arg(long, short = 'f', default_value = "text")]
+        format: String,
+    },
+    /// Perform compatibility checks between profiles and files
+    CheckCompatibility {
+        /// Path to the target printer profile JSON file
+        #[arg(long, short = 'p')]
+        printer: PathBuf,
+
+        /// Path to the material profile JSON file
+        #[arg(long, short = 'a')]
+        material: Option<PathBuf>,
+
+        /// Path to the 3D model file (e.g., STL)
+        #[arg(long, short = 'm')]
+        model: Option<PathBuf>,
+
+        /// Path to the G-code file (e.g., .gcode)
+        #[arg(long, short = 'g')]
+        gcode: Option<PathBuf>,
+
+        /// Output format (text, json)
+        #[arg(long, short = 'f', default_value = "text")]
+        format: String,
+    },
 }
 
 fn read_file_to_string(path: &PathBuf) -> Result<String, String> {
@@ -742,5 +811,489 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::ListPrinters { directory, format } => {
+            let dir = directory.unwrap_or_else(|| PathBuf::from("profiles"));
+            let fmt_lower = format.to_lowercase();
+            if fmt_lower != "text" && fmt_lower != "json" {
+                eprintln!(
+                    "Error: Unsupported format '{}'. Supported formats: text, json",
+                    format
+                );
+                std::process::exit(1);
+            }
+            let is_json = fmt_lower == "json";
+
+            let mut profiles = list_profiles_in_dir::<PrinterProfile>(&dir);
+            profiles.sort_by(|a, b| {
+                let a_key = format!("{}_{}", a.1.manufacturer, a.1.model);
+                let b_key = format!("{}_{}", b.1.manufacturer, b.1.model);
+                a_key.cmp(&b_key)
+            });
+
+            if is_json {
+                let output_array: Vec<serde_json::Value> = profiles
+                    .iter()
+                    .map(|(p, prof)| {
+                        serde_json::json!({
+                            "file": p.to_string_lossy(),
+                            "manufacturer": prof.manufacturer,
+                            "model": prof.model,
+                            "protocol_family": serde_json::to_value(&prof.protocol_family).unwrap(),
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&output_array).unwrap());
+            } else {
+                if profiles.is_empty() {
+                    println!("No printer profiles found in directory {:?}", dir);
+                } else {
+                    println!("Printer Profiles found in {:?}:", dir);
+                    for (p, prof) in &profiles {
+                        println!(
+                            "  - Manufacturer: {}, Model: {}, Protocol: {:?} (File: {:?})",
+                            prof.manufacturer, prof.model, prof.protocol_family, p
+                        );
+                    }
+                }
+            }
+        }
+        Commands::ListMaterials { directory, format } => {
+            let dir = directory.unwrap_or_else(|| PathBuf::from("profiles"));
+            let fmt_lower = format.to_lowercase();
+            if fmt_lower != "text" && fmt_lower != "json" {
+                eprintln!(
+                    "Error: Unsupported format '{}'. Supported formats: text, json",
+                    format
+                );
+                std::process::exit(1);
+            }
+            let is_json = fmt_lower == "json";
+
+            let mut profiles = list_profiles_in_dir::<MaterialProfile>(&dir);
+            profiles.sort_by(|a, b| a.1.name.cmp(&b.1.name));
+
+            if is_json {
+                let output_array: Vec<serde_json::Value> = profiles
+                    .iter()
+                    .map(|(p, prof)| {
+                        serde_json::json!({
+                            "file": p.to_string_lossy(),
+                            "name": prof.name,
+                            "abbreviations": prof.abbreviations,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&output_array).unwrap());
+            } else {
+                if profiles.is_empty() {
+                    println!("No material profiles found in directory {:?}", dir);
+                } else {
+                    println!("Material Profiles found in {:?}:", dir);
+                    for (p, prof) in &profiles {
+                        println!(
+                            "  - Name: {}, Abbreviations: {:?} (File: {:?})",
+                            prof.name, prof.abbreviations, p
+                        );
+                    }
+                }
+            }
+        }
+        Commands::InspectProfile { path, format } => {
+            let fmt_lower = format.to_lowercase();
+            if fmt_lower != "text" && fmt_lower != "json" {
+                eprintln!(
+                    "Error: Unsupported format '{}'. Supported formats: text, json",
+                    format
+                );
+                std::process::exit(1);
+            }
+            let is_json = fmt_lower == "json";
+            let content = match read_file_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Error: Failed to read profile file: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if let Ok(printer) = serde_json::from_str::<PrinterProfile>(&content) {
+                if is_json {
+                    let wrapped = serde_json::json!({
+                        "profile_type": "printer",
+                        "profile": printer,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&wrapped).unwrap());
+                } else {
+                    println!("Profile Type    : Printer Profile");
+                    println!("File Path       : {:?}", path);
+                    println!("Manufacturer    : {}", printer.manufacturer);
+                    println!("Model           : {}", printer.model);
+                    println!("Protocol Family : {:?}", printer.protocol_family);
+                    println!("Build Volume    : {:?}", printer.build_volume);
+                    println!("Bed Shape       : {:?}", printer.bed_shape);
+                    println!("Nozzle Diameters: {:?}", printer.nozzle_diameters);
+                    println!(
+                        "Default Nozzle  : {:.2} mm",
+                        printer.default_nozzle_diameter
+                    );
+                    println!("Max Hotend Temp : {:.1}°C", printer.max_hotend_temp);
+                    println!("Max Bed Temp    : {:.1}°C", printer.max_bed_temp);
+                    println!("Has Enclosure   : {}", printer.has_enclosure);
+                    println!("Supports MMU    : {}", printer.supports_mmu);
+                    println!("Firmware Flavor : {:?}", printer.firmware_flavor);
+                    println!("File Types      : {:?}", printer.supported_file_types);
+                }
+            } else if let Ok(material) = serde_json::from_str::<MaterialProfile>(&content) {
+                if is_json {
+                    let wrapped = serde_json::json!({
+                        "profile_type": "material",
+                        "profile": material,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&wrapped).unwrap());
+                } else {
+                    println!("Profile Type    : Material Profile");
+                    println!("File Path       : {:?}", path);
+                    println!("Name            : {}", material.name);
+                    println!("Abbreviations   : {:?}", material.abbreviations);
+                    println!("Min Nozzle Temp : {:.1}°C", material.min_nozzle_temp);
+                    println!("Max Nozzle Temp : {:.1}°C", material.max_nozzle_temp);
+                    println!("Min Bed Temp    : {:.1}°C", material.min_bed_temp);
+                    println!("Max Bed Temp    : {:.1}°C", material.max_bed_temp);
+                    println!("Fan Speed Pct   : {:.1}%", material.cooling_fan_speed_pct);
+                    println!("Warp Risk       : {:?}", material.warp_risk);
+                    println!("Bridge Diff     : {:?}", material.bridge_difficulty);
+                    println!("Overhang Diff   : {:?}", material.overhang_difficulty);
+                    println!("Enclosure Rec   : {}", material.enclosure_recommended);
+                    println!("Dryness Sens.   : {}", material.dryness_sensitive);
+                    println!("Min Feature Size: {:.2} mm", material.min_feature_size_mm);
+                }
+            } else {
+                eprintln!(
+                    "Error: Structurally invalid profile or malformed JSON file at {:?}",
+                    path
+                );
+                std::process::exit(1);
+            }
+        }
+        Commands::ValidatePrinterProfile { path, format } => {
+            let fmt_lower = format.to_lowercase();
+            if fmt_lower != "text" && fmt_lower != "json" {
+                eprintln!(
+                    "Error: Unsupported format '{}'. Supported formats: text, json",
+                    format
+                );
+                std::process::exit(1);
+            }
+            let is_json = fmt_lower == "json";
+            let content = match read_file_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Error: Failed to read profile file: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let parsed: Result<PrinterProfile, _> = serde_json::from_str(&content);
+            match parsed {
+                Ok(printer) => match printer.validate() {
+                    Ok(()) => {
+                        if is_json {
+                            println!(
+                                "{}",
+                                serde_json::json!({ "valid": true, "type": "printer", "file": path.to_string_lossy() })
+                            );
+                        } else {
+                            println!("Printer profile {:?} is valid.", path);
+                        }
+                    }
+                    Err(e) => {
+                        if is_json {
+                            println!(
+                                "{}",
+                                serde_json::json!({ "valid": false, "type": "printer", "file": path.to_string_lossy(), "error": e })
+                            );
+                        } else {
+                            eprintln!("Error: Printer profile validation failed: {}", e);
+                        }
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    if is_json {
+                        println!(
+                            "{}",
+                            serde_json::json!({ "valid": false, "type": "printer", "file": path.to_string_lossy(), "error": e.to_string() })
+                        );
+                    } else {
+                        eprintln!("Error: Failed to parse printer profile JSON: {}", e);
+                    }
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::ValidateMaterialProfile { path, format } => {
+            let fmt_lower = format.to_lowercase();
+            if fmt_lower != "text" && fmt_lower != "json" {
+                eprintln!(
+                    "Error: Unsupported format '{}'. Supported formats: text, json",
+                    format
+                );
+                std::process::exit(1);
+            }
+            let is_json = fmt_lower == "json";
+            let content = match read_file_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Error: Failed to read profile file: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let parsed: Result<MaterialProfile, _> = serde_json::from_str(&content);
+            match parsed {
+                Ok(material) => match material.validate() {
+                    Ok(()) => {
+                        if is_json {
+                            println!(
+                                "{}",
+                                serde_json::json!({ "valid": true, "type": "material", "file": path.to_string_lossy() })
+                            );
+                        } else {
+                            println!("Material profile {:?} is valid.", path);
+                        }
+                    }
+                    Err(e) => {
+                        if is_json {
+                            println!(
+                                "{}",
+                                serde_json::json!({ "valid": false, "type": "material", "file": path.to_string_lossy(), "error": e })
+                            );
+                        } else {
+                            eprintln!("Error: Material profile validation failed: {}", e);
+                        }
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    if is_json {
+                        println!(
+                            "{}",
+                            serde_json::json!({ "valid": false, "type": "material", "file": path.to_string_lossy(), "error": e.to_string() })
+                        );
+                    } else {
+                        eprintln!("Error: Failed to parse material profile JSON: {}", e);
+                    }
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::CheckCompatibility {
+            printer,
+            material,
+            model,
+            gcode,
+            format,
+        } => {
+            let fmt_lower = format.to_lowercase();
+            if fmt_lower != "text" && fmt_lower != "json" {
+                eprintln!(
+                    "Error: Unsupported format '{}'. Supported formats: text, json",
+                    format
+                );
+                std::process::exit(1);
+            }
+            if model.is_some() && gcode.is_some() {
+                eprintln!("Error: Cannot provide both --model and --gcode.");
+                std::process::exit(1);
+            }
+            if material.is_none() && model.is_none() && gcode.is_none() {
+                eprintln!("Error: Must provide at least one of --material, --model, or --gcode to check compatibility.");
+                std::process::exit(1);
+            }
+
+            let printer_json = match read_file_to_string(&printer) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Error: Failed to read printer profile: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let printer_profile: PrinterProfile = match serde_json::from_str(&printer_json) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Error: Failed to parse printer profile: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = printer_profile.validate() {
+                eprintln!("Error: Printer profile validation failed: {}", e);
+                std::process::exit(1);
+            }
+
+            let mut issues = Vec::new();
+            let mut resolved_material = None;
+
+            if let Some(ref mat_path) = material {
+                let material_json = match read_file_to_string(mat_path) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Error: Failed to read material profile: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                let material_profile: MaterialProfile = match serde_json::from_str(&material_json) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("Error: Failed to parse material profile: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(e) = material_profile.validate() {
+                    eprintln!("Error: Material profile validation failed: {}", e);
+                    std::process::exit(1);
+                }
+
+                // 1. Run printer-material compatibility checks
+                let mat_issues =
+                    printproof3d_printability::compatibility::check_printer_material_compatibility(
+                        &printer_profile,
+                        &material_profile,
+                    );
+                issues.extend(mat_issues);
+                resolved_material = Some(material_profile);
+            }
+
+            // 2. Run model/gcode printability checks if provided
+            let mat_ref = resolved_material
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| MaterialProfile {
+                    name: "Generic".to_string(),
+                    abbreviations: vec![],
+                    min_nozzle_temp: 0.0,
+                    max_nozzle_temp: 500.0,
+                    min_bed_temp: 0.0,
+                    max_bed_temp: 200.0,
+                    cooling_fan_speed_pct: 0.0,
+                    warp_risk: printproof3d_core::RiskLevel::Low,
+                    bridge_difficulty: printproof3d_core::RiskLevel::Low,
+                    overhang_difficulty: printproof3d_core::RiskLevel::Low,
+                    enclosure_recommended: false,
+                    dryness_sensitive: false,
+                    bed_adhesion_notes: None,
+                    min_feature_size_mm: 0.4,
+                });
+
+            if let Some(ref m_path) = model {
+                let validator = StlModelValidator;
+                match validator.validate_mesh(m_path, &printer_profile, &mat_ref) {
+                    Ok(report) => {
+                        issues.extend(report.issues);
+                    }
+                    Err(e) => {
+                        eprintln!("Error: Model validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else if let Some(ref g_path) = gcode {
+                let validator = StandardGcodeValidator;
+                match validator.validate_gcode(g_path, &printer_profile, &mat_ref) {
+                    Ok(report) => {
+                        issues.extend(report.issues);
+                    }
+                    Err(e) => {
+                        eprintln!("Error: G-code validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+
+            let mut status = ValidationStatus::Pass;
+            for issue in &issues {
+                match issue.severity {
+                    printproof3d_core::IssueSeverity::Blocker
+                    | printproof3d_core::IssueSeverity::Critical => {
+                        status = ValidationStatus::Fail;
+                        break;
+                    }
+                    printproof3d_core::IssueSeverity::Major if status != ValidationStatus::Fail => {
+                        status = ValidationStatus::Warning;
+                    }
+                    _ => {}
+                }
+            }
+
+            let is_json = fmt_lower == "json";
+            if is_json {
+                let report = serde_json::json!({
+                    "status": format!("{:?}", status).to_lowercase(),
+                    "printer": format!("{}_{}", printer_profile.manufacturer, printer_profile.model),
+                    "material": resolved_material.map(|m| m.name),
+                    "model": model.map(|p| p.file_name().unwrap().to_string_lossy().into_owned()),
+                    "gcode": gcode.map(|p| p.file_name().unwrap().to_string_lossy().into_owned()),
+                    "issues": issues,
+                });
+                println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            } else {
+                println!("============================================================");
+                println!("PRINTPROOF3D COMPATIBILITY REPORT");
+                println!("============================================================");
+                println!(
+                    "Printer  : {} {}",
+                    printer_profile.manufacturer, printer_profile.model
+                );
+                if let Some(ref m) = resolved_material {
+                    println!("Material : {}", m.name);
+                }
+                if let Some(ref m_path) = model {
+                    println!("Model    : {:?}", m_path.file_name().unwrap());
+                }
+                if let Some(ref g_path) = gcode {
+                    println!("G-code   : {:?}", g_path.file_name().unwrap());
+                }
+                println!("Status   : {:?}", status);
+                println!("------------------------------------------------------------");
+                if issues.is_empty() {
+                    println!("No compatibility issues detected.");
+                    println!("Target passes PrintProof3D profile and file validation checks.");
+                } else {
+                    println!("Issues detected ({}):", issues.len());
+                    for (i, issue) in issues.iter().enumerate() {
+                        println!("\n  {}. [{:?}] ID: {}", i + 1, issue.severity, issue.id);
+                        println!("     Message: {}", issue.message);
+                        if !issue.suggested_fixes.is_empty() {
+                            println!("     Suggested Fixes:");
+                            for fix in &issue.suggested_fixes {
+                                println!("       - {}", fix);
+                            }
+                        }
+                    }
+                }
+                println!("============================================================");
+            }
+
+            if status == ValidationStatus::Fail {
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn list_profiles_in_dir<T: serde::de::DeserializeOwned>(
+    dir_path: &std::path::Path,
+) -> Vec<(PathBuf, T)> {
+    let mut profiles = Vec::new();
+    let read_dir = match std::fs::read_dir(dir_path) {
+        Ok(rd) => rd,
+        Err(_) => return profiles,
+    };
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(profile) = serde_json::from_str::<T>(&content) {
+                    profiles.push((path, profile));
+                }
+            }
+        }
+    }
+    profiles
 }

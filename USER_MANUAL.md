@@ -73,8 +73,8 @@ This file details network endpoints, serial configurations, and authentication d
 After running a check, PrintProof3D outputs a unified validation report. The most important field is the **`status`**, which can return one of three results:
 
 1. **`pass` (Green)**: The file matches all profiles. It passes PrintProof3D profile and file validation checks.
-2. **`warning` (Yellow)**: Non-blocking issues were found. You should review them, but the file is not dangerous to the machine. Common warnings include low bed contact area or steep overhangs.
-3. **`fail` (Red)**: Critical errors were detected (such as coordinates that exceed your printer's physical dimensions or temperatures that exceed safety limits). Printing is blocked.
+2. **`warning` (Yellow)**: Non-blocking issues were found. You should review them, but they do not trigger validation failures under the active profiles. Common warnings include low bed contact area or steep overhangs.
+3. **`fail` (Red)**: Critical errors were detected (such as coordinates that exceed the printer profile's build volume or temperatures that exceed profile limits). Validation fails.
 
 Every warning or failure includes a **Suggested Fix** explaining how to resolve it (e.g., "Add support structures in your slicer").
 
@@ -85,10 +85,94 @@ The `preflight` subcommand provides a single, unified print job verification wor
 
 Additionally, you can run simulator-backed printer connectivity checks using the `--simulator <protocol>` argument (e.g., `--simulator prusalink`, `--simulator rrf`, etc.). This spins up an in-process mock server twin, validates adapter client communication/telemetry retrieval, and embeds the telemetry status in the JSON report under `sliced_settings_assumed.simulator_telemetry`.
 
+---
+
+## 5. Profile Management & Compatibility CLI Commands
+
+PrintProof3D provides utility commands to discover profiles, inspect and validate profile schemas, and verify print compatibility across multi-dimensional criteria (printer profiles, material profiles, STL models, and pre-sliced G-code).
+
+### 5.1 Profile Discovery
+* **`list-printers`**: Discovers and lists all validated printer profiles in a target directory.
+  * *Arguments/Flags*:
+    * `-d, --directory <PATH>`: Directory path (defaults to `profiles/`).
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+  * *Examples*:
+    ```bash
+    # Print human-readable list of printer profiles
+    target/release/printproof3d.exe list-printers --directory profiles/ --format text
+
+    # Print JSON output of discovered printers (sorted alphabetically by manufacturer/model)
+    target/release/printproof3d.exe list-printers --format json
+    ```
+* **`list-materials`**: Discovers and lists all validated material profiles in a target directory.
+  * *Arguments/Flags*:
+    * `-d, --directory <PATH>`: Directory path (defaults to `profiles/`).
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+  * *Examples*:
+    ```bash
+    # Print human-readable list of material profiles
+    target/release/printproof3d.exe list-materials --directory profiles/ --format text
+
+    # Print JSON output of discovered materials (sorted alphabetically by name)
+    target/release/printproof3d.exe list-materials --format json
+    ```
+
+### 5.2 Profile Inspection
+* **`inspect-profile <FILE>`**: Decodes and auto-detects whether the given file is a printer profile or a material profile, printing a complete list of its structural fields.
+  * *Arguments/Flags*:
+    * `<FILE>`: Path to target profile JSON.
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+  * *Examples*:
+    ```bash
+    # Human-readable printer profile inspection details
+    target/release/printproof3d.exe inspect-profile profiles/prusa_mk4.json
+
+    # JSON-formatted material profile inspection
+    target/release/printproof3d.exe inspect-profile profiles/pla.json --format json
+    ```
+
+### 5.3 Profile Validation
+* **`validate-printer-profile <FILE>`**: Validates printer profile JSON structure and runs safety boundaries checks (e.g. bed shape volume alignment, maximum nozzle/bed temps). Exits with `0` if valid, `1` if invalid.
+  * *Examples*:
+    ```bash
+    # Text validation confirmation
+    target/release/printproof3d.exe validate-printer-profile profiles/prusa_mk4.json
+    ```
+* **`validate-material-profile <FILE>`**: Validates material profile JSON structure and runs bounds checks (e.g. extrusion and fan speed parameters). Exits with `0` if valid, `1` if invalid.
+  * *Examples*:
+    ```bash
+    # JSON-formatted validation confirmation
+    target/release/printproof3d.exe validate-material-profile profiles/pla.json --format json
+    ```
+
+### 5.4 Compatibility Verification
+* **`check-compatibility`**: Runs multi-dimensional audits to verify alignment between machine specifications, material limits, and geometric assets.
+  * *Flags*:
+    * `-p, --printer <PRINTER_FILE>`: (Required) Target printer profile.
+    * `-a, --material <MATERIAL_FILE>`: (Optional) Material profile to verify.
+    * `-m, --model <MODEL_FILE>`: (Optional) STL geometry to verify.
+    * `-g, --gcode <GCODE_FILE>`: (Optional) Pre-sliced G-code to verify.
+    * `-f, --format <text|json>`: Output format (defaults to `text`).
+  * *Rules Evaluated*:
+    * **Nozzle Temperature**: material thermal envelope vs printer physical capabilities.
+    * **Bed Temperature**: material bed temperature vs printer bed capability.
+    * **Enclosure**: enclosure requirements matching printer configuration.
+    * **Nozzle Feature Size**: min feature size compatibility with installed/default nozzle sizes.
+    * **Build Volume Bounds**: model bounding box dimensions fitting within the rectangular/cylindrical printer envelope.
+    * **G-code Motion & Thermals**: coordinates and thermal instructions within printer/material boundaries.
+  * *Examples*:
+    ```bash
+    # Verify printer + material profile compatibility
+    target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --material profiles/pla.json
+
+    # Verify printer + model volume footprint compatibility
+    target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --model fixtures/tetrahedron.stl
+
+    # Verify printer + sliced G-code compatibility
+    target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --gcode fixtures/safe_print.gcode
+    ```
 
 # Part 2 — For Technical Operators
-
-This section covers the technical architecture, mathematical calculations, and remote interfaces for systems administrators and integrations.
 
 ## 1. System Architecture & Crate Boundaries
 
