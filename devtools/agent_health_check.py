@@ -37,7 +37,8 @@ def main():
             "--gcode", os.path.normpath(os.path.join("fixtures", "safe_print.gcode")),
             "--printer", os.path.normpath(os.path.join("profiles", "prusa_mk4.json")),
             "--material", os.path.normpath(os.path.join("profiles", "pla.json"))
-        ], 120)
+        ], 120),
+        ("Browser Acceptance Tests", [sys.executable, "-u", os.path.normpath(os.path.join("devtools", "acceptance_tests.py"))], 300)
     ]
 
     results = {}

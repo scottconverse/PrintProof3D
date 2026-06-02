@@ -39,5 +39,5 @@ All dynamic third-party validation plugins run inside a sandboxed WebAssembly ex
 
 ## Known Limitations and Disclaimers
 
-- **Simulator and Verification Invariants**: PrintProof3D validation is a pre-flight pre-processing check. While it ensures bounds safety, path compliance, and temperature safety, it does not guarantee physical print success, mechanical safety, or physical machine compatibility.
+- **Simulator and Verification Invariants**: PrintProof3D is a simulator and static validation utility. It performs pre-flight check parsing of coordinates, profiles, and path parameters, but does not certify physical outcomes, machine behavior, or completed prints.
 - **Physical Machine Trust Boundary**: We assume the local machine running the REST API is safe. Process-level isolation or loopback interception is not defended against if the host operating system is already compromised.
