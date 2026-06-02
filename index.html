@@ -555,7 +555,7 @@
 <body>
   <header>
     <div class="logo-container">
-      <div class="logo">PrintProof3D</div>
+      <h1 class="logo">PrintProof3D</h1>
       <div class="status-badge">v0.5.0-rc1</div>
     </div>
     <div class="nav-links">
@@ -590,8 +590,8 @@
         <h2>Validation</h2>
         
         <div class="form-group">
-          <label>File Upload (.STL or .GCODE)</label>
-          <div class="dropzone-container" id="dropzone" onclick="document.getElementById('input-file').click()">
+          <label for="input-file" id="dropzone-label">File Upload (.STL or .GCODE)</label>
+          <div class="dropzone-container" id="dropzone" onclick="document.getElementById('input-file').click()" aria-labelledby="dropzone-label">
             <span class="icon">📥</span>
             <p>Drag and drop print files here, or click to browse</p>
             <input type="file" id="input-file" class="file-input" accept=".stl,.gcode">

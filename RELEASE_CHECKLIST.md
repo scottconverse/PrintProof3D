@@ -95,3 +95,4 @@ Before tagging or shipping any release candidate, the following steps must be co
 4. [ ] **Builds**: Release builds for CLI and REST compile without errors.
 5. [ ] **Health**: `python devtools/agent_health_check.py` returns `Health check PASSED`.
 6. [ ] **Forbidden Language Scan**: Verify zero overclaiming safety phrases are present.
+7. [ ] **WebGL-Capable Visual Inspection**: The validation dashboard should be manually inspected on a WebGL-capable browser to verify 3D mesh rendering, bounding box limits, and color overlays, ensuring visual elements display correctly since automated browser tests in headless CI environments may skip WebGL pixel-buffer verification.

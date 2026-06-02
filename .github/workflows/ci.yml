@@ -18,6 +18,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Run Cargo Dependency Audit
+      uses: rustsec/audit-action@v0.4.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Run Documentation Policy Scan
       run: python devtools/docs_policy_check.py
 

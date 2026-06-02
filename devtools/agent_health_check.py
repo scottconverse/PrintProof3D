@@ -24,6 +24,7 @@ def main():
         ("Cargo Format Check", ["cargo", "fmt", "--all", "--", "--check"], 120),
         ("Cargo Clippy Lints", ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"], 600),
         ("Workspace Unit Tests", ["cargo", "test", "--workspace"], 600),
+        ("Cargo Dependency Audit", ["cargo", "audit"], 120),
         ("Git Parity Status", ["git", "status", "--short", "--branch"], 120),
         ("Build CLI Binary", ["cargo", "build", "--release", "--bin", "printproof3d"], 300),
         ("Model Validation Smoke Test", [
