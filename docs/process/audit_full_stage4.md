@@ -71,3 +71,15 @@ To ensure continuous compliance, an automated compliance tool `devtools/docs_pol
 | **Closed** | `RELEASE_CHECKLIST.md` | DOC-003: macOS listed as verified platform without testing env. | **Closed** - Separately grouped verified (Win/Linux) and intended (macOS) platforms. |
 | **Closed** | `devtools/docs_policy_check.py` | TEST-001: Lack of automated documentation compliance checks. | **Closed** - Created doc policy script and wired into `agent_health_check.py` and GHA CI. |
 | **Closed** | `API_REFERENCE.md` | DOC-004: `enclosure_recommended` described as "requires" instead of "recommends". | **Closed** - Corrected wording to "recommends/advisory". |
+
+---
+
+## 4. Final Release Candidate Signoff
+
+**Signoff Commit**: `983cab9b41db5e7a3161b676d7554cfc9011c332`
+**Release Tag**: `v0.5.0-rc1`
+
+* **Supersession**: Earlier audit findings and minor post-audit runner warnings are superseded by the final verified green state at `983cab9b41db5e7a3161b676d7554cfc9011c332`.
+* **Licensing**: MIT licensing is fully verified with the root `LICENSE` file and `license = "MIT"` declared in all 8 Cargo crate manifests.
+* **Local Health Check**: Passes 100% of the 10 criteria on the local test harness, including documentation policy scan, formatting, clippy, workspace unit/integration tests, cargo dependency audit, git status parity, release binary compilation, model/G-code validation smoke tests, and multi-browser Playwright acceptance tests.
+* **CI Build Parity**: GitHub Actions run `26803331537` completed successfully for the final release commit, verifying remote parity and compliance.
