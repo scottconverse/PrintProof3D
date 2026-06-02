@@ -1,21 +1,16 @@
 import os
 import sys
 
-# Target files to scan
-TARGET_FILES = [
-    "README.md",
-    "USER_MANUAL.md",
-    "API_REFERENCE.md",
-    "FAQ.md",
-    "RELEASE_CHECKLIST.md",
-    os.path.join("docs", "AGENT_PRINTER_VALIDATION.md"),
-    os.path.join("docs", "preflight_guide.md"),
-    "user_manual.html",
-    "api_reference.html",
-    "architecture.html",
-    "index.html",
-    os.path.join("docs", "process", "5-lens-self-audit.md"),
-]
+def get_all_doc_files(root_dir):
+    doc_files = []
+    exclude_dirs = {".git", "target", ".gemini", "devtools"}
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Filter excluded directories in-place to avoid traversing them
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+        for filename in filenames:
+            if filename.endswith(".md") or filename.endswith(".html"):
+                doc_files.append(os.path.relpath(os.path.join(dirpath, filename), root_dir))
+    return doc_files
 
 # Literal forbidden phrases (case-insensitive)
 LITERAL_PHRASES = [
@@ -87,7 +82,8 @@ def main():
     print("=" * 60)
     
     total_violations = 0
-    for target in TARGET_FILES:
+    target_files = get_all_doc_files(root_dir)
+    for target in target_files:
         full_path = os.path.normpath(os.path.join(root_dir, target))
         violations = scan_file(full_path)
         

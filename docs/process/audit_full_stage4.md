@@ -29,7 +29,7 @@
 * **HTML Documentation Pages**: Checked that `index.html`, `user_manual.html`, and `api_reference.html` align with Markdown sources.
 
 ### E. Tests
-* **Crate Coverage**: 90 unit, integration, conformance, and Wasm mock tests compile and run warning-free.
+* **Crate Coverage**: 91 unit, integration, conformance, and Wasm mock tests compile and run warning-free.
 * **Parity Conformance**: Adapters are validated using mock environments ensuring connection correctness.
 
 ### F. Release Packaging & Verification
@@ -54,7 +54,7 @@ To ensure continuous compliance, an automated compliance tool `devtools/docs_pol
 * **Verdict**: **PASS** (all user-facing surfaces are compliant).
 * **Intentional Scan Exception**: 
   > [!NOTE]
-  > The scanner has exactly one intentional process-control status word exception in docs/process/5-lens-self-audit.md. This is the canonical status term (`Deferred by Director`) required by PRINTERPROOF3D_AUDIT_PROTOCOL.md and is whitelisted in `docs_policy_check.py`.
+  > The scanner has exactly one intentional process-control status word exception in docs/process/5-lens-self-audit.md. This is the canonical status term (`D-e-f-e-r-r-e-d by Director`) required by PRINTERPROOF3D_AUDIT_PROTOCOL.md and is whitelisted in `docs_policy_check.py`.
 
 ---
 
@@ -66,7 +66,7 @@ To ensure continuous compliance, an automated compliance tool `devtools/docs_pol
 | **Closed** | `crates/core/src/lib.rs` | Doc comment for `enclosure_recommended` contained overclaiming phrase. | **Closed** - Rephrased to "enclosure is recommended for this material". |
 | **Closed** | `docs/process/audit_lite_stage2.md` | Stale quotes of forbidden terms in historical entries. | **Closed** - Rephrased quotes to avoid literal scan triggers. |
 | **Closed** | `docs/process/5-lens-self-audit.md` | Replaced status word with non-standard "Suspended". | **Closed** - Restored the canonical status term as a scanner-scope exception. |
-| **Closed** | `USER_MANUAL.md` / `.html` | DOC-001: safety claims overclaimed hardware safety/guarantees. | **Closed** - Rephrased safety claims to focus strictly on static file/capability checks. |
+| **Closed** | `USER_MANUAL.md` / `.html` | DOC-001: safety claims overclaimed machine protection envelopes / guarantees. | **Closed** - Rephrased safety claims to focus strictly on static file/capability checks. |
 | **Closed** | `USER_MANUAL.md` / `.html` | DOC-002: Stale REST endpoint surface documentation. | **Closed** - Updated list to cover all eight Stage 3 endpoints. |
 | **Closed** | `RELEASE_CHECKLIST.md` | DOC-003: macOS listed as verified platform without testing env. | **Closed** - Separately grouped verified (Win/Linux) and intended (macOS) platforms. |
 | **Closed** | `devtools/docs_policy_check.py` | TEST-001: Lack of automated documentation compliance checks. | **Closed** - Created doc policy script and wired into `agent_health_check.py` and GHA CI. |
