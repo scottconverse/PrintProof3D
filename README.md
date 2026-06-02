@@ -15,7 +15,7 @@ The project provides compiler-safe data models, automated JSON Schema generation
 * **Rigorous Geometry Audits**: Check STL meshes for manifold/watertightness issues, build volume limit violations, steep overhang slopes, and low bed-plate contact footprint risks.
 * **Stateful G-Code Validation**: Accumulate toolhead coordinates statefully through motion coordinates (`G0`–`G3`) and homing commands (`G28`) to audit travel bounds and check thermal instructions against physical machine limits.
 * **Sandboxed WASM Plugin Runtime**: Write custom validation policies in Rust, compile them to WebAssembly, and execute them in a restricted memory sandbox utilizing `wasmi`.
-* **Standardized Printer Protocol Adapters**: Wrap printer connection controls under an asynchronous `PrinterAdapter` trait (trait and mock conformance harness implemented; Moonraker/OctoPrint concrete clients are currently trait stubs).
+* **Standardized Printer Protocol Adapters**: Wrap printer connection controls under an asynchronous `PrinterAdapter` trait. Concrete adapter clients are implemented and verified against simulator twin mocks. No physical-printer validation or hardware certification is claimed.
 * **Developer SDK**: Run mock servers and automated conformance test suites to verify custom adapter compliance.
 * **Axum REST microservice & MCP Server**: Integrate validation hooks into web servers, slicers, asset databases, or AI agentic workflows.
 
@@ -29,7 +29,7 @@ PrintProof3D is organized as a Cargo workspace with decoupled crates:
 * **[`crates/printability`](crates/printability)**: Mathematical geometry validation and G-code position/temperature checking.
 * **[`crates/adapters`](crates/adapters)**: Standardized printer connection protocols and telemetry definitions.
 * **[`crates/sdk`](crates/sdk)**: Mock connection servers and conformance test harnesses.
-* **[`crates/plugins`](crates/plugins)**: WebAssembly guest loading and linear memory management stubs.
+* **[`crates/plugins`](crates/plugins)**: WebAssembly guest loading, host/guest memory exchange, fuel metering, and linear-memory limit enforcement.
 * **[`crates/cli`](crates/cli)**: Command line utility and Model Context Protocol (MCP) server.
 * **[`crates/rest`](crates/rest)**: Local-loopback Axum HTTP REST server protected by Bearer Token authorization.
 * **[`crates/example-plugin`](crates/example-plugin)**: Sample validation plugin compiling to `wasm32-unknown-unknown` to append volume warnings.
