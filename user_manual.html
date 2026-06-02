@@ -328,8 +328,8 @@
         <p>This section covers the core concepts, validation logic, and configuration models behind the PrintProof3D engine.</p>
 
         <h3 id="what-is-printproof3d">1. What is PrintProof3D?</h3>
-        <p>PrintProof3D is a safety utility for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has holes, or if the slicer settings are wrong, you risk wasting filament, creating messy "spaghetti" prints, or even damaging your hardware (such as crashing the metal nozzle into the printbed or overheating the components).</p>
-        <p>PrintProof3D acts as a pre-flight checklist. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to ensure they are safe, watertight, and match the capabilities of your specific machine and filament.</p>
+        <p>PrintProof3D is a static file and capability validation engine for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has geometry defects or if the slicer settings are misaligned with your hardware, you risk wasting filament, creating failed prints, or running commands that exceed your printer's capability thresholds.</p>
+        <p>PrintProof3D acts as a pre-flight check. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to verify that they are watertight and match the configured capabilities and temperature envelopes of your specific machine and filament. It does not certify physical printer operation, prevent motion/heating faults, or guarantee physical print safety.</p>
 
         <h3 id="profile-structures">2. Profile Structures</h3>
         <p>To validate prints, you must define the target machine and filament using two JSON files: the <strong>Printer Profile</strong> and the <strong>Material Profile</strong>.</p>
@@ -353,7 +353,7 @@
         <h4>2.2 The Material Profile (<code>.json</code>)</h4>
         <p>This file defines the thermal requirements and printing limits of your filament (e.g., PLA, PETG, ABS).</p>
         <ul>
-          <li><strong>Min/Max Nozzle & Bed Temperature</strong>: The safe printing window recommended by the filament manufacturer.</li>
+          <li><strong>Min/Max Nozzle & Bed Temperature</strong>: The recommended operating temperature range specified by the filament manufacturer.</li>
           <li><strong>Warp Risk</strong>: The likelihood of the plastic curling as it cools. High-warp materials (like ABS) trigger strict warnings if the model's footprint touching the bed is too small.</li>
           <li><strong>Overhang & Bridge Difficulty</strong>: Mapped to cooling properties to evaluate overhang angles.</li>
         </ul>
@@ -438,7 +438,17 @@
           <li><strong>Binds to</strong>: <code>127.0.0.1:3000</code></li>
           <li><strong>Security</strong>: Enforces Bearer token headers (<code>Authorization: Bearer secret_print_token</code>). Override via <code>PRINTPROOF3D_API_TOKEN</code>.</li>
         </ul>
-        <p>Endpoints include <code>GET /profiles/printers</code>, <code>POST /validate/model</code>, and <code>POST /validate/gcode</code>.</p>
+        <p>Supported endpoints include:</p>
+        <ul>
+          <li><code>GET /profiles/printers</code> — Lists all valid printer JSON profiles.</li>
+          <li><code>GET /profiles/materials</code> — Lists all valid material JSON profiles.</li>
+          <li><code>POST /profiles/inspect</code> — Automatically detects profile category (printer or material) and returns metadata.</li>
+          <li><code>POST /profiles/validate/printer</code> — Validates a printer JSON profile against safety boundaries.</li>
+          <li><code>POST /profiles/validate/material</code> — Validates a material JSON profile against safety boundaries.</li>
+          <li><code>POST /validate/model</code> (Multipart) — Performs static STL mesh geometry audit. Accepts <code>model</code> (STL file), <code>printer</code> (JSON profile), and <code>material</code> (JSON profile).</li>
+          <li><code>POST /validate/gcode</code> (Multipart) — Performs stateful G-code toolpath audit. Accepts <code>gcode</code> (file), <code>printer</code> (JSON profile), and optional <code>material</code> (JSON profile).</li>
+          <li><code>POST /validate/compatibility</code> (Multipart) — Performs multi-dimensional alignment audits. Accepts optional <code>printer</code>, <code>material</code>, <code>model</code>, and <code>gcode</code> fields.</li>
+        </ul>
 
         <h4>3.2 Model Context Protocol (MCP) Server</h4>
         <p>Integrate validation directly into AI agents (like Claude Desktop or Cursor) over standard I/O:</p>

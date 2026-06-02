@@ -62,7 +62,7 @@ Defines the filament properties and thermal processing ranges.
 * **`warp_risk: RiskLevel`**: Relative warping risk: `Low`, `Medium`, or `High`.
 * **`bridge_difficulty: RiskLevel`**: Difficulty bridging horizontal spans: `Low`, `Medium`, or `High`.
 * **`overhang_difficulty: RiskLevel`**: Difficulty cooling steep overhang slopes: `Low`, `Medium`, or `High`.
-* **`enclosure_recommended: bool`**: Indicates if printing requires an enclosed build chamber.
+* **`enclosure_recommended: bool`**: Indicates if an enclosed build chamber is recommended (advisory warning level) for printing this material.
 * **`dryness_sensitive: bool`**: Indicates if the material is hygroscopic and needs drying.
 * **`bed_adhesion_notes: Option<String>`**: Optional notes on bed prep.
 * **`min_feature_size_mm: f32`**: Smallest printable detailed width. Must be $> 0.0$.

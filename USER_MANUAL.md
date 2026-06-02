@@ -12,9 +12,9 @@ Welcome to the **PrintProof3D User Manual**. This document is split into three p
 This section covers the core concepts, validation logic, and configuration models behind the PrintProof3D engine.
 
 ## 1. What is PrintProof3D?
-PrintProof3D is a safety utility for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has holes, or if the slicer settings are wrong, you risk wasting filament, creating messy "spaghetti" prints, or even damaging your hardware (such as crashing the metal nozzle into the printbed or overheating the components).
+PrintProof3D is a static file and capability validation engine for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has geometry defects or if the slicer settings are misaligned with your hardware, you risk wasting filament, creating failed prints, or running commands that exceed your printer's capability thresholds.
 
-PrintProof3D acts as a pre-flight checklist. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to ensure they are safe, watertight, and match the capabilities of your specific machine and filament.
+PrintProof3D acts as a pre-flight check. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to verify that they are watertight and match the configured capabilities and temperature envelopes of your specific machine and filament. It does not certify physical printer operation, prevent motion/heating faults, or guarantee physical print safety.
 
 ---
 
@@ -35,7 +35,7 @@ This file defines the physical dimensions, safety thresholds, and capabilities o
 
 ### 2.2 The Material Profile (`.json`)
 This file defines the thermal requirements and printing limits of your filament (e.g., PLA, PETG, ABS).
-* **Min/Max Nozzle & Bed Temperature**: The safe printing window recommended by the filament manufacturer.
+* **Min/Max Nozzle & Bed Temperature**: The recommended operating temperature range specified by the filament manufacturer.
 * **Warp Risk**: The likelihood of the plastic curling as it cools. High-warp materials (like ABS) trigger strict warnings if the model's footprint touching the bed is too small.
 * **Overhang & Bridge Difficulty**: Mapped to cooling properties to evaluate overhang angles.
 
@@ -307,8 +307,13 @@ cargo run --package printproof3d-rest
 
 #### Endpoints:
 * `GET /profiles/printers` — Lists all valid printer JSON profiles.
-* `POST /validate/model` (Multipart) — Performs mesh audit. Accepts `model` (STL file), `printer` (JSON profile), and `material` (JSON profile) fields.
-* `POST /validate/gcode` (Multipart) — Performs G-code audit. Accepts `gcode` (file), `printer` (JSON profile), and optional `material` (JSON profile) fields.
+* `GET /profiles/materials` — Lists all valid material JSON profiles.
+* `POST /profiles/inspect` — Automatically detects profile category (printer or material) and returns metadata.
+* `POST /profiles/validate/printer` — Validates a printer JSON profile against safety boundaries.
+* `POST /profiles/validate/material` — Validates a material JSON profile against safety boundaries.
+* `POST /validate/model` (Multipart) — Performs static STL mesh geometry audit. Accepts `model` (STL file), `printer` (JSON profile), and `material` (JSON profile).
+* `POST /validate/gcode` (Multipart) — Performs stateful G-code toolpath audit. Accepts `gcode` (file), `printer` (JSON profile), and optional `material` (JSON profile).
+* `POST /validate/compatibility` (Multipart) — Performs multi-dimensional alignment audits. Accepts optional `printer`, `material`, `model`, and `gcode` fields.
 
 ### 3.2 Model Context Protocol (MCP) Server
 Integrate validation directly into AI agents (like Claude Desktop or Cursor) over standard I/O:

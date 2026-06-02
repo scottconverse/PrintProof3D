@@ -6,10 +6,13 @@ This checklist and guide outlines the packaging, platform compatibility, and ver
 
 ## 1. Supported Platforms & Requirements
 
-### Supported Operating Systems
-* **Windows**: Windows 10 / 11 (tested on PowerShell 7+ & Command Prompt).
-* **Linux**: Ubuntu 22.04+ (requires system library `libudev-dev` for serial connection adapter support).
-* **macOS**: macOS 12+ (Apple Silicon and Intel).
+### Supported & Verified Platforms
+The following platforms are fully verified and tested via local smoke tests and GitHub Actions CI runs for this Release Candidate:
+* **Windows**: Windows 10 / 11 (verified locally on Windows PowerShell & cmd.exe).
+* **Linux**: Ubuntu 22.04+ (verified on GitHub Actions CI; requires `libudev-dev` for serial connection adapter compiling).
+
+### Intended Platform Compatibility (Not Verified for this RC)
+* **macOS**: macOS 12+ (Apple Silicon & Intel). macOS-specific compilation and runtime behaviors are designed for cross-platform compatibility but have not been natively verified for this Release Candidate due to environment availability.
 
 ### Build & Run Prerequisites
 * **Rust Toolchain**: `stable` (v1.75+ or newer recommended).
