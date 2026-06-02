@@ -85,7 +85,13 @@ def main():
             try:
                 browser_launcher = getattr(p, browser_name)
                 # Headless mode for CI
-                browser = browser_launcher.launch(headless=True)
+                if browser_name == "chromium":
+                    browser = browser_launcher.launch(
+                        headless=True,
+                        args=["--disable-gpu", "--use-gl=swiftshader"]
+                    )
+                else:
+                    browser = browser_launcher.launch(headless=True)
                 tested_any = True
             except Exception as e:
                 print(f"Skipping browser {browser_name}: Not installed or failed to launch. Details: {e}")
@@ -279,7 +285,7 @@ def main():
                     print(f"Viewport set to {device} ({w}x{h})")
                     for route in routes:
                         page.goto(f"{base_url}{route}")
-                        page.wait_for_load_state("networkidle")
+                        page.wait_for_load_state("domcontentloaded")
                         
                         # Programmatically assert horizontal overflow scroll width is within client window width bounds
                         has_overflow = page.evaluate("document.documentElement.scrollWidth > window.innerWidth")

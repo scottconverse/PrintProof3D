@@ -303,7 +303,7 @@ Start the REST validation microservice:
 cargo run --package printproof3d-rest
 ```
 * Binds to: `127.0.0.1:3000`
-* Security: Enforces Bearer token headers (`Authorization: Bearer secret_print_token`). You can override the token by setting the `PRINTPROOF3D_API_TOKEN` environment variable.
+* Security: Enforces Bearer token headers (`Authorization: Bearer <token>`). The token is read from the `PRINTPROOF3D_API_TOKEN` environment variable. If `PRINTPROOF3D_API_TOKEN` is not configured, the REST daemon generates a secure ephemeral startup token and prints it to the console (e.g., `[PrintProof3D API] Token is not configured. Ephemeral token generated: <token>`). Use this token for authorization.
 
 #### Endpoints:
 * `GET /profiles/printers` — Lists all valid printer JSON profiles.

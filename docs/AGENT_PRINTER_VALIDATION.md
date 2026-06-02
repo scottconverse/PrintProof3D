@@ -68,7 +68,7 @@ target/debug/printproof3d.exe validate-gcode --gcode fixtures/safe_print.gcode -
 
 ### B. REST API Integration
 Run the REST service by launching the `printproof3d-rest` binary (listening on `127.0.0.1:3000`).
-All endpoints require a Bearer token header: `Authorization: Bearer secret_print_token`.
+All endpoints require a Bearer token header: `Authorization: Bearer <token>`. The token is read from the `PRINTPROOF3D_API_TOKEN` environment variable. If `PRINTPROOF3D_API_TOKEN` is not configured, the REST daemon generates a secure ephemeral startup token and prints it to the console (e.g., `[PrintProof3D API] Token is not configured. Ephemeral token generated: <token>`). Use this token for authorization.
 
 #### POST `/validate/model`
 Multipart upload:

@@ -246,7 +246,7 @@ PrintProof3D returns standard shell exit codes for automated tooling integration
 
 #### 2. Auth Failures (`401 Unauthorized`) in REST API
 - **Symptom:** REST endpoint requests fail with authorization errors.
-- **Solution:** Ensure you pass the header `Authorization: Bearer <token>`. By default, the API token defaults to `secret_print_token`. You can override this token by starting the server with the environment variable `PRINTPROOF3D_API_TOKEN` set.
+- **Solution:** Ensure you pass the header `Authorization: Bearer <token>`. The token is read from the `PRINTPROOF3D_API_TOKEN` environment variable. If `PRINTPROOF3D_API_TOKEN` is not configured, the REST daemon generates a secure ephemeral startup token and prints it to the console (e.g., `[PrintProof3D API] Token is not configured. Ephemeral token generated: <token>`). Copy this token to authenticate.
 
 #### 3. WASM Sandboxed Plugin compilation target
 - **Symptom:** Plugins fail to load or report architecture mismatch errors.

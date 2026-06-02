@@ -22,6 +22,7 @@ LITERAL_PHRASES = [
     "deferred",
     "next sprint",
     "watchlist",
+    "secret_print_token",
 ]
 
 # Semantic safety overclaims (case-insensitive)

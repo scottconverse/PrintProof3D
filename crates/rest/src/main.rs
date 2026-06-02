@@ -165,91 +165,117 @@ async fn list_printer_profiles() -> Result<axum::Json<Vec<PrinterProfile>>, (Sta
 
 async fn validate_model(
     mut multipart: Multipart,
-) -> Result<axum::Json<ValidationReport>, (StatusCode, String)> {
+) -> Result<axum::Json<ValidationReport>, (StatusCode, axum::Json<serde_json::Value>)> {
     let mut model_bytes = None;
     let mut model_name = "model.stl".to_string();
     let mut printer_profile = None;
     let mut material_profile = None;
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "model" {
             model_name = field.file_name().unwrap_or("model.stl").to_string();
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             model_bytes = Some(data.to_vec());
         } else if name == "printer" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             let p: PrinterProfile = serde_json::from_slice(&data).map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Malformed printer profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Malformed printer profile: {}", e) }),
+                    ),
                 )
             })?;
             p.validate().map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid printer profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Invalid printer profile: {}", e) }),
+                    ),
                 )
             })?;
             printer_profile = Some(p);
         } else if name == "material" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             let m: MaterialProfile = serde_json::from_slice(&data).map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Malformed material profile: {}", e),
+                    axum::Json(serde_json::json!({ "error": format!("Malformed material profile: {}", e) })),
                 )
             })?;
             m.validate().map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid material profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Invalid material profile: {}", e) }),
+                    ),
                 )
             })?;
             material_profile = Some(m);
         }
     }
 
-    let model_bytes =
-        model_bytes.ok_or((StatusCode::BAD_REQUEST, "Missing 'model' file".to_string()))?;
+    let model_bytes = model_bytes.ok_or((
+        StatusCode::BAD_REQUEST,
+        axum::Json(serde_json::json!({ "error": "Missing 'model' file" })),
+    ))?;
     let printer = printer_profile.ok_or((
         StatusCode::BAD_REQUEST,
-        "Missing 'printer' profile".to_string(),
+        axum::Json(serde_json::json!({ "error": "Missing 'printer' profile" })),
     ))?;
     let material = material_profile.ok_or((
         StatusCode::BAD_REQUEST,
-        "Missing 'material' profile".to_string(),
+        axum::Json(serde_json::json!({ "error": "Missing 'material' profile" })),
     ))?;
 
     let temp_dir = std::env::current_dir()
         .unwrap_or_default()
         .join("temp_uploads");
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    std::fs::create_dir_all(&temp_dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })?;
 
     let temp_file_path = unique_temp_file_name(&model_name);
-    std::fs::write(&temp_file_path, &model_bytes)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    std::fs::write(&temp_file_path, &model_bytes).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })?;
 
     let validator = StlModelValidator;
     let report = validator
         .validate_mesh(&temp_file_path, &printer, &material)
         .map_err(|e| {
             let _ = std::fs::remove_file(&temp_file_path);
-            (StatusCode::INTERNAL_SERVER_ERROR, e)
+            (
+                StatusCode::BAD_REQUEST,
+                axum::Json(serde_json::json!({ "error": format!("Malformed model file: {}", e) })),
+            )
         })?;
 
     let _ = std::fs::remove_file(&temp_file_path);
@@ -258,69 +284,84 @@ async fn validate_model(
 
 async fn validate_gcode(
     mut multipart: Multipart,
-) -> Result<axum::Json<ValidationReport>, (StatusCode, String)> {
+) -> Result<axum::Json<ValidationReport>, (StatusCode, axum::Json<serde_json::Value>)> {
     let mut gcode_bytes = None;
     let mut gcode_name = "print.gcode".to_string();
     let mut printer_profile = None;
     let mut material_profile = None;
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "gcode" {
             gcode_name = field.file_name().unwrap_or("print.gcode").to_string();
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             gcode_bytes = Some(data.to_vec());
         } else if name == "printer" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             let p: PrinterProfile = serde_json::from_slice(&data).map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Malformed printer profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Malformed printer profile: {}", e) }),
+                    ),
                 )
             })?;
             p.validate().map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid printer profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Invalid printer profile: {}", e) }),
+                    ),
                 )
             })?;
             printer_profile = Some(p);
         } else if name == "material" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             let m: MaterialProfile = serde_json::from_slice(&data).map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Malformed material profile: {}", e),
+                    axum::Json(serde_json::json!({ "error": format!("Malformed material profile: {}", e) })),
                 )
             })?;
             m.validate().map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid material profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Invalid material profile: {}", e) }),
+                    ),
                 )
             })?;
             material_profile = Some(m);
         }
     }
 
-    let gcode_bytes =
-        gcode_bytes.ok_or((StatusCode::BAD_REQUEST, "Missing 'gcode' file".to_string()))?;
+    let gcode_bytes = gcode_bytes.ok_or((
+        StatusCode::BAD_REQUEST,
+        axum::Json(serde_json::json!({ "error": "Missing 'gcode' file" })),
+    ))?;
     let printer = printer_profile.ok_or((
         StatusCode::BAD_REQUEST,
-        "Missing 'printer' profile".to_string(),
+        axum::Json(serde_json::json!({ "error": "Missing 'printer' profile" })),
     ))?;
 
     let material = material_profile.unwrap_or_else(|| MaterialProfile {
@@ -343,19 +384,30 @@ async fn validate_gcode(
     let temp_dir = std::env::current_dir()
         .unwrap_or_default()
         .join("temp_uploads");
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    std::fs::create_dir_all(&temp_dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })?;
 
     let temp_file_path = unique_temp_file_name(&gcode_name);
-    std::fs::write(&temp_file_path, &gcode_bytes)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    std::fs::write(&temp_file_path, &gcode_bytes).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })?;
 
     let validator = StandardGcodeValidator;
     let report = validator
         .validate_gcode(&temp_file_path, &printer, &material)
         .map_err(|e| {
             let _ = std::fs::remove_file(&temp_file_path);
-            (StatusCode::INTERNAL_SERVER_ERROR, e)
+            (
+                StatusCode::BAD_REQUEST,
+                axum::Json(serde_json::json!({ "error": format!("Malformed G-code file: {}", e) })),
+            )
         })?;
 
     let _ = std::fs::remove_file(&temp_file_path);
@@ -378,26 +430,29 @@ async fn list_material_profiles() -> Result<axum::Json<Vec<MaterialProfile>>, (S
 
 async fn inspect_profile(
     mut multipart: Multipart,
-) -> Result<axum::Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<axum::Json<serde_json::Value>, (StatusCode, axum::Json<serde_json::Value>)> {
     let mut profile_bytes = None;
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "profile" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             profile_bytes = Some(data.to_vec());
         }
     }
 
     let bytes = profile_bytes.ok_or((
         StatusCode::BAD_REQUEST,
-        "Missing 'profile' file".to_string(),
+        axum::Json(serde_json::json!({ "error": "Missing 'profile' file" })),
     ))?;
 
     if let Ok(printer) = serde_json::from_slice::<PrinterProfile>(&bytes) {
@@ -420,7 +475,7 @@ async fn inspect_profile(
 
     Err((
         StatusCode::BAD_REQUEST,
-        "Invalid profile JSON format".to_string(),
+        axum::Json(serde_json::json!({ "error": "Invalid profile JSON format" })),
     ))
 }
 
@@ -598,7 +653,7 @@ async fn validate_material_profile_route(
 
 async fn validate_compatibility(
     mut multipart: Multipart,
-) -> Result<axum::Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<axum::Json<serde_json::Value>, (StatusCode, axum::Json<serde_json::Value>)> {
     let mut printer_profile = None;
     let mut material_profile = None;
     let mut model_bytes = None;
@@ -606,68 +661,83 @@ async fn validate_compatibility(
     let mut gcode_bytes = None;
     let mut gcode_name = None;
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "printer" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             let p: PrinterProfile = serde_json::from_slice(&data).map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Malformed printer profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Malformed printer profile: {}", e) }),
+                    ),
                 )
             })?;
             p.validate().map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid printer profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Invalid printer profile: {}", e) }),
+                    ),
                 )
             })?;
             printer_profile = Some(p);
         } else if name == "material" {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             let m: MaterialProfile = serde_json::from_slice(&data).map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Malformed material profile: {}", e),
+                    axum::Json(serde_json::json!({ "error": format!("Malformed material profile: {}", e) })),
                 )
             })?;
             m.validate().map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid material profile: {}", e),
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Invalid material profile: {}", e) }),
+                    ),
                 )
             })?;
             material_profile = Some(m);
         } else if name == "model" {
             model_name = Some(field.file_name().unwrap_or("model.stl").to_string());
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             model_bytes = Some(data.to_vec());
         } else if name == "gcode" {
             gcode_name = Some(field.file_name().unwrap_or("print.gcode").to_string());
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let data = field.bytes().await.map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(serde_json::json!({ "error": e.to_string() })),
+                )
+            })?;
             gcode_bytes = Some(data.to_vec());
         }
     }
 
     let printer = printer_profile.ok_or((
         StatusCode::BAD_REQUEST,
-        "Missing 'printer' profile".to_string(),
+        axum::Json(serde_json::json!({ "error": "Missing 'printer' profile" })),
     ))?;
 
     let mut issues = Vec::new();
@@ -700,14 +770,22 @@ async fn validate_compatibility(
     let temp_dir = std::env::current_dir()
         .unwrap_or_default()
         .join("temp_uploads");
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    std::fs::create_dir_all(&temp_dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })?;
 
     if let Some(ref m_bytes) = model_bytes {
         let m_name = model_name.as_ref().unwrap();
         let temp_file_path = unique_temp_file_name(m_name);
-        std::fs::write(&temp_file_path, m_bytes)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        std::fs::write(&temp_file_path, m_bytes).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "error": e.to_string() })),
+            )
+        })?;
 
         let validator = StlModelValidator;
         let model_report_res = validator.validate_mesh(&temp_file_path, &printer, &mat_ref);
@@ -718,14 +796,23 @@ async fn validate_compatibility(
                 issues.extend(report.issues);
             }
             Err(err) => {
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, err));
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Malformed model file: {}", err) }),
+                    ),
+                ));
             }
         }
     } else if let Some(ref g_bytes) = gcode_bytes {
         let g_name = gcode_name.as_ref().unwrap();
         let temp_file_path = unique_temp_file_name(g_name);
-        std::fs::write(&temp_file_path, g_bytes)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        std::fs::write(&temp_file_path, g_bytes).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "error": e.to_string() })),
+            )
+        })?;
 
         let validator = StandardGcodeValidator;
         let gcode_report_res = validator.validate_gcode(&temp_file_path, &printer, &mat_ref);
@@ -736,7 +823,12 @@ async fn validate_compatibility(
                 issues.extend(report.issues);
             }
             Err(err) => {
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, err));
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(
+                        serde_json::json!({ "error": format!("Malformed G-code file: {}", err) }),
+                    ),
+                ));
             }
         }
     }
@@ -785,6 +877,14 @@ pub fn api_router() -> Router {
 
     Router::new()
         .route("/", get(serve_dashboard))
+        .route("/index.html", get(serve_dashboard))
+        .route("/user_manual.html", get(serve_manual))
+        .route("/api_reference.html", get(serve_api))
+        .route("/architecture.html", get(serve_architecture))
+        .route("/docs/index.html", get(serve_dashboard))
+        .route("/docs/user_manual.html", get(serve_manual))
+        .route("/docs/api_reference.html", get(serve_api))
+        .route("/docs/architecture.html", get(serve_architecture))
         .route("/docs/user_manual", get(serve_manual))
         .route("/docs/api_reference", get(serve_api))
         .route("/docs/architecture", get(serve_architecture))
@@ -1172,5 +1272,233 @@ mod tests {
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_rest_errors_and_contract() {
+        use axum::http::{header, Request};
+        use tower::ServiceExt;
+        let app = api_router();
+        let boundary = "---------------------------1234567890";
+        let token = "Bearer secret_print_token";
+
+        // 1. Missing fields in model upload -> 400 Bad Request + structured JSON error
+        let body = create_multipart_body(
+            boundary,
+            &[(
+                "model",
+                "test.stl",
+                Some("application/octet-stream"),
+                b"solid\nendsolid",
+            )],
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/validate/model")
+            .header(header::AUTHORIZATION, token)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(body)
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 10000).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert!(json.get("error").is_some());
+
+        // 2. Malformed model data -> 400 Bad Request + structured JSON error
+        let printer_json = r#"{"manufacturer":"Prusa","model":"MK4","protocol_family":"prusa_link","build_volume":{"type":"rectangular","x":250,"y":210,"z":220},"bed_shape":"rectangular","nozzle_diameters":[0.4],"default_nozzle_diameter":0.4,"min_layer_height":0.05,"max_layer_height":0.3,"max_hotend_temp":300,"max_bed_temp":120,"has_enclosure":false,"supports_mmu":true,"firmware_flavor":"prusa","supported_file_types":["gcode"],"supports_direct_upload":true,"supports_pause_resume":true,"supports_cancel":true,"supports_job_progress":true,"supports_webcam":false,"supports_chamber_temp":false,"known_quirks":[],"unsafe_commands":[]}"#;
+        let material_json = r#"{"name":"PLA","abbreviations":["PLA"],"min_nozzle_temp":190,"max_nozzle_temp":220,"min_bed_temp":50,"max_bed_temp":60,"cooling_fan_speed_pct":100,"warp_risk":"low","bridge_difficulty":"low","overhang_difficulty":"low","enclosure_recommended":false,"dryness_sensitive":false,"min_feature_size_mm":0.4}"#;
+        let body = create_multipart_body(
+            boundary,
+            &[
+                (
+                    "model",
+                    "bad.stl",
+                    Some("application/octet-stream"),
+                    b"not an stl file",
+                ),
+                (
+                    "printer",
+                    "printer.json",
+                    Some("application/json"),
+                    printer_json.as_bytes(),
+                ),
+                (
+                    "material",
+                    "material.json",
+                    Some("application/json"),
+                    material_json.as_bytes(),
+                ),
+            ],
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/validate/model")
+            .header(header::AUTHORIZATION, token)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(body)
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 10000).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert!(json
+            .get("error")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("Malformed model"));
+
+        // 3. Malformed G-code upload -> 400 Bad Request + structured JSON error
+        let body = create_multipart_body(
+            boundary,
+            &[
+                (
+                    "gcode",
+                    "bad.gcode",
+                    Some("application/octet-stream"),
+                    b"bad binary data \xFF\xFE\x00",
+                ),
+                (
+                    "printer",
+                    "printer.json",
+                    Some("application/json"),
+                    printer_json.as_bytes(),
+                ),
+            ],
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/validate/gcode")
+            .header(header::AUTHORIZATION, token)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(body)
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 10000).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert!(json
+            .get("error")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("Malformed G-code"));
+
+        // 4. Invalid profile upload (inspect_profile) -> 400 Bad Request + structured JSON error
+        let body = create_multipart_body(
+            boundary,
+            &[(
+                "profile",
+                "bad.json",
+                Some("application/json"),
+                b"invalid json content",
+            )],
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/profiles/inspect")
+            .header(header::AUTHORIZATION, token)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(body)
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 10000).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert!(json.get("error").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_rest_docs_links_resolve() {
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        let app = api_router();
+
+        // Pages to crawl
+        let pages = vec![
+            "/",
+            "/docs/user_manual",
+            "/docs/api_reference",
+            "/docs/architecture",
+        ];
+
+        for page in pages {
+            let req = Request::builder()
+                .method("GET")
+                .uri(page)
+                .body(axum::body::Body::empty())
+                .unwrap();
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "Failed to load base page: {}",
+                page
+            );
+
+            let body_bytes = axum::body::to_bytes(resp.into_body(), 200000)
+                .await
+                .unwrap();
+            let html = String::from_utf8(body_bytes.to_vec()).unwrap();
+
+            // Find all hrefs manually without dependency
+            let mut hrefs = Vec::new();
+            let mut cursor = &html[..];
+            while let Some(start_idx) = cursor.find("href=\"") {
+                let rest = &cursor[start_idx + 6..];
+                if let Some(end_idx) = rest.find('"') {
+                    let href = &rest[..end_idx];
+                    hrefs.push(href.to_string());
+                    cursor = &rest[end_idx..];
+                } else {
+                    break;
+                }
+            }
+
+            for href in hrefs {
+                // Skip external links and fragment-only links
+                if href.starts_with("http") || href.starts_with("#") {
+                    continue;
+                }
+                // Resolve href relative to the page path
+                let resolved_path = if href.starts_with('/') {
+                    href.clone()
+                } else if page == "/" {
+                    format!("/{}", href)
+                } else {
+                    format!("/docs/{}", href)
+                };
+
+                // Request the resolved path
+                let req_alias = Request::builder()
+                    .method("GET")
+                    .uri(&resolved_path)
+                    .body(axum::body::Body::empty())
+                    .unwrap();
+                let resp_alias = app.clone().oneshot(req_alias).await.unwrap();
+                assert_eq!(
+                    resp_alias.status(),
+                    StatusCode::OK,
+                    "Alias route failed: {} resolved from link '{}' on page '{}'",
+                    resolved_path,
+                    href,
+                    page
+                );
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-# PrintProof3D Release Checklist & Guide (v0.5.0-rc1)
+# PrintProof3D Release Checklist & Guide (v0.5.0-rc2)
 
 This checklist and guide outlines the packaging, platform compatibility, and verification steps necessary to declare a Release Candidate for **PrintProof3D**.
 
@@ -70,7 +70,8 @@ To run the server locally on port `3000`:
 target/release/printproof3d-rest.exe
 ```
 Ensure you provide the authorization header in API requests:
-`Authorization: Bearer secret_print_token`
+`Authorization: Bearer <token>`
+(The token is read from the `PRINTPROOF3D_API_TOKEN` environment variable. If not set, copy the ephemeral token generated in the server console on startup).
 
 ### Running the MCP JSON-RPC Server
 Expose the validation capability to AI agents:

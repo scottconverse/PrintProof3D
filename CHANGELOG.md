@@ -4,6 +4,18 @@ All notable changes to the PrintProof3D project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-rc2] - 2026-06-02
+
+### Added
+- **REST Navigation Aliases**: Integrated route mapping and redirects for relative `.html` paths in documentation routes, avoiding 404 errors under serve environments.
+- **Link Check Integration Tests**: Added automated link-crawling checks that query and assert `200 OK` on every internal nav link.
+- **Hardened Validation Error Handlers**: Modified STL, G-code, and profile inspection/validation endpoints to catch and return structured `400 Bad Request` JSON responses for malformed uploads, missing multipart fields, and invalid profiles.
+
+### Changed
+- **Token Guidance Alignment**: Cleaned up all user-facing documentation to replace production static print token guidance with environment variable config (`PRINTPROOF3D_API_TOKEN`) and ephemeral console token logs.
+- **API Reference Duplication Cleanup**: Removed duplicate section blocks from `API_REFERENCE.md` and aligned `api_reference.html`.
+- **Policy Check Scope**: Extended docs compliance scanner limits to run documentation-scoped checks across all repository `.md` and `.html` documentation surfaces.
+
 ## [0.5.0-rc1] - 2026-06-01
 
 ### Added

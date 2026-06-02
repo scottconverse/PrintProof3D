@@ -449,7 +449,7 @@
         <pre><code>cargo run --package printproof3d-rest</code></pre>
         <ul>
           <li><strong>Binds to</strong>: <code>127.0.0.1:3000</code></li>
-          <li><strong>Security</strong>: Enforces Bearer token headers (<code>Authorization: Bearer secret_print_token</code>). Override via <code>PRINTPROOF3D_API_TOKEN</code>.</li>
+          <li><strong>Security</strong>: Enforces Bearer token headers (<code>Authorization: Bearer &lt;token&gt;</code>). The token is read from the <code>PRINTPROOF3D_API_TOKEN</code> environment variable. If <code>PRINTPROOF3D_API_TOKEN</code> is not configured, the REST daemon generates a secure ephemeral startup token and prints it to the console (e.g., <code>[PrintProof3D API] Token is not configured. Ephemeral token generated: &lt;token&gt;</code>). Use this token for authorization.</li>
         </ul>
         <p>Supported endpoints include:</p>
         <ul>
