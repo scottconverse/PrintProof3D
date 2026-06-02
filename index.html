@@ -711,7 +711,11 @@
         document.getElementById("input-api-url").value = window.location.origin;
       }
       initStorage();
-      initVisualizer();
+      try {
+        initVisualizer();
+      } catch (e) {
+        console.error("WebGL Visualizer initialization failed:", e);
+      }
       fetchPredefinedProfiles();
       setupDropzone();
     };
@@ -878,6 +882,7 @@
     }
 
     function animate() {
+      if (!renderer) return;
       requestAnimationFrame(animate);
       if (controls) controls.update();
       renderer.render(scene, camera);
@@ -893,6 +898,7 @@
     }
 
     function clearMeshFromVisualizer() {
+      if (!scene) return;
       if (modelMesh) {
         scene.remove(modelMesh);
         modelMesh = null;
@@ -901,11 +907,13 @@
         scene.remove(warningHighlightMesh);
         warningHighlightMesh = null;
       }
-      document.getElementById("visualizer-overlay").style.opacity = 1;
+      const overlay = document.getElementById("visualizer-overlay");
+      if (overlay) overlay.style.opacity = 1;
     }
 
     function loadMeshIntoVisualizer(arrayBuffer) {
       clearMeshFromVisualizer();
+      if (!scene || !renderer) return;
       try {
         const loader = new THREE.STLLoader();
         const geometry = loader.parse(arrayBuffer);
