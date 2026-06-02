@@ -99,6 +99,10 @@ async fn auth_middleware(
         }
     }
 
+    // Fully consume the request body stream to prevent TCP socket connection reset (Broken pipe) errors
+    // in WebKit and other strict browser environments during unauthorized file uploads.
+    let _ = axum::body::to_bytes(req.into_body(), 20 * 1024 * 1024).await;
+
     Err(StatusCode::UNAUTHORIZED)
 }
 
