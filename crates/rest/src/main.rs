@@ -1,8 +1,9 @@
+// Trigger rebuild of embedded index.html
 use axum::{
     extract::Multipart,
     http::{HeaderValue, Request, StatusCode},
     middleware::{self, Next},
-    response::Response,
+    response::{Html, IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -12,9 +13,64 @@ use printproof3d_printability::{
 };
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
+const INDEX_HTML: &str = include_str!("../../../index.html");
+const USER_MANUAL_HTML: &str = include_str!("../../../user_manual.html");
+const API_REFERENCE_HTML: &str = include_str!("../../../api_reference.html");
+const ARCHITECTURE_HTML: &str = include_str!("../../../architecture.html");
+
+const THREE_JS: &str = include_str!("../assets/three.min.js");
+const STL_LOADER: &str = include_str!("../assets/STLLoader.js");
+const ORBIT_CONTROLS: &str = include_str!("../assets/OrbitControls.js");
+
+const BAMBU_X1C_JSON: &str = include_str!("../../../profiles/bambu_x1c.json");
+const DUET_RRF_JSON: &str = include_str!("../../../profiles/duet_rrf.json");
+const ENDER3_SERIAL_JSON: &str = include_str!("../../../profiles/ender3_serial.json");
+const GENERIC_OCTOPRINT_JSON: &str = include_str!("../../../profiles/generic_octoprint.json");
+const PRUSA_MK4_JSON: &str = include_str!("../../../profiles/prusa_mk4.json");
+const VORON_KLIPPER_JSON: &str = include_str!("../../../profiles/voron_klipper.json");
+const PLA_JSON: &str = include_str!("../../../profiles/pla.json");
+
 static FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+static EPHEMERAL_TOKEN: OnceLock<String> = OnceLock::new();
+
+fn generate_random_token() -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    use std::time::SystemTime;
+
+    let mut hasher = DefaultHasher::new();
+    SystemTime::now().hash(&mut hasher);
+    std::process::id().hash(&mut hasher);
+    let val1 = hasher.finish();
+
+    let mut hasher2 = DefaultHasher::new();
+    val1.hash(&mut hasher2);
+    let val2 = hasher2.finish();
+
+    format!("{:016x}{:016x}", val1, val2)
+}
+
+fn get_api_token() -> &'static str {
+    if let Ok(token) = std::env::var("PRINTPROOF3D_API_TOKEN") {
+        return Box::leak(token.into_boxed_str());
+    }
+
+    if cfg!(test) {
+        return "secret_print_token";
+    }
+
+    EPHEMERAL_TOKEN.get_or_init(|| {
+        let token = generate_random_token();
+        println!(
+            "[PrintProof3D API] Token is not configured. Ephemeral token generated: {}",
+            token
+        );
+        token
+    })
+}
 
 fn unique_temp_file_name(original_name: &str) -> std::path::PathBuf {
     let pid = std::process::id();
@@ -34,9 +90,7 @@ async fn auth_middleware(
         .get("Authorization")
         .and_then(|value| value.to_str().ok());
 
-    let target_token = std::env::var("PRINTPROOF3D_API_TOKEN")
-        .unwrap_or_else(|_| "secret_print_token".to_string());
-
+    let target_token = get_api_token();
     let expected_auth = format!("Bearer {}", target_token);
 
     if let Some(auth) = auth_header {
@@ -48,38 +102,57 @@ async fn auth_middleware(
     Err(StatusCode::UNAUTHORIZED)
 }
 
-async fn home() -> &'static str {
-    "PrintProof3D REST API"
+async fn serve_dashboard() -> impl IntoResponse {
+    Html(INDEX_HTML)
+}
+
+async fn serve_manual() -> impl IntoResponse {
+    Html(USER_MANUAL_HTML)
+}
+
+async fn serve_api() -> impl IntoResponse {
+    Html(API_REFERENCE_HTML)
+}
+
+async fn serve_architecture() -> impl IntoResponse {
+    Html(ARCHITECTURE_HTML)
+}
+
+async fn serve_three() -> Response {
+    Response::builder()
+        .header("content-type", "application/javascript")
+        .body(axum::body::Body::from(THREE_JS))
+        .unwrap()
+}
+
+async fn serve_loader() -> Response {
+    Response::builder()
+        .header("content-type", "application/javascript")
+        .body(axum::body::Body::from(STL_LOADER))
+        .unwrap()
+}
+
+async fn serve_controls() -> Response {
+    Response::builder()
+        .header("content-type", "application/javascript")
+        .body(axum::body::Body::from(ORBIT_CONTROLS))
+        .unwrap()
 }
 
 async fn list_printer_profiles() -> Result<axum::Json<Vec<PrinterProfile>>, (StatusCode, String)> {
-    let mut profiles_dir = std::env::current_dir().unwrap_or_default().join("profiles");
-    if !profiles_dir.exists() {
-        profiles_dir = std::env::current_dir()
-            .unwrap_or_default()
-            .join("../../profiles");
-    }
-
-    if !profiles_dir.exists() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Profiles directory not found".to_string(),
-        ));
-    }
-
+    let raw_profiles = vec![
+        BAMBU_X1C_JSON,
+        DUET_RRF_JSON,
+        ENDER3_SERIAL_JSON,
+        GENERIC_OCTOPRINT_JSON,
+        PRUSA_MK4_JSON,
+        VORON_KLIPPER_JSON,
+    ];
     let mut profiles = Vec::new();
-    let entries = std::fs::read_dir(profiles_dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    for entry_opt in entries {
-        let entry = entry_opt.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        let path = entry.path();
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let contents = std::fs::read_to_string(&path)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            if let Ok(p) = serde_json::from_str::<PrinterProfile>(&contents) {
-                if p.validate().is_ok() {
-                    profiles.push(p);
-                }
+    for contents in raw_profiles {
+        if let Ok(p) = serde_json::from_str::<PrinterProfile>(contents) {
+            if p.validate().is_ok() {
+                profiles.push(p);
             }
         }
     }
@@ -287,33 +360,12 @@ async fn validate_gcode(
 
 async fn list_material_profiles() -> Result<axum::Json<Vec<MaterialProfile>>, (StatusCode, String)>
 {
-    let mut profiles_dir = std::env::current_dir().unwrap_or_default().join("profiles");
-    if !profiles_dir.exists() {
-        profiles_dir = std::env::current_dir()
-            .unwrap_or_default()
-            .join("../../profiles");
-    }
-
-    if !profiles_dir.exists() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Profiles directory not found".to_string(),
-        ));
-    }
-
+    let raw_profiles = vec![PLA_JSON];
     let mut profiles = Vec::new();
-    let entries = std::fs::read_dir(profiles_dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    for entry_opt in entries {
-        let entry = entry_opt.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        let path = entry.path();
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let contents = std::fs::read_to_string(&path)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            if let Ok(m) = serde_json::from_str::<MaterialProfile>(&contents) {
-                if m.validate().is_ok() {
-                    profiles.push(m);
-                }
+    for contents in raw_profiles {
+        if let Ok(m) = serde_json::from_str::<MaterialProfile>(contents) {
+            if m.validate().is_ok() {
+                profiles.push(m);
             }
         }
     }
@@ -728,7 +780,13 @@ pub fn api_router() -> Router {
         .allow_methods(tower_http::cors::Any);
 
     Router::new()
-        .route("/", get(home))
+        .route("/", get(serve_dashboard))
+        .route("/docs/user_manual", get(serve_manual))
+        .route("/docs/api_reference", get(serve_api))
+        .route("/docs/architecture", get(serve_architecture))
+        .route("/assets/three.min.js", get(serve_three))
+        .route("/assets/STLLoader.js", get(serve_loader))
+        .route("/assets/OrbitControls.js", get(serve_controls))
         .route("/profiles/printers", get(list_printer_profiles))
         .route("/profiles/materials", get(list_material_profiles))
         .route(
@@ -763,9 +821,16 @@ pub fn api_router() -> Router {
 
 #[tokio::main]
 async fn main() {
+    // Force token generation/printing on startup
+    let _ = get_api_token();
     let app = api_router();
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let port: u16 = std::env::var("PRINTPROOF3D_PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3000);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     println!("Listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -786,7 +851,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_home_route() {
-        assert_eq!(home().await, "PrintProof3D REST API");
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        let app = api_router();
+        let req = Request::builder()
+            .method("GET")
+            .uri("/")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let content_type = resp
+            .headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(content_type.contains("text/html"));
     }
 
     #[tokio::test]

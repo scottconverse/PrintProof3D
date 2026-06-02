@@ -3,6 +3,7 @@ name = "printproof3d-sdk"
 version = "0.5.0-rc1"
 edition = "2021"
 description = "Developer SDK for PrintProof3D."
+license = "MIT"
 
 [dependencies]
 printproof3d-core = { path = "../core" }

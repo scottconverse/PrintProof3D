@@ -1,8 +1,12 @@
-use wasmi::{Engine, Linker, Memory, Module, Store, TypedFunc};
+use wasmi::{Engine, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder, TypedFunc};
 
 // Re-export core types and serde_json so the macro has reliable references
 pub use printproof3d_core::{IssueSeverity, ValidationIssue, ValidationReport, ValidationStatus};
 pub use serde_json;
+
+pub struct MyState {
+    limits: StoreLimits,
+}
 
 /// Runtime loader and executor for WASM validation plugins.
 pub struct PluginEngine {
@@ -18,17 +22,30 @@ impl Default for PluginEngine {
 impl PluginEngine {
     /// Creates a new PluginEngine instance.
     pub fn new() -> Self {
-        let engine = Engine::default();
+        let mut config = wasmi::Config::default();
+        config.consume_fuel(true);
+        let engine = Engine::new(&config);
         Self { engine }
     }
 
     /// Compiles and instantiates the WASM byte slice, returning a LoadedPlugin.
     pub fn load_plugin(&self, wasm_bytes: &[u8]) -> Result<LoadedPlugin, String> {
-        let mut store = Store::new(&self.engine, ());
+        let limits = StoreLimitsBuilder::new()
+            .memory_size(16 * 1024 * 1024) // 16 MB limit
+            .build();
+
+        let mut store = Store::new(&self.engine, MyState { limits });
+        store.limiter(|state| &mut state.limits);
+
+        // Fuel limit of 50M instructions
+        store
+            .add_fuel(50_000_000)
+            .map_err(|e| format!("Failed to set fuel: {:?}", e))?;
+
         let module = Module::new(&self.engine, wasm_bytes)
             .map_err(|e| format!("Failed to compile WASM module: {:?}", e))?;
 
-        let mut linker = <Linker<()>>::new(&self.engine);
+        let mut linker = <Linker<MyState>>::new(&self.engine);
         let stub_describe = wasmi::Func::wrap(&mut store, |_: i32| {});
         let stub_throw = wasmi::Func::wrap(&mut store, |_: i32, _: i32| {});
         let _ = linker.define(
@@ -85,7 +102,7 @@ impl PluginEngine {
 
 /// An instantiated WASM plugin ready for execution.
 pub struct LoadedPlugin {
-    store: Store<()>,
+    store: Store<MyState>,
     memory: Memory,
     alloc_fn: TypedFunc<u32, u32>,
     dealloc_fn: TypedFunc<(u32, u32), ()>,
@@ -114,7 +131,7 @@ impl LoadedPlugin {
         let result_u64 = self
             .validate_fn
             .call(&mut self.store, (input_ptr, input_len))
-            .map_err(|e| format!("WASM validation failed: {:?}", e))?;
+            .map_err(|e| format!("WASM execution trapped: {}", e))?;
 
         // 4. Clean up input buffer in WASM memory
         let _ = self
@@ -244,5 +261,73 @@ mod tests {
         let test_json = r#"{"test":"hello"}"#;
         let result = plugin.execute_validation(test_json).unwrap();
         assert_eq!(result, test_json);
+    }
+
+    #[test]
+    fn test_wasm_plugin_infinite_loop_trap() {
+        let wat = r#"
+            (module
+              (memory (export "memory") 1)
+              (func (export "alloc") (param $size i32) (result i32)
+                i32.const 1024
+              )
+              (func (export "dealloc") (param $ptr i32) (param $size i32)
+              )
+              (func (export "validate") (param $ptr i32) (param $len i32) (result i64)
+                (loop
+                  br 0
+                )
+                i64.const 0
+              )
+            )
+        "#;
+        let wasm_bytes = wat::parse_str(wat).unwrap();
+        let engine = PluginEngine::new();
+        let mut plugin = engine.load_plugin(&wasm_bytes).unwrap();
+        let res = plugin.execute_validation("{}");
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err();
+        assert!(
+            err_msg.contains("trapped") || err_msg.contains("fuel"),
+            "Expected fuel trap error, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_wasm_plugin_oom_trap() {
+        let wat = r#"
+            (module
+              (memory (export "memory") 1)
+              (func (export "alloc") (param $size i32) (result i32)
+                i32.const 1024
+              )
+              (func (export "dealloc") (param $ptr i32) (param $size i32)
+              )
+              (func (export "validate") (param $ptr i32) (param $len i32) (result i64)
+                ;; Grow memory by 300 pages (approx 19.2MB, which exceeds the 16MB ceiling)
+                (memory.grow (i32.const 300))
+                i32.const -1
+                i32.eq
+                (if
+                  (then
+                    unreachable
+                  )
+                )
+                i64.const 0
+              )
+            )
+        "#;
+        let wasm_bytes = wat::parse_str(wat).unwrap();
+        let engine = PluginEngine::new();
+        let mut plugin = engine.load_plugin(&wasm_bytes).unwrap();
+        let res = plugin.execute_validation("{}");
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err();
+        assert!(
+            err_msg.contains("trapped") || err_msg.contains("limit") || err_msg.contains("memory"),
+            "Expected memory growth trap error, got: {}",
+            err_msg
+        );
     }
 }

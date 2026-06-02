@@ -254,6 +254,19 @@
         padding: 1.5rem;
       }
     }
+    @media (max-width: 768px) {
+      .doc-content {
+        padding: 1.5rem !important;
+        border-radius: 12px;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      pre {
+        padding: 1rem !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -498,6 +511,7 @@ macro_rules! export_validation_plugin {
         <h2>7. REST Router & Endpoint Specifications</h2>
         <p>The Axum REST server binds on port <code>3000</code> and routes requests. Existing endpoints maintain full backward compatibility.</p>
         <ul>
+          <li><strong><code>GET /</code></strong>: Serves the interactive browser validation dashboard (HTML, unauthenticated). <em>Note: This is an intentional release behavior change from the plain text status response.</em></li>
           <li><strong><code>GET /profiles/printers</code></strong>: Lists available printer profiles (unauthenticated).</li>
           <li><strong><code>GET /profiles/materials</code></strong>: Lists available material profiles (unauthenticated).</li>
           <li><strong><code>POST /validate/model</code></strong>: Validates uploaded STL files (Bearer token authenticated).</li>

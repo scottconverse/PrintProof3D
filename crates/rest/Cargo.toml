@@ -3,6 +3,7 @@ name = "printproof3d-rest"
 version = "0.5.0-rc1"
 edition = "2021"
 description = "REST API server for PrintProof3D."
+license = "MIT"
 
 [dependencies]
 printproof3d-core = { path = "../core" }

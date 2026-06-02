@@ -3,6 +3,7 @@ name = "printproof3d-core"
 version = "0.5.0-rc1"
 edition = "2021"
 description = "Core schemas and data models for PrintProof3D."
+license = "MIT"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

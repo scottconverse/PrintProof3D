@@ -631,7 +631,7 @@ The Axum REST server (binds to port `3000` by default) exposes the following end
 
 ### GET `/`
 * **Auth**: None
-* **Description**: Home route, returns system status indicator.
+* **Description**: Home route, serves the interactive browser validation dashboard (HTML). *Note: This is an intentional release behavior change; the endpoint now returns `text/html` instead of a plain text API status indicator.*
 
 ### GET `/profiles/printers`
 * **Auth**: None

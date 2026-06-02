@@ -3,6 +3,7 @@ name = "printproof3d-adapters"
 version = "0.5.0-rc1"
 edition = "2021"
 description = "Printer connection adapters for PrintProof3D."
+license = "MIT"
 
 [dependencies]
 printproof3d-core = { path = "../core" }
@@ -13,7 +14,7 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 tokio = { version = "1.35", features = ["sync", "time", "fs"] }
 tokio-tungstenite = "0.29.0"
 futures-util = "0.3"
-rumqttc = "0.25.1"
+rumqttc = { version = "0.25.1", default-features = false }
 suppaftp = "8.0.3"
 serialport = "4.9.0"
 md5 = "0.7"
