@@ -1355,22 +1355,59 @@
           geometry.computeBoundingBox();
           const box = geometry.boundingBox;
           
-          const sizeX = Math.abs(box.max.x - box.min.x);
-          const sizeY = Math.abs(box.max.y - box.min.y);
-          const sizeZ = Math.abs(box.max.z - box.min.z);
-          
-          const xMax = printerObj.build_volume ? printerObj.build_volume.x : null;
-          const yMax = printerObj.build_volume ? printerObj.build_volume.y : null;
-          const zMax = printerObj.build_volume ? printerObj.build_volume.z : null;
+          const CLIENT_VOLUME_TOL = 0.05;
+          let outOfBounds = false;
+          let limitMsg = "";
+          let detailMsg = "";
+          const buildVolume = printerObj.build_volume || {};
 
-          if ((xMax && sizeX > xMax) || (yMax && sizeY > yMax) || (zMax && sizeZ > zMax)) {
-            showAlert(`Local Validation Failure: Model dimensions (${sizeX.toFixed(1)} x ${sizeY.toFixed(1)} x ${sizeZ.toFixed(1)} mm) exceed printer build volume limits (${xMax || 0} x ${yMax || 0} x ${zMax || 0} mm).`);
+          if (buildVolume.type === "cylindrical") {
+            const diameter = buildVolume.diameter || 0;
+            const rMax = diameter / 2 + CLIENT_VOLUME_TOL;
+            const zMax = buildVolume.z || 0;
+            const position = geometry.attributes.position;
+            if (position) {
+              const array = position.array;
+              for (let i = 0; i < array.length; i += 3) {
+                const vx = array[i];
+                const vy = array[i+1];
+                const vz = array[i+2];
+                const r2 = vx * vx + vy * vy;
+                if (r2 > rMax * rMax || vz < -CLIENT_VOLUME_TOL || vz > zMax + CLIENT_VOLUME_TOL) {
+                  outOfBounds = true;
+                  limitMsg = `cylindrical build volume limits (Diameter: ${diameter} mm, Height: ${zMax} mm)`;
+                  const r = Math.sqrt(r2);
+                  detailMsg = `Model coordinates (Max Radius: ${r.toFixed(2)} mm, Z: ${vz.toFixed(2)} mm) exceed printer ${limitMsg}.`;
+                  break;
+                }
+              }
+            }
+          } else {
+            const xMax = buildVolume.x || 0;
+            const yMax = buildVolume.y || 0;
+            const zMax = buildVolume.z || 0;
+            
+            const sizeX = Math.abs(box.max.x - box.min.x);
+            const sizeY = Math.abs(box.max.y - box.min.y);
+            const sizeZ = Math.abs(box.max.z - box.min.z);
+            
+            if (box.min.x < -CLIENT_VOLUME_TOL || box.max.x > xMax + CLIENT_VOLUME_TOL ||
+                box.min.y < -CLIENT_VOLUME_TOL || box.max.y > yMax + CLIENT_VOLUME_TOL ||
+                box.min.z < -CLIENT_VOLUME_TOL || box.max.z > zMax + CLIENT_VOLUME_TOL) {
+              outOfBounds = true;
+              limitMsg = `rectangular build volume limits (${xMax} x ${yMax} x ${zMax} mm)`;
+              detailMsg = `Model dimensions (${sizeX.toFixed(1)} x ${sizeY.toFixed(1)} x ${sizeZ.toFixed(1)} mm) exceed printer ${limitMsg}.`;
+            }
+          }
+
+          if (outOfBounds) {
+            showAlert(`Local Validation Failure: ${detailMsg}`);
             updateStatusUI({
               status: "fail",
               issues: [{
                 id: "MODEL_EXCEEDS_BUILD_VOLUME",
                 severity: "critical",
-                message: `Model dimensions (${sizeX.toFixed(1)} x ${sizeY.toFixed(1)} x ${sizeZ.toFixed(1)} mm) exceed printer build volume limits (${xMax || 0} x ${yMax || 0} x ${zMax || 0} mm).`,
+                message: detailMsg,
                 suggested_fixes: ["Select a larger printer profile", "Scale down the STL model coordinates"]
               }]
             });

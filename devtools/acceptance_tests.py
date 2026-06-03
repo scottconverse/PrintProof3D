@@ -267,6 +267,130 @@ def main():
                 assert downloaded_json["target_printer_profile"] == "Prusa_MK4", "Downloaded JSON report profile mismatch"
                 print("Exported JSON report verified successfully.")
 
+                # Test 8: WebGL Fallback Mode UI behavior
+                print("Testing WebGL fallback mode...")
+                fallback_context = browser.new_context(viewport={"width": 1280, "height": 800})
+                fallback_page = fallback_context.new_page()
+                fallback_page.add_init_script("window.WebGLRenderingContext = undefined;")
+                
+                # Navigate to dashboard
+                fallback_page.goto(f"{base_url}/")
+                fallback_page.wait_for_load_state("domcontentloaded")
+                
+                # Assert fallback overlay text is displayed
+                overlay_text = fallback_page.locator("#visualizer-overlay").inner_text()
+                assert "WebGL is disabled or unsupported" in overlay_text, f"Fallback mode text not displayed: {overlay_text}"
+                
+                # Load a model file and verify fallback mode handles it and displays coordinates
+                fallback_page.set_input_files("#input-file", tetra_path)
+                fallback_page.wait_for_timeout(1000)
+                overlay_text_after = fallback_page.locator("#visualizer-overlay").inner_text()
+                assert "Model file loaded successfully" in overlay_text_after, f"Fallback mode load text not found: {overlay_text_after}"
+                assert "Dimensions:" in overlay_text_after, f"Fallback dimensions not shown: {overlay_text_after}"
+                fallback_page.close()
+                fallback_context.close()
+
+                # Test 9: visualizer spinner loading state & validation reset state
+                print("Testing spinner pending state and validation reset state...")
+                page.fill("#input-api-token", token)
+                page.select_option("#select-printer", label="Prusa MK4")
+                page.select_option("#select-material", label="Polylactic Acid")
+                page.set_input_files("#input-file", tetra_path)
+                
+                # Intercept validation requests to assert states during in-flight status
+                def check_pending_states(route):
+                    loader_visible = page.locator("#visualizer-loader").is_visible()
+                    assert loader_visible, "Validation pending spinner not visible"
+                    
+                    status_text = page.locator("#status-display").inner_text()
+                    assert "validating" in status_text.lower(), f"Reset state not shown in status display: {status_text}"
+                    
+                    issues_text = page.locator("#issues-list").inner_text()
+                    assert "performing analysis checks" in issues_text.lower(), f"Reset state not shown in issues list: {issues_text}"
+                    
+                    route.continue_()
+                    
+                page.route("**/validate/*", check_pending_states)
+                page.click("#btn-validate")
+                
+                # Wait for validation response to finish
+                page.wait_for_function("document.getElementById('status-display').innerText.toLowerCase() === 'pass'", timeout=10000)
+                page.unroute("**/validate/*")
+
+                # Test 10: Token autocomplete attribute presence
+                print("Testing token input autocomplete attribute...")
+                token_autocomplete = page.locator("#input-api-token").get_attribute("autocomplete")
+                assert token_autocomplete in ["new-password", "current-password", "off"], f"Unexpected or missing autocomplete attribute: {token_autocomplete}"
+
+                # Test 11a: Oversized STL client-side failure (Rectangular)
+                print("Testing oversized STL client-side failure (Rectangular)...")
+                page.select_option("#select-printer", value="custom")
+                
+                tiny_rect_profile = {
+                    "manufacturer": "Custom",
+                    "model": "TinyRect",
+                    "build_volume": {
+                        "type": "rectangular",
+                        "x": 2.0,
+                        "y": 2.0,
+                        "z": 2.0
+                    }
+                }
+                tiny_rect_path = os.path.join(os.path.dirname(__file__), "..", "temp_tiny_rect.json")
+                with open(tiny_rect_path, "w") as f:
+                    json.dump(tiny_rect_profile, f)
+                
+                page.set_input_files("#input-custom-printer", tiny_rect_path)
+                page.set_input_files("#input-file", tetra_path)
+                
+                page.click("#btn-validate")
+                
+                # Wait for alert banner to show
+                page.wait_for_selector("#alert-banner", state="visible", timeout=5000)
+                alert_text = page.locator("#alert-banner").inner_text()
+                assert "Local Validation Failure:" in alert_text, f"Expected local validation failure alert, got: {alert_text}"
+                
+                status_text = page.locator("#status-display").inner_text().strip().lower()
+                assert status_text == "fail", f"Expected client-side fail status, got: {status_text}"
+                
+                issues_text = page.locator("#issues-list").inner_text()
+                assert "MODEL_EXCEEDS_BUILD_VOLUME" in issues_text, f"Expected MODEL_EXCEEDS_BUILD_VOLUME issue code, got: {issues_text}"
+                
+                os.remove(tiny_rect_path)
+                page.click("#alert-banner button") # Dismiss alert
+
+                # Test 11b: Oversized STL client-side failure (Cylindrical)
+                print("Testing oversized STL client-side failure (Cylindrical)...")
+                tiny_cyl_profile = {
+                    "manufacturer": "Custom",
+                    "model": "TinyCyl",
+                    "build_volume": {
+                        "type": "cylindrical",
+                        "diameter": 2.0,
+                        "z": 2.0
+                    }
+                }
+                tiny_cyl_path = os.path.join(os.path.dirname(__file__), "..", "temp_tiny_cyl.json")
+                with open(tiny_cyl_path, "w") as f:
+                    json.dump(tiny_cyl_profile, f)
+                    
+                page.set_input_files("#input-custom-printer", tiny_cyl_path)
+                page.click("#btn-validate")
+                
+                # Wait for alert banner to show
+                page.wait_for_selector("#alert-banner", state="visible", timeout=5000)
+                alert_text = page.locator("#alert-banner").inner_text()
+                assert "Local Validation Failure:" in alert_text, f"Expected local validation failure alert for cylindrical, got: {alert_text}"
+                
+                status_text = page.locator("#status-display").inner_text().strip().lower()
+                assert status_text == "fail", f"Expected cylindrical client-side fail status, got: {status_text}"
+                
+                issues_text = page.locator("#issues-list").inner_text()
+                assert "MODEL_EXCEEDS_BUILD_VOLUME" in issues_text, f"Expected MODEL_EXCEEDS_BUILD_VOLUME for cylindrical, got: {issues_text}"
+                
+                os.remove(tiny_cyl_path)
+                page.click("#alert-banner button") # Dismiss alert
+
                 # Test 7: Horizontal Overflow Layout Checks
                 viewports = [
                     ("desktop", 1280, 800),

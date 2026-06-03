@@ -106,7 +106,11 @@ fn effective_facet_normal(facet: &StlFacet) -> [f32; 3] {
     let stored = facet.normal;
     let stored_len = magnitude(stored);
     if stored_len >= 1e-6 {
-        return [stored[0] / stored_len, stored[1] / stored_len, stored[2] / stored_len];
+        return [
+            stored[0] / stored_len,
+            stored[1] / stored_len,
+            stored[2] / stored_len,
+        ];
     }
     let u = [
         facet.vertices[1][0] - facet.vertices[0][0],
@@ -1444,8 +1448,16 @@ mod tests {
             vertices: [[0.0, 0.0, 5.0], [0.0, 10.0, 5.0], [10.0, 0.0, 5.0]],
         };
         let n = effective_facet_normal(&zeroed);
-        assert!(magnitude(n) > 0.99, "expected a unit geometric normal, got {:?}", n);
-        assert!(n[2] < -0.99, "expected the geometric normal to point down (-Z), got {:?}", n);
+        assert!(
+            magnitude(n) > 0.99,
+            "expected a unit geometric normal, got {:?}",
+            n
+        );
+        assert!(
+            n[2] < -0.99,
+            "expected the geometric normal to point down (-Z), got {:?}",
+            n
+        );
 
         // A facet with a usable stored normal is returned unchanged (no regression for good files).
         let good = StlFacet {
@@ -1477,7 +1489,9 @@ mod tests {
         std::fs::write(&temp_path, zeroed).unwrap();
 
         let validator = StlModelValidator;
-        let report = validator.validate_mesh(&temp_path, &printer, &material).unwrap();
+        let report = validator
+            .validate_mesh(&temp_path, &printer, &material)
+            .unwrap();
         std::fs::remove_file(&temp_path).ok();
 
         assert!(
@@ -1495,8 +1509,14 @@ mod tests {
         fn cube_stl(zmin: f32) -> String {
             let (x0, x1, y0, y1, z0, z1) = (10.0f32, 20.0, 10.0, 20.0, zmin, zmin + 10.0);
             let c = [
-                [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],
-                [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1],
+                [x0, y0, z0],
+                [x1, y0, z0],
+                [x1, y1, z0],
+                [x0, y1, z0],
+                [x0, y0, z1],
+                [x1, y0, z1],
+                [x1, y1, z1],
+                [x0, y1, z1],
             ];
             let faces: [([usize; 3], [usize; 3], [f32; 3]); 6] = [
                 ([0, 3, 2], [0, 2, 1], [0.0, 0.0, -1.0]),
@@ -1509,7 +1529,10 @@ mod tests {
             let mut s = String::from("solid cube\n");
             for (a, b, n) in faces.iter() {
                 for tri in [a, b] {
-                    s.push_str(&format!(" facet normal {} {} {}\n  outer loop\n", n[0], n[1], n[2]));
+                    s.push_str(&format!(
+                        " facet normal {} {} {}\n  outer loop\n",
+                        n[0], n[1], n[2]
+                    ));
                     for &idx in tri.iter() {
                         s.push_str(&format!(
                             "   vertex {:.4} {:.4} {:.4}\n",
@@ -1538,7 +1561,9 @@ mod tests {
 
         let below = std::env::temp_dir().join("ppd_bed_below.stl");
         std::fs::write(&below, cube_stl(-1.0)).unwrap();
-        let r2 = validator.validate_mesh(&below, &printer, &material).unwrap();
+        let r2 = validator
+            .validate_mesh(&below, &printer, &material)
+            .unwrap();
         std::fs::remove_file(&below).ok();
         assert!(
             r2.issues.iter().any(|i| i.id == "MODEL_OUT_OF_BOUNDS"),
