@@ -28,6 +28,7 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
+        targets: wasm32-unknown-unknown
 
     - name: Install system dependencies
       run: |
