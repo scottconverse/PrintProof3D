@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.5.0-rc3] - 2026-06-03
+
 ### Fixed
 - **Overhang/bridge/bed-contact detection no longer trusts STL file normals.** The mesh validator
   read each facet's normal straight from the STL file for its downward-facing checks and *skipped*
@@ -22,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   `Critical` out-of-bounds `fail`. The rectangular and cylindrical bounds checks now apply a
   `BUILD_VOLUME_TOL` (0.05 mm, matching the below-bed check) to both lower and upper bounds; a model
   genuinely outside the volume still fails. New tests.
+- **Stabilized UI/UX behaviors and local prechecks.** Restored the punch-list tracking closure matrix. Added direct browser acceptance tests for WebGL fallback mode, pending loaders, validation reset states, and token autocomplete attributes. Extended client-side volume checks to verify circular/cylindrical printer profiles with multi-vertex distance validation.
 
 ## [0.5.0-rc2] - 2026-06-02
 
