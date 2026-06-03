@@ -1,4 +1,4 @@
-# PrintProof3D Release Checklist & Guide (v0.5.0-rc3)
+# PrintProof3D Release Checklist & Guide (v0.5.0)
 
 This checklist and guide outlines the packaging, platform compatibility, and verification steps necessary to declare a Release Candidate for **PrintProof3D**.
 

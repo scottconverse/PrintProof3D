@@ -1,6 +1,6 @@
 [package]
 name = "example-plugin"
-version = "0.5.0-rc3"
+version = "0.5.0"
 edition = "2021"
 description = "Example dynamic WASM plugin for PrintProof3D."
 license = "MIT"

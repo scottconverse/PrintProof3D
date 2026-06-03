@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## [0.5.0-rc3] - 2026-06-03
+## [0.5.0] - 2026-06-03
 
 ### Fixed
 - **Overhang/bridge/bed-contact detection no longer trusts STL file normals.** The mesh validator
