@@ -315,6 +315,26 @@
       height: 100%;
     }
 
+    /* CSS Spinner */
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border-left-color: var(--secondary);
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
     .status-card {
       padding: 1.5rem;
       border-radius: 12px;
@@ -601,7 +621,7 @@
         </div>
         <div class="form-group">
           <label for="input-api-token">Bearer Auth Token</label>
-          <input type="password" id="input-api-token" class="form-control" placeholder="Enter API authentication token">
+          <input type="password" id="input-api-token" class="form-control" placeholder="Enter API authentication token" autocomplete="new-password">
           <p class="helper-text">To connect, enter your configured API token or the ephemeral token generated in the REST API server console output.</p>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
@@ -668,6 +688,11 @@
         <div class="visualizer-placeholder" id="visualizer-overlay">
           <p>3D Visualizer Viewport</p>
           <p style="font-size: 0.85rem; margin-top: 0.5rem;">Upload an STL model to render the mesh boundaries</p>
+        </div>
+        <div class="visualizer-placeholder" id="visualizer-loader" style="display: none; background: rgba(13, 17, 23, 0.75); z-index: 3;">
+          <div class="spinner"></div>
+          <p style="margin-top: 0.5rem;">Validating Print Job...</p>
+          <p style="font-size: 0.85rem; margin-top: 0.25rem; color: var(--text-muted);">Analyzing mesh coordinates and thermal boundaries</p>
         </div>
         <div id="canvas-container"></div>
       </div>
@@ -879,9 +904,32 @@
       select.appendChild(customOption);
     }
 
+    function hasWebGLSupport() {
+      try {
+        const canvas = document.createElement("canvas");
+        return !!(window.WebGLRenderingContext && (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")));
+      } catch (e) {
+        return false;
+      }
+    }
+
     // Three.js Core Logic
     function initVisualizer() {
       const container = document.getElementById("canvas-container");
+      if (!hasWebGLSupport()) {
+        container.style.display = "none";
+        const overlay = document.getElementById("visualizer-overlay");
+        if (overlay) {
+          overlay.style.opacity = 1;
+          overlay.innerHTML = `
+            <p>3D Visualizer Viewport (Fallback Mode)</p>
+            <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">WebGL is disabled or unsupported in this browser environment.</p>
+            <p style="font-size: 0.85rem; margin-top: 0.25rem; color: var(--secondary);">Local 2D geometry checks are still active.</p>
+          `;
+        }
+        return;
+      }
+
       const width = container.clientWidth;
       const height = container.clientHeight;
 
@@ -938,7 +986,18 @@
     }
 
     function clearMeshFromVisualizer() {
-      if (!scene) return;
+      if (!scene || !renderer) {
+        const overlay = document.getElementById("visualizer-overlay");
+        if (overlay) {
+          overlay.style.opacity = 1;
+          overlay.innerHTML = `
+            <p>3D Visualizer Viewport (Fallback Mode)</p>
+            <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">WebGL is disabled or unsupported in this browser environment.</p>
+            <p style="font-size: 0.85rem; margin-top: 0.25rem; color: var(--secondary);">Local 2D geometry checks are still active.</p>
+          `;
+        }
+        return;
+      }
       if (modelMesh) {
         scene.remove(modelMesh);
         modelMesh = null;
@@ -953,7 +1012,29 @@
 
     function loadMeshIntoVisualizer(arrayBuffer) {
       clearMeshFromVisualizer();
-      if (!scene || !renderer) return;
+      if (!scene || !renderer) {
+        try {
+          const loader = new THREE.STLLoader();
+          const geometry = loader.parse(arrayBuffer);
+          geometry.computeBoundingBox();
+          const box = geometry.boundingBox;
+          const dx = Math.abs(box.max.x - box.min.x).toFixed(1);
+          const dy = Math.abs(box.max.y - box.min.y).toFixed(1);
+          const dz = Math.abs(box.max.z - box.min.z).toFixed(1);
+          const overlay = document.getElementById("visualizer-overlay");
+          if (overlay) {
+            overlay.style.opacity = 1;
+            overlay.innerHTML = `
+              <p>3D Visualizer Viewport (Fallback Mode)</p>
+              <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">Model file loaded successfully.</p>
+              <p style="font-size: 0.85rem; margin-top: 0.25rem; color: var(--secondary);">Dimensions: ${dx} × ${dy} × ${dz} mm</p>
+            `;
+          }
+        } catch (e) {
+          console.error("Local load mesh fallback error:", e);
+        }
+        return;
+      }
       try {
         const loader = new THREE.STLLoader();
         const geometry = loader.parse(arrayBuffer);
@@ -992,6 +1073,7 @@
     }
 
     function renderBedBoundaries(printer) {
+      if (!scene) return;
       if (bedBoundariesMesh) {
         scene.remove(bedBoundariesMesh);
         bedBoundariesMesh = null;
@@ -1031,6 +1113,7 @@
     }
 
     function highlightWarningTriangles(triangles) {
+      if (!scene) return;
       if (warningHighlightMesh) {
         scene.remove(warningHighlightMesh);
         warningHighlightMesh = null;
@@ -1068,6 +1151,7 @@
     }
 
     function centerVisualizerOnIssue(triangles) {
+      if (!scene || !controls) return;
       if (!triangles || triangles.length === 0 || !modelMesh) return;
       
       const box = modelMesh.geometry.boundingBox;
@@ -1157,6 +1241,25 @@
 
       hideAlert();
 
+      // Visual reset state (PUNCH_LIST item 4)
+      const statusDisplay = document.getElementById("status-display");
+      if (statusDisplay) {
+        statusDisplay.className = "status-card";
+        statusDisplay.textContent = "⌛ Validating...";
+      }
+      const issuesList = document.getElementById("issues-list");
+      if (issuesList) {
+        issuesList.innerHTML = `
+          <div class="empty-state" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+            <p>⌛ Performing analysis checks...</p>
+          </div>
+        `;
+      }
+      const btnExport = document.getElementById("btn-export");
+      if (btnExport) {
+        btnExport.disabled = true;
+      }
+
       const apiBase = document.getElementById("input-api-url").value;
       const token = document.getElementById("input-api-token").value;
       const rememberToken = document.getElementById("check-remember-token").checked;
@@ -1195,6 +1298,10 @@
 
       if (!printerContent) {
         showAlert("Please select or upload a Printer Profile.");
+        if (statusDisplay) {
+          statusDisplay.className = "status-card fail";
+          statusDisplay.textContent = "fail";
+        }
         return;
       }
 
@@ -1233,9 +1340,49 @@
         }
       }
 
+      // Client-side validation: check if model dimensions exceed printer build volume (PUNCH_LIST item 5)
+      const isStl = selectedFile.name.toLowerCase().endsWith('.stl');
+      if (isStl) {
+        const fileData = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsArrayBuffer(selectedFile);
+        });
+
+        try {
+          const loader = new THREE.STLLoader();
+          const geometry = loader.parse(fileData);
+          geometry.computeBoundingBox();
+          const box = geometry.boundingBox;
+          
+          const sizeX = Math.abs(box.max.x - box.min.x);
+          const sizeY = Math.abs(box.max.y - box.min.y);
+          const sizeZ = Math.abs(box.max.z - box.min.z);
+          
+          const xMax = printerObj.build_volume ? printerObj.build_volume.x : null;
+          const yMax = printerObj.build_volume ? printerObj.build_volume.y : null;
+          const zMax = printerObj.build_volume ? printerObj.build_volume.z : null;
+
+          if ((xMax && sizeX > xMax) || (yMax && sizeY > yMax) || (zMax && sizeZ > zMax)) {
+            showAlert(`Local Validation Failure: Model dimensions (${sizeX.toFixed(1)} x ${sizeY.toFixed(1)} x ${sizeZ.toFixed(1)} mm) exceed printer build volume limits (${xMax || 0} x ${yMax || 0} x ${zMax || 0} mm).`);
+            updateStatusUI({
+              status: "fail",
+              issues: [{
+                id: "MODEL_EXCEEDS_BUILD_VOLUME",
+                severity: "critical",
+                message: `Model dimensions (${sizeX.toFixed(1)} x ${sizeY.toFixed(1)} x ${sizeZ.toFixed(1)} mm) exceed printer build volume limits (${xMax || 0} x ${yMax || 0} x ${zMax || 0} mm).`,
+                suggested_fixes: ["Select a larger printer profile", "Scale down the STL model coordinates"]
+              }]
+            });
+            return;
+          }
+        } catch (parseErr) {
+          console.error("Local STL parsing error:", parseErr);
+        }
+      }
+
       renderBedBoundaries(printerObj);
 
-      const isStl = selectedFile.name.toLowerCase().endsWith('.stl');
       const formData = new FormData();
       
       if (isStl) {
@@ -1255,6 +1402,12 @@
       const validateBtn = document.getElementById("btn-validate");
       validateBtn.disabled = true;
       validateBtn.innerHTML = "⌛ Validating...";
+
+      // Show loader overlay with progress spinner (PUNCH_LIST item 3)
+      const visualizerLoader = document.getElementById("visualizer-loader");
+      if (visualizerLoader) {
+        visualizerLoader.style.display = "flex";
+      }
 
       try {
         const endpoint = isStl ? "/validate/model" : "/validate/gcode";
@@ -1288,9 +1441,22 @@
       } catch (err) {
         console.error(err);
         showAlert(`Validation request failed: ${err.message}`);
+        updateStatusUI({
+          status: "fail",
+          issues: [{
+            id: "VALIDATION_REQUEST_FAILED",
+            severity: "critical",
+            message: `Validation request failed: ${err.message}`,
+            suggested_fixes: ["Check network connectivity or backend API server status."]
+          }]
+        });
       } finally {
         validateBtn.disabled = false;
         validateBtn.innerHTML = "<span>🚀</span> Validate Print Job";
+        // Hide loader overlay (PUNCH_LIST item 3)
+        if (visualizerLoader) {
+          visualizerLoader.style.display = "none";
+        }
       }
     }
 
