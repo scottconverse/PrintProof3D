@@ -104,8 +104,9 @@ const BUILD_VOLUME_TOL: f32 = 0.05;
 /// degenerate (zero-area) triangle, which the callers already skip.
 fn effective_facet_normal(facet: &StlFacet) -> [f32; 3] {
     let stored = facet.normal;
-    if magnitude(stored) >= 1e-6 {
-        return stored;
+    let stored_len = magnitude(stored);
+    if stored_len >= 1e-6 {
+        return [stored[0] / stored_len, stored[1] / stored_len, stored[2] / stored_len];
     }
     let u = [
         facet.vertices[1][0] - facet.vertices[0][0],
@@ -473,7 +474,7 @@ impl ModelValidator for StlModelValidator {
         }
 
         // 2b. Below Bed Geometry Check
-        if min_z < -0.05 {
+        if min_z < -BUILD_VOLUME_TOL {
             issues.push(ValidationIssue {
                 id: "BELOW_BED_GEOMETRY".to_string(),
                 severity: IssueSeverity::Major,
@@ -569,7 +570,7 @@ impl ModelValidator for StlModelValidator {
             // Facing downwards
             if n[2] < -0.01 {
                 let min_facet_z = facet.vertices.iter().map(|v| v[2]).fold(f32::MAX, f32::min);
-                if min_facet_z > 0.05 {
+                if min_facet_z > BUILD_VOLUME_TOL {
                     let cos_theta = -n[2] / len;
                     if cos_theta > 0.99 {
                         bridge_triangles.push(Triangle {
@@ -631,7 +632,7 @@ impl ModelValidator for StlModelValidator {
         // 4. Bed Adhesion Heuristics
         let mut bed_contact_area = 0.0f32;
         for facet in &facets {
-            let on_bed = facet.vertices.iter().all(|v| v[2] < 0.05);
+            let on_bed = facet.vertices.iter().all(|v| v[2] < BUILD_VOLUME_TOL);
             let facing_down = effective_facet_normal(facet)[2] < -0.9;
             if on_bed && facing_down {
                 let u = [
