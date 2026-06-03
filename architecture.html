@@ -77,10 +77,15 @@
       letter-spacing: -0.05em;
     }
 
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+    }
+
     .nav-links a {
       color: var(--text-muted);
       text-decoration: none;
-      margin-left: 2rem;
+      margin-left: 0;
       font-weight: 500;
       transition: color 0.3s ease;
     }
@@ -287,6 +292,13 @@
       }
     }
     @media (max-width: 768px) {
+      .nav-links a {
+        display: inline-block;
+        padding: 0.75rem 1rem;
+        min-width: 44px;
+        min-height: 44px;
+        box-sizing: border-box;
+      }
       .doc-content {
         padding: 1.5rem !important;
         border-radius: 12px;
@@ -306,8 +318,8 @@
     <a href="index.html" class="logo-link"><div class="logo">PrintProof3D</div></a>
     <div class="nav-links">
       <a href="https://github.com/scottconverse/PrintProof3D#readme">README</a>
-      <a href="user_manual.html">Manual</a>
-      <a href="api_reference.html">API</a>
+      <a href="user_manual.html">User Manual</a>
+      <a href="api_reference.html">API Reference</a>
       <a href="architecture.html" class="active">Architecture</a>
       <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
     </div>

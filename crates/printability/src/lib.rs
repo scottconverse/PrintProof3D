@@ -747,7 +747,9 @@ impl GcodeValidator for StandardGcodeValidator {
         let mut current_x = 0.0f32;
         let mut current_y = 0.0f32;
         let mut current_z = 0.0f32;
+        let mut current_e = 0.0f32;
         let mut absolute_xyz = true;
+        let mut absolute_e = true;
 
         let mut min_x = f32::MAX;
         let mut max_x = f32::MIN;
@@ -853,6 +855,26 @@ impl GcodeValidator for StandardGcodeValidator {
                 "G91" => {
                     absolute_xyz = false;
                 }
+                "M82" => {
+                    absolute_e = true;
+                }
+                "M83" => {
+                    absolute_e = false;
+                }
+                "G92" => {
+                    if let Some(x) = get_gcode_param(&words, 'X') {
+                        current_x = x;
+                    }
+                    if let Some(y) = get_gcode_param(&words, 'Y') {
+                        current_y = y;
+                    }
+                    if let Some(z) = get_gcode_param(&words, 'Z') {
+                        current_z = z;
+                    }
+                    if let Some(e) = get_gcode_param(&words, 'E') {
+                        current_e = e;
+                    }
+                }
                 "G28" => {
                     homed = true;
                     let has_x = get_gcode_param(&words, 'X').is_some();
@@ -899,7 +921,9 @@ impl GcodeValidator for StandardGcodeValidator {
                     // 4. Cold Extrusion Check
                     let de = get_gcode_param(&words, 'E');
                     if let Some(e) = de {
-                        if e > 0.0 && !alert_cold_extrusion {
+                        let is_extruding = if absolute_e { e > current_e } else { e > 0.0 };
+
+                        if is_extruding && !alert_cold_extrusion {
                             let min_temp = if material.name != "Generic" {
                                 material.min_nozzle_temp.max(170.0)
                             } else {
@@ -923,6 +947,12 @@ impl GcodeValidator for StandardGcodeValidator {
                                     ],
                                 });
                             }
+                        }
+
+                        if absolute_e {
+                            current_e = e;
+                        } else {
+                            current_e += e;
                         }
                     }
 
@@ -1445,5 +1475,28 @@ mod tests {
             .issues
             .iter()
             .any(|issue| issue.id == "COLD_EXTRUSION"));
+    }
+
+    #[test]
+    fn test_validate_gcode_g92_and_m82_m83() {
+        let (_, printer, material) = get_fixtures_and_profiles();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("g92_test.gcode");
+        let gcode_content = "G28\n\
+                             M109 S210\n\
+                             G92 X200 Y200 Z100 E0\n\
+                             G1 X210 Y210 Z110 E5\n\
+                             M82\n\
+                             G92 E0\n\
+                             G1 E2\n";
+
+        std::fs::write(&path, gcode_content).unwrap();
+        let validator = StandardGcodeValidator;
+        let report = validator
+            .validate_gcode(&path, &printer, &material)
+            .unwrap();
+
+        assert_eq!(report.status, ValidationStatus::Pass);
+        assert!(report.issues.is_empty());
     }
 }

@@ -14,8 +14,10 @@ Defines the physical boundaries, capacities, kinematics, and communication capab
 #### Fields:
 * **`manufacturer: String`**: The manufacturer name (e.g. `"Prusa"`). Must be non-empty.
 * **`model: String`**: The specific model name (e.g. `"MK4"`). Must be non-empty.
-* **`protocol_family: ProtocolFamily`**: Communication protocol enum used to determine the adapter type. Valid options:
-  * `Klipper`, `OctoPrint`, `MarlinSerial`, `PrusaLink`, `RepRapFirmware`, `BambuMqtt`, `ElegooSdcp`, `CrealityOs`, `AnycubicLan`, `FlashForgeTcp`, `Unknown`.
+* **`protocol_family: ProtocolFamily`**: Communication protocol enum used to determine the adapter type. Valid options (serialized as snake_case strings):
+  * `klipper`, `octo_print`, `marlin_serial`, `prusa_link`, `rep_rap_firmware`, `bambu_mqtt` (fully supported).
+  * `elegoo_sdcp`, `creality_os`, `anycubic_lan`, `flash_forge_tcp` (stubbed placeholders; choosing these will trigger validation errors on connection profile initialization until active support is added).
+  * `unknown`.
 * **`build_volume: BuildVolume`**: Represents the physical limits of the print volume.
   * `BuildVolume::Rectangular { x: f32, y: f32, z: f32 }`: Length, width, and height bounds. All dimensions must be $> 0.0$.
   * `BuildVolume::Cylindrical { diameter: f32, z: f32 }`: Diameter and height limits. All dimensions must be $> 0.0$.
@@ -28,66 +30,38 @@ Defines the physical boundaries, capacities, kinematics, and communication capab
 * **`max_bed_temp: f32`**: Physical heating limit of the bed. Must be positive and $\le 200^\circ\text{C}$ for safety.
 * **`has_enclosure: bool`**: Indicates if the machine is fully enclosed.
 * **`supports_mmu: bool`**: Indicates multi-material capabilities.
-* **`firmware_flavor: FirmwareFlavor`**: Firmware style: `Klipper`, `Marlin`, `RepRapFirmware`, `Prusa`, `Bambu`, `Elegoo`, `Creality`, `Anycubic`, `FlashForge`, `Unknown`.
-* **`supported_file_types: Vec<String>`**: File extensions accepted (e.g. `["gcode", "bgcode"]`).
-* **`supports_direct_upload: bool`**: Indicates network file upload support.
-* **`supports_pause_resume: bool`**: Indicates pause/resume state control support.
-* **`supports_cancel: bool`**: Indicates cancellation support.
-* **`supports_job_progress: bool`**: Indicates progress telemetry reporting.
-* **`supports_webcam: bool`**: Indicates webcam streaming support.
-* **`supports_chamber_temp: bool`**: Indicates ambient chamber temp sensors.
-* **`known_quirks: Vec<String>`**: Known driver or controller bugs to bypass.
-* **`unsafe_commands: Vec<String>`**: Blacklisted G-code instructions.
-* **`filename_restrictions: Option<String>`**: Optional regular expression pattern to validate file names.
-
-#### Key Invariants & Validations:
-* `PrinterProfile::validate(&self) -> Result<(), String>`:
-  * Ensures strings are not empty and dimensions are positive.
-  * Verifies compatibility between bed shape and build volume: `Circular` beds require `Cylindrical` volumes, and `Rectangular` beds require `Rectangular` volumes.
-  * Rejects thermal thresholds above physical safety envelopes (hotend $> 500^\circ\text{C}$, bed $> 200^\circ\text{C}$).
 
 ---
 
 ### 1.2 `MaterialProfile` (Struct)
-Defines the filament properties and thermal processing ranges.
+Defines the chemical limits, temperature envelopes, and printing characteristics of a target filament.
 
 #### Fields:
-* **`name: String`**: Chemical or branding name (e.g. `"Polylactic Acid"`). Must be non-empty.
-* **`abbreviations: Vec<String>`**: Abbreviated identifiers (e.g., `["PLA", "PLA+"]`).
-* **`min_nozzle_temp: f32`**: Minimum extrusion temperature in Celsius. Must be $> 0.0$.
-* **`max_nozzle_temp: f32`**: Maximum extrusion temperature in Celsius. Must be $\ge \text{min\_nozzle\_temp}$.
-* **`min_bed_temp: f32`**: Minimum bed adhesion temperature in Celsius. Must be $> 0.0$.
-* **`max_bed_temp: f32`**: Maximum bed adhesion temperature in Celsius. Must be $\ge \text{min\_bed\_temp}$.
-* **`cooling_fan_speed_pct: f32`**: Target extruder cooling fan speed (from `0.0` to `100.0`).
-* **`warp_risk: RiskLevel`**: Relative warping risk: `Low`, `Medium`, or `High`.
-* **`bridge_difficulty: RiskLevel`**: Difficulty bridging horizontal spans: `Low`, `Medium`, or `High`.
-* **`overhang_difficulty: RiskLevel`**: Difficulty cooling steep overhang slopes: `Low`, `Medium`, or `High`.
-* **`enclosure_recommended: bool`**: Indicates if an enclosed build chamber is recommended (advisory warning level) for printing this material.
-* **`dryness_sensitive: bool`**: Indicates if the material is hygroscopic and needs drying.
-* **`bed_adhesion_notes: Option<String>`**: Optional notes on bed prep.
-* **`min_feature_size_mm: f32`**: Smallest printable detailed width. Must be $> 0.0$.
+* **`name: String`**: Material name (e.g. `"PLA"`, `"PETG"`). Must be non-empty.
+* **`min_hotend_temp: f32`**: Minimum extrusion temperature. Must be positive.
+* **`max_hotend_temp: f32`**: Maximum extrusion temperature. Must be $\ge \text{min\_hotend\_temp}$.
+* **`min_bed_temp: f32`**: Minimum bed temperature for plate adhesion.
+* **`max_bed_temp: f32`**: Maximum bed temperature for plate adhesion. Must be $\ge \text{min\_bed\_temp}$.
+* **`max_volumetric_speed: f32`**: Maximum flow speed (in $\text{mm}^3/\text{s}$). Must be $> 0.0$.
+* **`warp_risk: WarpRisk`**: Warp risk classification (`Low`, `Medium`, `High`). High warp risks flag warnings on small bed adhesion contact areas.
+* **`requires_enclosure: bool`**: High-temperature warping prevention requirement.
 
 ---
 
 ### 1.3 `ValidationReport` (Struct)
-The unified report structure returned by validation passes.
+The unified serialization payload returned by all printability validation runs.
 
 #### Fields:
-* **`status: ValidationStatus`**: Consolidation of safety checks.
-  * `ValidationStatus::Pass`: The file matches all profiles and passes PrintProof3D profile and file validation checks.
-  * `ValidationStatus::Warning`: The file contains non-blocking warnings (e.g. small contact footprint).
-  * `ValidationStatus::Fail`: The file violates physical safety boundaries (e.g. out of bounds or excessive temperatures).
-* **`target_printer_profile: String`**: Concatened manufacturer and model used during validation.
-* **`target_material_profile: String`**: Material name used during validation.
-* **`model: ModelMetadata`**: Bounding box size and filename metadata.
-* **`issues: Vec<ValidationIssue>`**: List of compatibility warnings or failures.
-* **`confidence_level: String`**: Analysis confidence ranking: `"high"`, `"medium"`, or `"low"`.
-* **`sliced_settings_assumed: Option<serde_json::Value>`**: Optional key-value storage for slicing parameters. In preflight checks utilizing simulated printer adapter twin checks (`--simulator <protocol>`), this field embeds the `"simulator_telemetry"` key containing the retrieved printer state telemetry.
-
+* **`status: ValidationStatus`**: Outcome classification (`Pass`, `Warning`, `Fail`).
+* **`target_printer_profile: String`**: Name of the printer profile evaluated.
+* **`target_material_profile: String`**: Name of the material profile evaluated.
+* **`model: Option<ModelMetadata>`**: Geometry metadata (bounding box, size) of evaluated STL.
+* **`issues: Vec<ValidationIssue>`**: Array of parsed warnings and errors.
+* **`confidence_level: String`**: Reliability confidence indicator (`high` or `medium`).
+* **`sliced_settings_assumed: Option<HashMap<String, serde_json::Value>>`**: Decoded parameters extracted from G-code or simulation runs (e.g. `simulator_telemetry`).
 
 #### Key Invariants & Validations:
-* `ValidationReport::validate(&self) -> Result<(), String>`:
-  * Enforces report integrity: if the report contains any `Critical` or `Blocker` severity issues, the `status` **must** be set to `ValidationStatus::Fail`.
+* Enforces report integrity: if the report contains any `Critical` or `Blocker` severity issues, the `status` **must** be set to `ValidationStatus::Fail`.
 
 ---
 
@@ -96,25 +70,46 @@ Defines the connection parameters, credentials, endpoints, and pre-flight execut
 
 #### Fields:
 * **`name: String`**: A descriptive human-readable label for the target. Must be non-empty.
-* **`mode: ConnectionMode`**: Indicates whether to route to a simulation host or physical hardware (`Simulator` or `Physical`).
+* **`mode: ConnectionMode`**: Indicates whether to route to a simulation host or physical hardware. Valid options (serialized as snake_case strings): `simulator`, `physical`.
 * **`protocol_family: ProtocolFamily`**: Network/communication protocol enum.
 * **`base_url: Option<String>`**: Base URL or IP address. Required for physical network protocol targets.
 * **`serial_path: Option<String>`**: Serial port device endpoint path. Required for physical MarlinSerial connections.
 * **`serial_baud_rate: Option<u32>`**: Serial connection baud rate.
-* **`auth_type: AuthType`**: Authentication mechanism (`None`, `ApiKey`, `Digest`, `Password`).
+* **`auth_type: AuthType`**: Authentication mechanism. Valid options (serialized as snake_case strings): `none`, `api_key`, `digest`, `password`.
 * **`api_key_env_var: Option<String>`**: Name of the environment variable storing the API key. Required for `AuthType::ApiKey`.
 * **`username: Option<String>`**: Username for authentication. Required for `AuthType::Password`.
 * **`password_env_var: Option<String>`**: Name of the environment variable storing the password. Required for `AuthType::Password`.
 * **`tls_enabled: bool`**: Activates secure socket TLS.
-* **`dispatch_policy: DispatchPolicy`**: Pre-flight action permission rules (`DryRunOnly`, `UploadOnly`, `AllowStart`).
+* **`dispatch_policy: DispatchPolicy`**: Pre-flight action permission rules. Valid options (serialized as snake_case strings): `dry_run_only`, `upload_only`, `allow_start`.
+* **`simulator_scenario: Option<SimulatorScenario>`**: Optional scenario to load when `mode` is `simulator`.
 
 #### Key Invariants & Validations:
 * `PrinterConnectionConfig::validate(&self) -> Result<(), String>`:
   * Rejects empty target names.
+  * Rejects unsupported placeholder protocol variants (`elegoo_sdcp`, `creality_os`, `anycubic_lan`, `flash_forge_tcp`).
   * For physical mode, checks that `serial_path` is set if protocol is `MarlinSerial`.
   * For physical mode, checks that `base_url` is set if protocol is network-based.
   * For API Key auth, ensures `api_key_env_var` is specified.
   * For Password auth, ensures both `username` and `password_env_var` are specified.
+
+---
+
+### 1.5 `SimulatorScenario` (Enum)
+The set of standard simulation scenarios used to dry-run and QA printer state transitions inside simulated adapters (serialized as snake_case strings):
+* **`idle`**: Mock server reports idle state.
+* **`already_printing`**: Mock server reports active print, blocking new uploads.
+* **`paused`**: Mock server reports print paused state.
+* **`heating`**: Mock server simulates heater temperature climb state.
+* **`upload_accepted`**: Mock server accepts and registers the uploaded print job.
+* **`upload_rejected`**: Mock server rejects file uploads.
+* **`bad_credentials`**: Mock server returns access denied / authentication error.
+* **`offline_or_connection_refused`**: Simulates socket refuse / network down.
+* **`timeout_or_slow_response`**: Simulates network timeout.
+* **`malformed_telemetry`**: Simulates corrupt status packet return.
+* **`storage_full`**: Simulates insufficient flash/disk storage.
+* **`unsupported_file_type`**: Simulates file extension rejection.
+* **`emergency_stop_accepted`**: Simulates emergency halt accepted.
+* **`emergency_stop_rejected`**: Simulates emergency halt rejected.
 
 ---
 
@@ -262,6 +257,7 @@ pub enum PrinterState {
 ```
 
 ---
+
 ## 4. `printproof3d-sdk` — Developer Compliance SDK
 
 Exposes automated test verification harnesses to validate connection adapter trait implementations.

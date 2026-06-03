@@ -7,12 +7,11 @@ use axum::{
     routing::get,
     Router,
 };
-use printproof3d_core::{MaterialProfile, PrinterProfile, ValidationReport, ValidationStatus};
+use printproof3d_core::{MaterialProfile, PrinterProfile, ValidationStatus};
 use printproof3d_printability::{
     GcodeValidator, ModelValidator, StandardGcodeValidator, StlModelValidator,
 };
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -33,8 +32,7 @@ const PRUSA_MK4_JSON: &str = include_str!("../../../profiles/prusa_mk4.json");
 const VORON_KLIPPER_JSON: &str = include_str!("../../../profiles/voron_klipper.json");
 const PLA_JSON: &str = include_str!("../../../profiles/pla.json");
 
-static FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
-static EPHEMERAL_TOKEN: OnceLock<String> = OnceLock::new();
+static API_TOKEN: OnceLock<String> = OnceLock::new();
 
 fn generate_random_token() -> String {
     use std::collections::hash_map::DefaultHasher;
@@ -54,31 +52,38 @@ fn generate_random_token() -> String {
 }
 
 fn get_api_token() -> &'static str {
-    if let Ok(token) = std::env::var("PRINTPROOF3D_API_TOKEN") {
-        return Box::leak(token.into_boxed_str());
-    }
-
-    if cfg!(test) {
-        return "secret_print_token";
-    }
-
-    EPHEMERAL_TOKEN.get_or_init(|| {
-        let token = generate_random_token();
-        println!(
-            "[PrintProof3D API] Token is not configured. Ephemeral token generated: {}",
-            token
-        );
-        token
-    })
+    API_TOKEN
+        .get_or_init(|| {
+            if let Ok(token) = std::env::var("PRINTPROOF3D_API_TOKEN") {
+                token
+            } else if cfg!(test) {
+                "secret_print_token".to_string()
+            } else {
+                let token = generate_random_token();
+                println!(
+                    "[PrintProof3D API] Token is not configured. Ephemeral token generated: {}",
+                    token
+                );
+                token
+            }
+        })
+        .as_str()
 }
 
-fn unique_temp_file_name(original_name: &str) -> std::path::PathBuf {
-    let pid = std::process::id();
-    let count = FILE_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let temp_dir = std::env::current_dir()
-        .unwrap_or_default()
-        .join("temp_uploads");
-    temp_dir.join(format!("{}_{}_{}", pid, count, original_name))
+fn sanitize_filename(name: &str) -> String {
+    let path = std::path::Path::new(name);
+    let base = path.file_name().and_then(|s| s.to_str()).unwrap_or("file");
+
+    let sanitized: String = base
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.' || *c == '-' || *c == '_')
+        .collect();
+
+    if sanitized.is_empty() {
+        "file".to_string()
+    } else {
+        sanitized
+    }
 }
 
 async fn auth_middleware(
@@ -99,9 +104,7 @@ async fn auth_middleware(
         }
     }
 
-    // Fully consume the request body stream to prevent TCP socket connection reset (Broken pipe) errors
-    // in WebKit and other strict browser environments during unauthorized file uploads.
-    let _ = axum::body::to_bytes(req.into_body(), 20 * 1024 * 1024).await;
+    let _ = axum::body::to_bytes(req.into_body(), 4 * 1024).await;
 
     Err(StatusCode::UNAUTHORIZED)
 }
@@ -165,11 +168,33 @@ async fn list_printer_profiles() -> Result<axum::Json<Vec<PrinterProfile>>, (Sta
 
 async fn validate_model(
     mut multipart: Multipart,
-) -> Result<axum::Json<ValidationReport>, (StatusCode, axum::Json<serde_json::Value>)> {
-    let mut model_bytes = None;
-    let mut model_name = "model.stl".to_string();
+) -> Result<impl IntoResponse, (StatusCode, axum::Json<serde_json::Value>)> {
     let mut printer_profile = None;
     let mut material_profile = None;
+    let mut model_present = false;
+
+    let temp_dir = std::env::current_dir()
+        .unwrap_or_default()
+        .join("temp_uploads");
+    std::fs::create_dir_all(&temp_dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": format!("Failed to create temp uploads directory: {}", e) })),
+        )
+    })?;
+
+    let temp_file = tempfile::Builder::new()
+        .prefix("temp_upload_")
+        .suffix(".stl")
+        .tempfile_in(&temp_dir)
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "error": format!("Failed to create temporary file: {}", e) })),
+            )
+        })?;
+
+    let temp_file_path = temp_file.path().to_path_buf();
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (
@@ -179,14 +204,36 @@ async fn validate_model(
     })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "model" {
-            model_name = field.file_name().unwrap_or("model.stl").to_string();
-            let data = field.bytes().await.map_err(|e| {
+            model_present = true;
+
+            use tokio::io::AsyncWriteExt;
+            let mut file = tokio::fs::File::create(&temp_file_path).await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": format!("Failed to open temporary file: {}", e) })),
+                )
+            })?;
+
+            let mut field = field;
+            while let Some(chunk) = field.chunk().await.map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
                     axum::Json(serde_json::json!({ "error": e.to_string() })),
                 )
+            })? {
+                file.write_all(&chunk).await.map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(serde_json::json!({ "error": format!("Failed to write to temporary file: {}", e) })),
+                    )
+                })?;
+            }
+            file.flush().await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": format!("Failed to flush temporary file: {}", e) })),
+                )
             })?;
-            model_bytes = Some(data.to_vec());
         } else if name == "printer" {
             let data = field.bytes().await.map_err(|e| {
                 (
@@ -236,10 +283,12 @@ async fn validate_model(
         }
     }
 
-    let model_bytes = model_bytes.ok_or((
-        StatusCode::BAD_REQUEST,
-        axum::Json(serde_json::json!({ "error": "Missing 'model' file" })),
-    ))?;
+    if !model_present {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": "Missing 'model' file" })),
+        ));
+    }
     let printer = printer_profile.ok_or((
         StatusCode::BAD_REQUEST,
         axum::Json(serde_json::json!({ "error": "Missing 'printer' profile" })),
@@ -249,46 +298,63 @@ async fn validate_model(
         axum::Json(serde_json::json!({ "error": "Missing 'material' profile" })),
     ))?;
 
+    let report = tokio::task::spawn_blocking(move || {
+        let validator = StlModelValidator;
+        validator.validate_mesh(&temp_file_path, &printer, &material)
+    })
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(
+                serde_json::json!({ "error": format!("Mesh validation thread panicked: {}", e) }),
+            ),
+        )
+    })?
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": format!("Malformed model file: {}", e) })),
+        )
+    })?;
+
+    let mut headers = axum::http::HeaderMap::new();
+    let status_str = format!("{:?}", report.status).to_lowercase();
+    headers.insert("X-Validation-Status", status_str.parse().unwrap());
+
+    drop(temp_file);
+    Ok((headers, axum::Json(report)))
+}
+
+async fn validate_gcode(
+    mut multipart: Multipart,
+) -> Result<impl IntoResponse, (StatusCode, axum::Json<serde_json::Value>)> {
+    let mut printer_profile = None;
+    let mut material_profile = None;
+    let mut gcode_present = false;
+
     let temp_dir = std::env::current_dir()
         .unwrap_or_default()
         .join("temp_uploads");
     std::fs::create_dir_all(&temp_dir).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
+            axum::Json(serde_json::json!({ "error": format!("Failed to create temp uploads directory: {}", e) })),
         )
     })?;
 
-    let temp_file_path = unique_temp_file_name(&model_name);
-    std::fs::write(&temp_file_path, &model_bytes).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-    })?;
-
-    let validator = StlModelValidator;
-    let report = validator
-        .validate_mesh(&temp_file_path, &printer, &material)
+    let temp_file = tempfile::Builder::new()
+        .prefix("temp_upload_")
+        .suffix(".gcode")
+        .tempfile_in(&temp_dir)
         .map_err(|e| {
-            let _ = std::fs::remove_file(&temp_file_path);
             (
-                StatusCode::BAD_REQUEST,
-                axum::Json(serde_json::json!({ "error": format!("Malformed model file: {}", e) })),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "error": format!("Failed to create temporary file: {}", e) })),
             )
         })?;
 
-    let _ = std::fs::remove_file(&temp_file_path);
-    Ok(axum::Json(report))
-}
-
-async fn validate_gcode(
-    mut multipart: Multipart,
-) -> Result<axum::Json<ValidationReport>, (StatusCode, axum::Json<serde_json::Value>)> {
-    let mut gcode_bytes = None;
-    let mut gcode_name = "print.gcode".to_string();
-    let mut printer_profile = None;
-    let mut material_profile = None;
+    let temp_file_path = temp_file.path().to_path_buf();
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (
@@ -298,14 +364,36 @@ async fn validate_gcode(
     })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "gcode" {
-            gcode_name = field.file_name().unwrap_or("print.gcode").to_string();
-            let data = field.bytes().await.map_err(|e| {
+            gcode_present = true;
+
+            use tokio::io::AsyncWriteExt;
+            let mut file = tokio::fs::File::create(&temp_file_path).await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": format!("Failed to open temporary file: {}", e) })),
+                )
+            })?;
+
+            let mut field = field;
+            while let Some(chunk) = field.chunk().await.map_err(|e| {
                 (
                     StatusCode::BAD_REQUEST,
                     axum::Json(serde_json::json!({ "error": e.to_string() })),
                 )
+            })? {
+                file.write_all(&chunk).await.map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(serde_json::json!({ "error": format!("Failed to write to temporary file: {}", e) })),
+                    )
+                })?;
+            }
+            file.flush().await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": format!("Failed to flush temporary file: {}", e) })),
+                )
             })?;
-            gcode_bytes = Some(data.to_vec());
         } else if name == "printer" {
             let data = field.bytes().await.map_err(|e| {
                 (
@@ -355,10 +443,12 @@ async fn validate_gcode(
         }
     }
 
-    let gcode_bytes = gcode_bytes.ok_or((
-        StatusCode::BAD_REQUEST,
-        axum::Json(serde_json::json!({ "error": "Missing 'gcode' file" })),
-    ))?;
+    if !gcode_present {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": "Missing 'gcode' file" })),
+        ));
+    }
     let printer = printer_profile.ok_or((
         StatusCode::BAD_REQUEST,
         axum::Json(serde_json::json!({ "error": "Missing 'printer' profile" })),
@@ -381,37 +471,32 @@ async fn validate_gcode(
         min_feature_size_mm: 0.4,
     });
 
-    let temp_dir = std::env::current_dir()
-        .unwrap_or_default()
-        .join("temp_uploads");
-    std::fs::create_dir_all(&temp_dir).map_err(|e| {
+    let report = tokio::task::spawn_blocking(move || {
+        let validator = StandardGcodeValidator;
+        validator.validate_gcode(&temp_file_path, &printer, &material)
+    })
+    .await
+    .map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
+            axum::Json(
+                serde_json::json!({ "error": format!("G-code validation thread panicked: {}", e) }),
+            ),
+        )
+    })?
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": format!("Malformed G-code file: {}", e) })),
         )
     })?;
 
-    let temp_file_path = unique_temp_file_name(&gcode_name);
-    std::fs::write(&temp_file_path, &gcode_bytes).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
-        )
-    })?;
+    let mut headers = axum::http::HeaderMap::new();
+    let status_str = format!("{:?}", report.status).to_lowercase();
+    headers.insert("X-Validation-Status", status_str.parse().unwrap());
 
-    let validator = StandardGcodeValidator;
-    let report = validator
-        .validate_gcode(&temp_file_path, &printer, &material)
-        .map_err(|e| {
-            let _ = std::fs::remove_file(&temp_file_path);
-            (
-                StatusCode::BAD_REQUEST,
-                axum::Json(serde_json::json!({ "error": format!("Malformed G-code file: {}", e) })),
-            )
-        })?;
-
-    let _ = std::fs::remove_file(&temp_file_path);
-    Ok(axum::Json(report))
+    drop(temp_file);
+    Ok((headers, axum::Json(report)))
 }
 
 async fn list_material_profiles() -> Result<axum::Json<Vec<MaterialProfile>>, (StatusCode, String)>
@@ -653,7 +738,7 @@ async fn validate_material_profile_route(
 
 async fn validate_compatibility(
     mut multipart: Multipart,
-) -> Result<axum::Json<serde_json::Value>, (StatusCode, axum::Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, (StatusCode, axum::Json<serde_json::Value>)> {
     let mut printer_profile = None;
     let mut material_profile = None;
     let mut model_bytes = None;
@@ -773,23 +858,52 @@ async fn validate_compatibility(
     std::fs::create_dir_all(&temp_dir).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": e.to_string() })),
+            axum::Json(serde_json::json!({ "error": format!("Failed to create temp uploads directory: {}", e) })),
         )
     })?;
 
     if let Some(ref m_bytes) = model_bytes {
         let m_name = model_name.as_ref().unwrap();
-        let temp_file_path = unique_temp_file_name(m_name);
-        std::fs::write(&temp_file_path, m_bytes).map_err(|e| {
+        let sanitized_name = sanitize_filename(m_name);
+        let ext = std::path::Path::new(&sanitized_name)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("stl");
+
+        let temp_file = tempfile::Builder::new()
+            .prefix("temp_upload_")
+            .suffix(&format!(".{}", ext))
+            .tempfile_in(&temp_dir)
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": format!("Failed to create temporary file: {}", e) })),
+                )
+            })?;
+
+        let temp_file_path = temp_file.path().to_path_buf();
+        tokio::fs::write(&temp_file_path, m_bytes).await.map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(serde_json::json!({ "error": e.to_string() })),
+                axum::Json(serde_json::json!({ "error": format!("Failed to write temporary file: {}", e) })),
             )
         })?;
 
-        let validator = StlModelValidator;
-        let model_report_res = validator.validate_mesh(&temp_file_path, &printer, &mat_ref);
-        let _ = std::fs::remove_file(&temp_file_path);
+        let printer_clone = printer.clone();
+        let mat_ref_clone = mat_ref.clone();
+        let model_report_res = tokio::task::spawn_blocking(move || {
+            let validator = StlModelValidator;
+            validator.validate_mesh(&temp_file_path, &printer_clone, &mat_ref_clone)
+        })
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "error": format!("Mesh validation thread panicked: {}", e) })),
+            )
+        })?;
+
+        drop(temp_file);
 
         match model_report_res {
             Ok(report) => {
@@ -806,17 +920,46 @@ async fn validate_compatibility(
         }
     } else if let Some(ref g_bytes) = gcode_bytes {
         let g_name = gcode_name.as_ref().unwrap();
-        let temp_file_path = unique_temp_file_name(g_name);
-        std::fs::write(&temp_file_path, g_bytes).map_err(|e| {
+        let sanitized_name = sanitize_filename(g_name);
+        let ext = std::path::Path::new(&sanitized_name)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("gcode");
+
+        let temp_file = tempfile::Builder::new()
+            .prefix("temp_upload_")
+            .suffix(&format!(".{}", ext))
+            .tempfile_in(&temp_dir)
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": format!("Failed to create temporary file: {}", e) })),
+                )
+            })?;
+
+        let temp_file_path = temp_file.path().to_path_buf();
+        tokio::fs::write(&temp_file_path, g_bytes).await.map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(serde_json::json!({ "error": e.to_string() })),
+                axum::Json(serde_json::json!({ "error": format!("Failed to write temporary file: {}", e) })),
             )
         })?;
 
-        let validator = StandardGcodeValidator;
-        let gcode_report_res = validator.validate_gcode(&temp_file_path, &printer, &mat_ref);
-        let _ = std::fs::remove_file(&temp_file_path);
+        let printer_clone = printer.clone();
+        let mat_ref_clone = mat_ref.clone();
+        let gcode_report_res = tokio::task::spawn_blocking(move || {
+            let validator = StandardGcodeValidator;
+            validator.validate_gcode(&temp_file_path, &printer_clone, &mat_ref_clone)
+        })
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "error": format!("G-code validation thread panicked: {}", e) })),
+            )
+        })?;
+
+        drop(temp_file);
 
         match gcode_report_res {
             Ok(report) => {
@@ -848,14 +991,21 @@ async fn validate_compatibility(
         }
     }
 
-    Ok(axum::Json(serde_json::json!({
-        "status": format!("{:?}", status).to_lowercase(),
-        "printer": format!("{}_{}", printer.manufacturer, printer.model),
-        "material": material_profile.map(|m| m.name),
-        "model": model_name,
-        "gcode": gcode_name,
-        "issues": issues,
-    })))
+    let mut headers = axum::http::HeaderMap::new();
+    let status_str = format!("{:?}", status).to_lowercase();
+    headers.insert("X-Validation-Status", status_str.parse().unwrap());
+
+    Ok((
+        headers,
+        axum::Json(serde_json::json!({
+            "status": status_str,
+            "printer": format!("{}_{}", printer.manufacturer, printer.model),
+            "material": material_profile.map(|m| m.name),
+            "model": model_name,
+            "gcode": gcode_name,
+            "issues": issues,
+        })),
+    ))
 }
 
 pub fn api_router() -> Router {
@@ -921,6 +1071,7 @@ pub fn api_router() -> Router {
                 .route_layer(middleware::from_fn(auth_middleware)),
         )
         .layer(cors)
+        .layer(axum::extract::DefaultBodyLimit::max(20 * 1024 * 1024))
 }
 
 #[tokio::main]
@@ -1036,6 +1187,16 @@ mod tests {
             .uri("/validate/model")
             .header(header::AUTHORIZATION, "Bearer wrong_token")
             .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. Unauthenticated request with large body -> 401 and rejects immediately
+        let large_data = vec![0u8; 5 * 1024 * 1024]; // 5MB
+        let req = Request::builder()
+            .method("POST")
+            .uri("/validate/model")
+            .body(axum::body::Body::from(large_data))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -1500,5 +1661,167 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_happy_path_validation() {
+        use axum::http::{header, Request};
+        use tower::ServiceExt;
+        let app = api_router();
+        let boundary = "---------------------------1234567890";
+        let token = "Bearer secret_print_token";
+
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let stl_path = manifest_dir.join("../../fixtures/tetrahedron.stl");
+        let stl_bytes = std::fs::read(stl_path).unwrap();
+
+        let gcode_path = manifest_dir.join("../../fixtures/safe_print.gcode");
+        let gcode_bytes = std::fs::read(gcode_path).unwrap();
+
+        // Predefined JSON values
+        let printer_json = r#"{"manufacturer":"Prusa","model":"MK4","protocol_family":"prusa_link","build_volume":{"type":"rectangular","x":250,"y":210,"z":220},"bed_shape":"rectangular","nozzle_diameters":[0.4],"default_nozzle_diameter":0.4,"min_layer_height":0.05,"max_layer_height":0.3,"max_hotend_temp":300,"max_bed_temp":120,"has_enclosure":false,"supports_mmu":true,"firmware_flavor":"prusa","supported_file_types":["gcode"],"supports_direct_upload":true,"supports_pause_resume":true,"supports_cancel":true,"supports_job_progress":true,"supports_webcam":false,"supports_chamber_temp":false,"known_quirks":[],"unsafe_commands":[]}"#;
+        let material_json = r#"{"name":"PLA","abbreviations":["PLA"],"min_nozzle_temp":190,"max_nozzle_temp":220,"min_bed_temp":50,"max_bed_temp":60,"cooling_fan_speed_pct":100,"warp_risk":"low","bridge_difficulty":"low","overhang_difficulty":"low","enclosure_recommended":false,"dryness_sensitive":false,"min_feature_size_mm":0.4}"#;
+
+        // Model Upload Happy Path
+        let model_body = create_multipart_body(
+            boundary,
+            &[
+                (
+                    "model",
+                    "tetrahedron.stl",
+                    Some("application/octet-stream"),
+                    &stl_bytes,
+                ),
+                (
+                    "printer",
+                    "printer.json",
+                    Some("application/json"),
+                    printer_json.as_bytes(),
+                ),
+                (
+                    "material",
+                    "material.json",
+                    Some("application/json"),
+                    material_json.as_bytes(),
+                ),
+            ],
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/validate/model")
+            .header(header::AUTHORIZATION, token)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(model_body)
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get("X-Validation-Status").unwrap(), "pass");
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 100000)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(json.get("status").unwrap().as_str().unwrap(), "pass");
+
+        // G-code Upload Happy Path
+        let gcode_body = create_multipart_body(
+            boundary,
+            &[
+                (
+                    "gcode",
+                    "safe_print.gcode",
+                    Some("application/octet-stream"),
+                    &gcode_bytes,
+                ),
+                (
+                    "printer",
+                    "printer.json",
+                    Some("application/json"),
+                    printer_json.as_bytes(),
+                ),
+                (
+                    "material",
+                    "material.json",
+                    Some("application/json"),
+                    material_json.as_bytes(),
+                ),
+            ],
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/validate/gcode")
+            .header(header::AUTHORIZATION, token)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(gcode_body)
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get("X-Validation-Status").unwrap(), "pass");
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 100000)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(json.get("status").unwrap().as_str().unwrap(), "pass");
+    }
+
+    #[tokio::test]
+    async fn test_temp_file_deleted_on_early_return_or_panic() {
+        let temp_dir = std::env::current_dir()
+            .unwrap()
+            .join("temp_uploads_test_panic");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let path = {
+            let temp_file = tempfile::Builder::new()
+                .prefix("temp_panic_")
+                .suffix(".stl")
+                .tempfile_in(&temp_dir)
+                .unwrap();
+
+            let path = temp_file.path().to_path_buf();
+            std::fs::write(&path, b"test").unwrap();
+            assert!(path.exists());
+
+            // Simulating early return by letting temp_file go out of scope
+            path
+        };
+
+        // The file must be deleted automatically on drop
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_temp_file_deleted_on_thread_panic() {
+        let temp_dir = std::env::current_dir()
+            .unwrap()
+            .join("temp_uploads_thread_panic");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        let handle = std::thread::spawn(move || {
+            let temp_file = tempfile::Builder::new()
+                .prefix("temp_thread_panic_")
+                .suffix(".stl")
+                .tempfile_in(&temp_dir)
+                .unwrap();
+            let path = temp_file.path().to_path_buf();
+            std::fs::write(&path, b"test").unwrap();
+            tx.send(path).unwrap();
+            panic!("Force thread panic to verify RAII drop cleanup");
+        });
+
+        let _ = handle.join(); // Wait for panic
+
+        let path = rx.recv().unwrap();
+        assert!(
+            !path.exists(),
+            "Temporary file was not cleaned up during thread panic!"
+        );
     }
 }

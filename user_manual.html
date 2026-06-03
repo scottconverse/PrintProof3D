@@ -61,10 +61,15 @@
       letter-spacing: -0.05em;
     }
 
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+    }
+
     .nav-links a {
       color: var(--text-muted);
       text-decoration: none;
-      margin-left: 2rem;
+      margin-left: 0;
       font-weight: 500;
       transition: color 0.3s ease;
     }
@@ -188,26 +193,6 @@
       margin: 3rem 0;
     }
 
-    /* GitHub Alert Box Styles */
-    .alert {
-      padding: 1rem 1.5rem;
-      border-radius: 12px;
-      margin: 1.5rem 0;
-      border-left: 4px solid transparent;
-      font-weight: 300;
-      font-size: 0.95rem;
-    }
-    .alert-note {
-      background: rgba(59, 130, 246, 0.1);
-      border-left-color: #3b82f6;
-      color: #93c5fd;
-    }
-    .alert-important {
-      background: rgba(139, 92, 246, 0.1);
-      border-left-color: #8b5cf6;
-      color: #c084fc;
-    }
-
     /* Code styling */
     pre {
       background: #090b10;
@@ -275,6 +260,13 @@
       }
     }
     @media (max-width: 768px) {
+      .nav-links a {
+        display: inline-block;
+        padding: 0.75rem 1rem;
+        min-width: 44px;
+        min-height: 44px;
+        box-sizing: border-box;
+      }
       .doc-content {
         padding: 1.5rem !important;
         border-radius: 12px;
@@ -294,8 +286,8 @@
     <a href="index.html" class="logo-link"><div class="logo">PrintProof3D</div></a>
     <div class="nav-links">
       <a href="https://github.com/scottconverse/PrintProof3D#readme">README</a>
-      <a href="user_manual.html" class="active">Manual</a>
-      <a href="api_reference.html">API</a>
+      <a href="user_manual.html" class="active">User Manual</a>
+      <a href="api_reference.html">API Reference</a>
       <a href="architecture.html">Architecture</a>
       <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
     </div>
@@ -369,6 +361,41 @@
           <li><strong>Min/Max Nozzle & Bed Temperature</strong>: The recommended operating temperature range specified by the filament manufacturer.</li>
           <li><strong>Warp Risk</strong>: The likelihood of the plastic curling as it cools. High-warp materials (like ABS) trigger strict warnings if the model's footprint touching the bed is too small.</li>
           <li><strong>Overhang & Bridge Difficulty</strong>: Mapped to cooling properties to evaluate overhang angles.</li>
+        </ul>
+
+        <h4>2.3 The Connection Configuration Profile (<code>.json</code>)</h4>
+        <p>This file details network endpoints, serial configurations, and authentication details required to establish remote control channels:</p>
+        <pre><code>{
+  "name": "OctoPrint Studio",
+  "mode": "physical",
+  "protocol_family": "octo_print",
+  "base_url": "http://192.168.1.50",
+  "auth_type": "api_key",
+  "api_key_env_var": "OCTOPRINT_API_KEY",
+  "tls_enabled": false,
+  "dispatch_policy": "allow_start"
+}</code></pre>
+        <ul>
+          <li><strong>Target Modes (<code>mode</code>)</strong>:
+            <ul>
+              <li><code>simulator</code>: Route commands to test and simulator endpoints.</li>
+              <li><code>physical</code>: Route commands to active machine hardware.</li>
+            </ul>
+          </li>
+          <li><strong>Authentication Policies (<code>auth_type</code>)</strong>:
+            <ul>
+              <li><code>none</code>: Unauthenticated access.</li>
+              <li><code>api_key</code>: Relies on environment variable specified in <code>api_key_env_var</code>.</li>
+              <li><code>password</code>: Relies on <code>username</code> and password environment variable specified in <code>password_env_var</code>.</li>
+            </ul>
+          </li>
+          <li><strong>Dispatch Policies (<code>dispatch_policy</code>)</strong>:
+            <ul>
+              <li><code>dry_run_only</code>: Restricts execution.</li>
+              <li><code>upload_only</code>: Restricts actions to file upload; job starting is blocked.</li>
+              <li><code>allow_start</code>: Full control permission.</li>
+            </ul>
+          </li>
         </ul>
 
         <h3 id="reading-the-validation-report">3. Reading the Validation Report</h3>

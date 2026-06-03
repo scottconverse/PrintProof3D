@@ -1,9 +1,6 @@
 # PrintProof3D User Manual & Integration Guide
 
-Welcome to the **PrintProof3D User Manual**. This document is split into three parts:
-- **Part 1 — Core Validation Concepts**: Conceptual model, profiles, validation rules, and report statuses.
-- **Part 2 — For Technical Operators (Systems Integration)**: System architecture & crate boundaries, geometry math, G-code travel tracking, WASM memory sandbox protocols, REST API, and MCP configurations.
-- **Part 3 — For Developers (Crates & Codebase)**: Local setup, writing custom WASM plugins, implementing connection adapters, and running compliance tests.
+Welcome to the **PrintProof3D User Manual**. This document contains comprehensive documentation for understanding, configuring, and extending the printability engine.
 
 ---
 
@@ -12,18 +9,17 @@ Welcome to the **PrintProof3D User Manual**. This document is split into three p
 This section covers the core concepts, validation logic, and configuration models behind the PrintProof3D engine.
 
 ## 1. What is PrintProof3D?
+
 PrintProof3D is a static file and capability validation engine for 3D printing. In a typical workflow, you download a 3D model, slice it, and send it directly to your printer. If the model has geometry defects or if the slicer settings are misaligned with your hardware, you risk wasting filament, creating failed prints, or running commands that exceed your printer's capability thresholds.
 
 PrintProof3D acts as a pre-flight check. It inspects your 3D models (STL files) and pre-sliced print files (G-code) before they are sent to the printer to verify that they are watertight and match the configured capabilities and temperature envelopes of your specific machine and filament. It does not certify physical printer operation, prevent motion/heating faults, or guarantee physical print safety.
 
----
-
 ## 2. Profile Structures
+
 To validate prints, you must define the target machine and filament using two JSON files: the **Printer Profile** and the **Material Profile**.
 
 ### 2.1 The Printer Profile (`.json`)
 This file defines the physical dimensions, safety thresholds, and capabilities of your 3D printer:
-
 * **Manufacturer & Model**: Identifies the machine (e.g. "Prusa MK4").
 * **Build Volume**: The physical boundaries of the bed.
   * *Rectangular*: Specified as `x` (width), `y` (depth), and `z` (height) in millimeters.
@@ -46,7 +42,7 @@ This file details network endpoints, serial configurations, and authentication d
 {
   "name": "OctoPrint Studio",
   "mode": "physical",
-  "protocol_family": "octoprint",
+  "protocol_family": "octo_print",
   "base_url": "http://192.168.1.50",
   "auth_type": "api_key",
   "api_key_env_var": "OCTOPRINT_API_KEY",
@@ -70,29 +66,28 @@ This file details network endpoints, serial configurations, and authentication d
 ---
 
 ## 3. Reading the Validation Report
-After running a check, PrintProof3D outputs a unified validation report. The most important field is the **`status`**, which can return one of three results:
 
-1. **`pass` (Green)**: The file matches all profiles. It passes PrintProof3D profile and file validation checks.
-2. **`warning` (Yellow)**: Non-blocking issues were found. You should review them, but they do not trigger validation failures under the active profiles. Common warnings include low bed contact area or steep overhangs.
-3. **`fail` (Red)**: Critical errors were detected (such as coordinates that exceed the printer profile's build volume or temperatures that exceed profile limits). Validation fails.
+After running a check, PrintProof3D outputs a unified validation report. The most important field is the **`status`**, which can return one of three results:
+* **`pass` (Green)**: The file matches all profiles. It passes PrintProof3D profile and file validation checks.
+* **`warning` (Yellow)**: Non-blocking issues were found. You should review them, but they do not trigger validation failures under the active profiles. Common warnings include low bed contact area or steep overhangs.
+* **`fail` (Red)**: Critical errors were detected (such as coordinates that exceed the printer profile's build volume or temperatures that exceed profile limits). Validation fails.
 
 Every warning or failure includes a **Suggested Fix** explaining how to resolve it (e.g., "Add support structures in your slicer").
 
 ---
 
 ## 4. The CLI Preflight Subcommand
+
 The `preflight` subcommand provides a single, unified print job verification workflow. You can validate a model file (`--model`) or pre-sliced G-code (`--gcode`) against a printer profile (`--printer`) and optional material profile (`--material`).
 
-Additionally, you can run simulator-backed printer connectivity checks using the `--simulator <protocol>` argument (e.g., `--simulator prusalink`, `--simulator rrf`, etc.). This spins up an in-process mock server twin, validates adapter client communication/telemetry retrieval, and embeds the telemetry status in the JSON report under `sliced_settings_assumed.simulator_telemetry`.
+Additionally, you can run simulator-backed printer connectivity checks using the `--simulator <protocol>` argument. This spins up an in-process mock server twin, validates adapter client communication/telemetry retrieval, and embeds the telemetry status in the JSON report under `sliced_settings_assumed.simulator_telemetry`. Preflight supports outputting in either `text` or `json` formats via the `-f, --format` option.
 
 ---
 
 ## 5. Profile Management & Compatibility CLI Commands
 
-PrintProof3D provides utility commands to discover profiles, inspect and validate profile schemas, and verify print compatibility across multi-dimensional criteria (printer profiles, material profiles, STL models, and pre-sliced G-code).
-
-### 5.1 Profile Discovery
-* **`list-printers`**: Discovers and lists all validated printer profiles in a target directory.
+PrintProof3D provides utility commands to manage printer and material profiles:
+* **`list-printers` / `list-materials`**: Discovers and lists all validated profiles in a target directory.
   * *Arguments/Flags*:
     * `-d, --directory <PATH>`: Directory path (defaults to `profiles/`).
     * `-f, --format <text|json>`: Output format (defaults to `text`).
@@ -208,6 +203,8 @@ PrintProof3D provides utility commands to discover profiles, inspect and validat
     # Verify printer + sliced G-code compatibility
     target/release/printproof3d.exe check-compatibility --printer profiles/prusa_mk4.json --gcode fixtures/safe_print.gcode
     ```
+
+---
 
 # Part 2 — For Technical Operators
 
@@ -411,6 +408,10 @@ Because WASM runs in an isolated sandbox, data is exchanged by passing pointers 
            });
            report.status = ValidationStatus::Fail;
        }
+   }
+
+   pub fn init_plugin() {
+       // Optional initializer
    }
 
    export_validation_plugin!(enforce_safety_margin);

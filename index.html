@@ -38,7 +38,7 @@
       padding: 0;
     }
 
-    a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible {
+    a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, .dropzone-container:focus-visible {
       outline: 2px solid var(--secondary);
       outline-offset: 4px;
     }
@@ -540,6 +540,14 @@
         width: 100%;
         justify-content: center;
       }
+      .nav-links a {
+        padding: 0.75rem 1rem;
+        display: inline-block;
+        min-height: 44px;
+        min-width: 44px;
+        box-sizing: border-box;
+        line-height: 20px;
+      }
     }
 
     @media (max-width: 480px) {
@@ -550,17 +558,34 @@
         padding: 0 0.5rem;
       }
     }
+
+    /* Mobile Touch Targets */
+    @media (max-width: 600px) {
+      .btn, .form-control, .collapsible-header {
+        min-height: 44px;
+      }
+      #check-remember-token {
+        width: 24px;
+        height: 24px;
+      }
+      label[for="check-remember-token"] {
+        padding: 0.5rem 0;
+        display: inline-block;
+      }
+    }
   </style>
 </head>
 <body>
   <header>
-    <div class="logo-container">
-      <h1 class="logo">PrintProof3D</h1>
-      <div class="status-badge">v0.5.0-rc2</div>
-    </div>
+    <a href="index.html" class="logo-link" style="text-decoration: none; color: inherit;">
+      <div class="logo-container">
+        <h1 class="logo">PrintProof3D</h1>
+        <div class="status-badge">v0.5.0-rc2</div>
+      </div>
+    </a>
     <div class="nav-links">
       <a href="/docs/user_manual">User Manual</a>
-      <a href="/docs/api_reference">API Docs</a>
+      <a href="/docs/api_reference">API Reference</a>
       <a href="/docs/architecture">Architecture</a>
     </div>
   </header>
@@ -591,7 +616,7 @@
         
         <div class="form-group">
           <label for="input-file" id="dropzone-label">File Upload (.STL or .GCODE)</label>
-          <div class="dropzone-container" id="dropzone" onclick="document.getElementById('input-file').click()" aria-labelledby="dropzone-label">
+          <div class="dropzone-container" id="dropzone" onclick="document.getElementById('input-file').click()" aria-labelledby="dropzone-label" tabindex="0" role="button" aria-label="Upload print files, drag and drop or press enter to browse">
             <span class="icon">📥</span>
             <p>Drag and drop print files here, or click to browse</p>
             <input type="file" id="input-file" class="file-input" accept=".stl,.gcode">
@@ -603,12 +628,13 @@
 
         <div class="form-group">
           <label for="select-printer">Printer Profile</label>
-          <select id="select-printer" class="form-control" onchange="toggleCustomPrinter()">
+          <select id="select-printer" class="form-control" onchange="toggleCustomPrinter(); handlePrinterProfileChange();">
             <option value="">-- Load predefined profiles --</option>
+            <option value="custom">Upload custom profile JSON...</option>
           </select>
           <div class="custom-file-upload" id="custom-printer-upload">
             <label for="input-custom-printer" style="font-size: 0.75rem; margin-top: 0.5rem;">Upload Custom Profile JSON</label>
-            <input type="file" id="input-custom-printer" class="form-control" accept=".json">
+            <input type="file" id="input-custom-printer" class="form-control" accept=".json" onchange="handlePrinterProfileChange()">
           </div>
         </div>
 
@@ -616,6 +642,7 @@
           <label for="select-material">Material Profile</label>
           <select id="select-material" class="form-control" onchange="toggleCustomMaterial()">
             <option value="">-- Load predefined profiles --</option>
+            <option value="custom">Upload custom profile JSON...</option>
           </select>
           <div class="custom-file-upload" id="custom-material-upload">
             <label for="input-custom-material" style="font-size: 0.75rem; margin-top: 0.5rem;">Upload Custom Profile JSON</label>
@@ -631,6 +658,12 @@
 
     <!-- Results Display & Visualizer -->
     <div class="results-panel">
+      <!-- Embedded Banner Alert Panel -->
+      <div id="alert-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 1rem; color: #ef4444; font-family: var(--font-body); font-size: 0.95rem; align-items: center; justify-content: space-between; gap: 1rem;">
+        <span id="alert-banner-text"></span>
+        <button onclick="hideAlert()" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1; padding: 0.25rem;">&times;</button>
+      </div>
+
       <div class="visualizer-container">
         <div class="visualizer-placeholder" id="visualizer-overlay">
           <p>3D Visualizer Viewport</p>
@@ -752,6 +785,13 @@
       fileInput.addEventListener("change", (e) => {
         if (e.target.files.length > 0) {
           handleFileSelection(e.target.files[0]);
+        }
+      });
+
+      dropzone.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          fileInput.click();
         }
       });
     }
@@ -1046,8 +1086,76 @@
       camera.position.set(targetPoint.x + 30, targetPoint.y + 30, targetPoint.z + 40);
     }
 
+    function showAlert(message, type = "error") {
+      const banner = document.getElementById("alert-banner");
+      const text = document.getElementById("alert-banner-text");
+      if (!banner || !text) return;
+      text.textContent = message;
+      banner.style.display = "flex";
+      if (type === "error") {
+        banner.style.background = "rgba(239, 68, 68, 0.15)";
+        banner.style.borderColor = "rgba(239, 68, 68, 0.4)";
+        banner.style.color = "#f87171";
+      } else {
+        banner.style.background = "rgba(245, 158, 11, 0.15)";
+        banner.style.borderColor = "rgba(245, 158, 11, 0.4)";
+        banner.style.color = "#fbbf24";
+      }
+    }
+
+    function hideAlert() {
+      const banner = document.getElementById("alert-banner");
+      if (banner) banner.style.display = "none";
+    }
+
+    function handlePrinterProfileChange() {
+      const select = document.getElementById("select-printer");
+      if (select.value === "custom") {
+        const fileInput = document.getElementById("input-custom-printer");
+        const file = fileInput.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            try {
+              const printerObj = JSON.parse(e.target.result);
+              renderBedBoundaries(printerObj);
+              hideAlert();
+            } catch (err) {
+              console.error("Failed to parse custom printer profile JSON:", err);
+              showAlert("Failed to parse custom printer profile JSON: " + err.message);
+              updateStatusUI({
+                status: "fail",
+                issues: [{
+                  id: "MALFORMED_PRINTER_PROFILE",
+                  severity: "critical",
+                  message: "Malformed printer profile JSON. " + err.message,
+                  suggested_fixes: ["Check JSON syntax, matching brackets, and commas."]
+                }]
+              });
+            }
+          };
+          reader.readAsText(file);
+        }
+      } else if (select.value) {
+        try {
+          const printerObj = JSON.parse(select.value);
+          renderBedBoundaries(printerObj);
+          hideAlert();
+        } catch (err) {
+          console.error("Failed to parse printer profile from dropdown:", err);
+        }
+      } else {
+        if (bedBoundariesMesh && scene) {
+          scene.remove(bedBoundariesMesh);
+          bedBoundariesMesh = null;
+        }
+      }
+    }
+
     async function runValidation() {
       if (!selectedFile) return;
+
+      hideAlert();
 
       const apiBase = document.getElementById("input-api-url").value;
       const token = document.getElementById("input-api-token").value;
@@ -1086,11 +1194,45 @@
       }
 
       if (!printerContent) {
-        alert("Please select or upload a Printer Profile.");
+        showAlert("Please select or upload a Printer Profile.");
         return;
       }
 
-      const printerObj = JSON.parse(printerContent);
+      let printerObj = null;
+      try {
+        printerObj = JSON.parse(printerContent);
+      } catch (err) {
+        showAlert("Failed to parse custom printer profile JSON: " + err.message);
+        updateStatusUI({
+          status: "fail",
+          issues: [{
+            id: "MALFORMED_PRINTER_PROFILE",
+            severity: "critical",
+            message: "Malformed printer profile JSON. " + err.message,
+            suggested_fixes: ["Check JSON syntax, matching brackets, and commas."]
+          }]
+        });
+        return;
+      }
+
+      if (materialContent) {
+        try {
+          JSON.parse(materialContent);
+        } catch (err) {
+          showAlert("Failed to parse custom material profile JSON: " + err.message);
+          updateStatusUI({
+            status: "fail",
+            issues: [{
+              id: "MALFORMED_MATERIAL_PROFILE",
+              severity: "critical",
+              message: "Malformed material profile JSON. " + err.message,
+              suggested_fixes: ["Check JSON syntax, matching brackets, and commas."]
+            }]
+          });
+          return;
+        }
+      }
+
       renderBedBoundaries(printerObj);
 
       const isStl = selectedFile.name.toLowerCase().endsWith('.stl');
@@ -1123,14 +1265,21 @@
         });
 
         if (resp.status === 401) {
-          alert("Unauthorized access. Verification fails: Check authorization credentials.");
+          showAlert("Unauthorized access. Verification fails: Check authorization credentials.");
           updateStatusUI({ status: "fail", issues: [{ id: "UNAUTHORIZED_ACCESS", severity: "critical", message: "API authentication failed. ephemerality validation token missing or rejected.", location: null }] });
           return;
         }
 
         if (!resp.ok) {
           const errText = await resp.text();
-          throw new Error(errText || `Server responded with ${resp.status}`);
+          let parsedError = errText;
+          try {
+            const parsed = JSON.parse(errText);
+            if (parsed && parsed.error) {
+              parsedError = parsed.error;
+            }
+          } catch (_) {}
+          throw new Error(parsedError || `Server responded with ${resp.status}`);
         }
 
         const report = await resp.json();
@@ -1138,7 +1287,7 @@
         updateStatusUI(report);
       } catch (err) {
         console.error(err);
-        alert(`Validation request failed: ${err.message}`);
+        showAlert(`Validation request failed: ${err.message}`);
       } finally {
         validateBtn.disabled = false;
         validateBtn.innerHTML = "<span>🚀</span> Validate Print Job";

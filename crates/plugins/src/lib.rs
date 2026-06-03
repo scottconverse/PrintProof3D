@@ -330,4 +330,144 @@ mod tests {
             err_msg
         );
     }
+
+    #[test]
+    fn test_export_validation_macro() {
+        mod mock_plugin_module {
+            use super::super::*;
+
+            fn my_mock_validate(report: &mut ValidationReport) {
+                report.status = ValidationStatus::Fail;
+            }
+
+            export_validation_plugin!(my_mock_validate);
+        }
+
+        let report = ValidationReport {
+            status: ValidationStatus::Pass,
+            target_printer_profile: "test".to_string(),
+            target_material_profile: "test".to_string(),
+            model: printproof3d_core::ModelMetadata {
+                file_name: "test.stl".to_string(),
+                units: "mm".to_string(),
+                bounding_box: printproof3d_core::BoundingBox {
+                    min_x: 0.0,
+                    min_y: 0.0,
+                    min_z: 0.0,
+                    max_x: 1.0,
+                    max_y: 1.0,
+                    max_z: 1.0,
+                },
+            },
+            issues: vec![],
+            confidence_level: "high".to_string(),
+            sliced_settings_assumed: None,
+        };
+
+        let report_str = serde_json::to_string(&report).unwrap();
+        let len = report_str.len() as u32;
+
+        let ptr = mock_plugin_module::alloc(len);
+        assert!(!ptr.is_null());
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(report_str.as_ptr(), ptr, len as usize);
+        }
+
+        let res = mock_plugin_module::validate(ptr, len);
+        assert_ne!(res, 0);
+
+        if cfg!(target_pointer_width = "32") {
+            let out_ptr = (res >> 32) as *mut u8;
+            let out_len = (res & 0xFFFFFFFF) as u32;
+            assert!(!out_ptr.is_null());
+            assert!(out_len > 0);
+
+            let out_bytes = unsafe { std::slice::from_raw_parts(out_ptr, out_len as usize) };
+            let out_str = std::str::from_utf8(out_bytes).unwrap();
+            let parsed_report: ValidationReport = serde_json::from_str(out_str).unwrap();
+            assert_eq!(parsed_report.status, ValidationStatus::Fail);
+
+            mock_plugin_module::dealloc(out_ptr, out_len);
+        } else {
+            let out_len = (res & 0xFFFFFFFF) as u32;
+            assert!(out_len > 0);
+        }
+
+        mock_plugin_module::dealloc(ptr, len);
+    }
+
+    #[test]
+    fn test_wasm_macro_compile_and_run() {
+        use std::path::Path;
+        use std::process::Command;
+
+        // Run cargo build for example-plugin targeting wasm32
+        let status = Command::new("cargo")
+            .args([
+                "build",
+                "--package",
+                "example-plugin",
+                "--target",
+                "wasm32-unknown-unknown",
+            ])
+            .status()
+            .expect("Failed to execute cargo build command for example-plugin");
+
+        assert!(
+            status.success(),
+            "Failed to compile example-plugin to wasm32!"
+        );
+
+        // Find the compiled wasm file
+        // Workspace root is 2 directories up from crates/plugins/
+        let wasm_path = Path::new("../../target/wasm32-unknown-unknown/debug/example_plugin.wasm");
+
+        // Let's verify that the wasm file exists
+        assert!(
+            wasm_path.exists(),
+            "Compiled WASM plugin file not found at {:?}",
+            wasm_path
+        );
+
+        // Load the plugin engine
+        let engine = PluginEngine::new();
+
+        let report = ValidationReport {
+            status: ValidationStatus::Pass,
+            target_printer_profile: "test".to_string(),
+            target_material_profile: "test".to_string(),
+            model: printproof3d_core::ModelMetadata {
+                file_name: "test.stl".to_string(),
+                units: "mm".to_string(),
+                bounding_box: printproof3d_core::BoundingBox {
+                    min_x: 0.0,
+                    min_y: 0.0,
+                    min_z: 0.0,
+                    max_x: 1.0, // extremely small volume (< 1000)
+                    max_y: 1.0,
+                    max_z: 1.0,
+                },
+            },
+            issues: vec![],
+            confidence_level: "high".to_string(),
+            sliced_settings_assumed: None,
+        };
+
+        let wasm_bytes = std::fs::read(wasm_path).expect("Failed to read compiled wasm file");
+        let mut loaded = engine
+            .load_plugin(&wasm_bytes)
+            .expect("Failed to load plugin");
+        let input_json = serde_json::to_string(&report).unwrap();
+        let output_json = loaded
+            .execute_validation(&input_json)
+            .expect("Failed to execute validation");
+        let final_report: ValidationReport = serde_json::from_str(&output_json).unwrap();
+
+        // The example-plugin checks volume. Volume is 1.0 * 1.0 * 1.0 = 1.0 < 1000.0.
+        // It must append the warning and change status to Warning!
+        assert_eq!(final_report.status, ValidationStatus::Warning);
+        assert!(!final_report.issues.is_empty());
+        assert_eq!(final_report.issues[0].id, "VOLUME_TOO_SMALL");
+    }
 }

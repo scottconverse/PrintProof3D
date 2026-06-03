@@ -21,6 +21,7 @@ def main():
 
     checks = [
         ("Documentation Policy Scan", [sys.executable, os.path.normpath(os.path.join("devtools", "docs_policy_check.py"))], 120),
+        ("Documentation Drift Check", [sys.executable, os.path.normpath(os.path.join("devtools", "docs_drift_check.py"))], 120),
         ("Cargo Format Check", ["cargo", "fmt", "--all", "--", "--check"], 120),
         ("Cargo Clippy Lints", ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"], 600),
         ("Workspace Unit Tests", ["cargo", "test", "--workspace"], 600),

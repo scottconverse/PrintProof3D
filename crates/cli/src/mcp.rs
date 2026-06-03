@@ -40,7 +40,11 @@ pub struct ToolCallParams {
 
 pub fn run_mcp_server() {
     let stdin = stdin();
-    let mut reader = stdin.lock();
+    let stdout = stdout();
+    run_mcp_loop(stdin.lock(), stdout.lock());
+}
+
+pub fn run_mcp_loop<R: BufRead, W: Write>(mut reader: R, mut writer: W) {
     let mut line = String::new();
 
     while let Ok(bytes) = reader.read_line(&mut line) {
@@ -52,8 +56,8 @@ pub fn run_mcp_server() {
             if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(trimmed) {
                 let resp = handle_mcp_request(req);
                 if let Ok(resp_json) = serde_json::to_string(&resp) {
-                    println!("{}", resp_json);
-                    let _ = stdout().flush();
+                    let _ = writeln!(writer, "{}", resp_json);
+                    let _ = writer.flush();
                 }
             }
         }
@@ -540,5 +544,28 @@ mod tests {
         let text = content[0].get("text").unwrap().as_str().unwrap();
         assert!(text.contains("Prusa_MK4"));
         assert!(text.contains("Polylactic Acid"));
+    }
+
+    #[test]
+    fn test_run_mcp_loop() {
+        let input_lines = r#"
+{"jsonrpc":"2.0","id":10,"method":"initialize"}
+{"jsonrpc":"2.0","id":11,"method":"tools/list"}
+"#;
+        let reader = std::io::Cursor::new(input_lines);
+        let mut writer = Vec::new();
+        run_mcp_loop(reader, &mut writer);
+
+        let output = String::from_utf8(writer).unwrap();
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+
+        let resp1: JsonRpcResponse = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(resp1.id, serde_json::json!(10));
+        assert!(resp1.result.is_some());
+
+        let resp2: JsonRpcResponse = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(resp2.id, serde_json::json!(11));
+        assert!(resp2.result.is_some());
     }
 }

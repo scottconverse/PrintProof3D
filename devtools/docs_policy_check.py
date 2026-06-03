@@ -80,6 +80,7 @@ def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     print("=" * 60)
     print("RUNNING PRINTPROOF3D DOCUMENTATION COMPLIANCE SCAN")
+    print("documentation-scoped: scans all repository .md and .html documentation surfaces, excluding implementation/tooling directories already excluded by the checker.")
     print("=" * 60)
     
     total_violations = 0

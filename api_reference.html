@@ -61,10 +61,15 @@
       letter-spacing: -0.05em;
     }
 
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+    }
+
     .nav-links a {
       color: var(--text-muted);
       text-decoration: none;
-      margin-left: 2rem;
+      margin-left: 0;
       font-weight: 500;
       transition: color 0.3s ease;
     }
@@ -255,6 +260,13 @@
       }
     }
     @media (max-width: 768px) {
+      .nav-links a {
+        display: inline-block;
+        padding: 0.75rem 1rem;
+        min-width: 44px;
+        min-height: 44px;
+        box-sizing: border-box;
+      }
       .doc-content {
         padding: 1.5rem !important;
         border-radius: 12px;
@@ -274,8 +286,8 @@
     <a href="index.html" class="logo-link"><div class="logo">PrintProof3D</div></a>
     <div class="nav-links">
       <a href="https://github.com/scottconverse/PrintProof3D#readme">README</a>
-      <a href="user_manual.html">Manual</a>
-      <a href="api_reference.html" class="active">API</a>
+      <a href="user_manual.html">User Manual</a>
+      <a href="api_reference.html" class="active">API Reference</a>
       <a href="architecture.html">Architecture</a>
       <a href="https://github.com/scottconverse/PrintProof3D" target="_blank" rel="noopener noreferrer">GitHub</a>
     </div>
@@ -313,9 +325,11 @@
         <ul>
           <li><strong><code>manufacturer: String</code></strong>: The manufacturer name (e.g. <code>"Prusa"</code>). Must be non-empty.</li>
           <li><strong><code>model: String</code></strong>: The specific model name (e.g. <code>"MK4"</code>). Must be non-empty.</li>
-          <li><strong><code>protocol_family: ProtocolFamily</code></strong>: Communication protocol enum used to determine the adapter type. Valid options:
+          <li><strong><code>protocol_family: ProtocolFamily</code></strong>: Communication protocol enum used to determine the adapter type. Valid options (serialized as snake_case strings):
             <ul>
-              <li><code>Klipper</code>, <code>OctoPrint</code>, <code>MarlinSerial</code>, <code>PrusaLink</code>, <code>RepRapFirmware</code>, <code>BambuMqtt</code>, <code>ElegooSdcp</code>, <code>CrealityOs</code>, <code>AnycubicLan</code>, <code>FlashForgeTcp</code>, <code>Unknown</code>.</li>
+              <li><code>klipper</code>, <code>octo_print</code>, <code>marlin_serial</code>, <code>prusa_link</code>, <code>rep_rap_firmware</code>, <code>bambu_mqtt</code> (fully supported).</li>
+              <li><code>elegoo_sdcp</code>, <code>creality_os</code>, <code>anycubic_lan</code>, <code>flash_forge_tcp</code> (stubbed placeholders; choosing these will trigger validation errors on configuration profiles until active support is added).</li>
+              <li><code>unknown</code>.</li>
             </ul>
           </li>
           <li><strong><code>build_volume: BuildVolume</code></strong>: Represents the physical limits of the print volume.
@@ -352,6 +366,30 @@
           <li><strong><code>model: ModelMetadata</code></strong>: Bounding box size and filename metadata.</li>
           <li><strong><code>issues: Vec&lt;ValidationIssue&gt;</code></strong>: List of compatibility warnings or failures.</li>
           <li><strong><code>confidence_level: String</code></strong>: Analysis confidence ranking: <code>"high"</code>, <code>"medium"</code>, or <code>"low"</code>.</li>
+        </ul>
+
+        <h3 id="connection-config">1.4 <code>PrinterConnectionConfig</code> (Struct)</h3>
+        <p>Defines the connection parameters, credentials, endpoints, and pre-flight execution policies required to communicate with a remote printer or simulator.</p>
+        <ul>
+          <li><strong><code>name: String</code></strong>: A descriptive human-readable label for the target. Must be non-empty.</li>
+          <li><strong><code>mode: ConnectionMode</code></strong>: Indicates whether to route to a simulation host or physical hardware. Valid options (serialized as snake_case strings): <code>simulator</code>, <code>physical</code>.</li>
+          <li><strong><code>protocol_family: ProtocolFamily</code></strong>: Network/communication protocol enum.</li>
+          <li><strong><code>base_url: Option&lt;String&gt;</code></strong>: Base URL or IP address. Required for physical network protocol targets.</li>
+          <li><strong><code>serial_path: Option&lt;String&gt;</code></strong>: Serial port device endpoint path. Required for physical MarlinSerial connections.</li>
+          <li><strong><code>serial_baud_rate: Option&lt;u32&gt;</code></strong>: Serial connection baud rate.</li>
+          <li><strong><code>auth_type: AuthType</code></strong>: Authentication mechanism. Valid options (serialized as snake_case strings): <code>none</code>, <code>api_key</code>, <code>digest</code>, <code>password</code>.</li>
+          <li><strong><code>api_key_env_var: Option&lt;String&gt;</code></strong>: Name of the environment variable storing the API key. Required for <code>AuthType::ApiKey</code>.</li>
+          <li><strong><code>username: Option&lt;String&gt;</code></strong>: Username for authentication. Required for <code>AuthType::Password</code>.</li>
+          <li><strong><code>password_env_var: Option&lt;String&gt;</code></strong>: Name of the environment variable storing the password. Required for <code>AuthType::Password</code>.</li>
+          <li><strong><code>tls_enabled: bool</code></strong>: Activates secure socket TLS.</li>
+          <li><strong><code>dispatch_policy: DispatchPolicy</code></strong>: Pre-flight action permission rules. Valid options (serialized as snake_case strings): <code>dry_run_only</code>, <code>upload_only</code>, <code>allow_start</code>.</li>
+          <li><strong><code>simulator_scenario: Option&lt;SimulatorScenario&gt;</code></strong>: Optional scenario to load when <code>mode</code> is <code>simulator</code>.</li>
+        </ul>
+
+        <h3 id="simulator-scenario">1.5 <code>SimulatorScenario</code> (Enum)</h3>
+        <p>The set of standard simulation scenarios used to dry-run and QA printer state transitions inside simulated adapters (serialized as snake_case strings):</p>
+        <ul>
+          <li><code>idle</code>, <code>already_printing</code>, <code>paused</code>, <code>heating</code>, <code>upload_accepted</code>, <code>upload_rejected</code>, <code>bad_credentials</code>, <code>offline_or_connection_refused</code>, <code>timeout_or_slow_response</code>, <code>malformed_telemetry</code>, <code>storage_full</code>, <code>unsupported_file_type</code>, <code>emergency_stop_accepted</code>, <code>emergency_stop_rejected</code>.</li>
         </ul>
       </section>
 
@@ -451,6 +489,28 @@ pub struct PrinterTelemetry {
     pub progress: f32,
     pub current_file: Option&lt;String&gt;,
 }</code></pre>
+
+        <h3>3.3 <code>PrinterAdapterFactory</code> (Struct)</h3>
+        <pre><code>pub struct PrinterAdapterFactory;
+
+impl PrinterAdapterFactory {
+    /// Validates the connection config and returns an initialized dynamic box adapter matching the target protocol.
+    pub fn build(
+        profile: &amp;PrinterProfile,
+        config: &amp;PrinterConnectionConfig,
+    ) -> Result&lt;Box&lt;dyn PrinterAdapter&gt;, AdapterError&gt;;
+}</code></pre>
+
+        <h3>3.4 Telemetry Enums</h3>
+        <pre><code>#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PrinterState {
+    Idle,
+    Printing,
+    Paused,
+    Error,
+    Unknown,
+}</code></pre>
       </section>
 
       <hr>
@@ -496,10 +556,42 @@ macro_rules! export_validation_plugin {
         <h2>6. CLI Contracts & Subcommands</h2>
         <p>The <code>printproof3d</code> CLI includes dedicated subcommands for managing configurations, executing compatibility grids, and validating profile directories.</p>
 
-        <h3>6.1 Subcommand Suite</h3>
+        <h3>6.1 Discover Profiles</h3>
+        <p>Discover valid JSON profiles located in a given directory path.</p>
+        <ul>
+          <li><strong><code>list-printers</code></strong>: Scans a directory for printer profiles.</li>
+          <li><strong><code>list-materials</code></strong>: Scans a directory for material profiles.</li>
+        </ul>
+
+        <h3>6.2 Profile Inspection</h3>
+        <p>Read, auto-detect profile structure, and display decoded parameters.</p>
+        <ul>
+          <li><strong><code>inspect-profile</code></strong>: Auto-detects profile type (printer or material) and inspects its internal field structures.</li>
+        </ul>
+
+        <h3>6.3 Profile Validation</h3>
+        <p>Verify JSON schema structures and enforce safety bounds (e.g. maximum temperatures).</p>
+        <ul>
+          <li><strong><code>validate-printer-profile</code></strong>: Validates printer JSON file structure.</li>
+          <li><strong><code>validate-material-profile</code></strong>: Validates material JSON file structure.</li>
+        </ul>
+
+        <h3>6.4 Compatibility Checks</h3>
+        <p>Audits interactions between target printers, materials, and geometric files (STL models or G-code toolpaths).</p>
+        <ul>
+          <li><strong><code>check-compatibility</code></strong>: Runs multi-dimensional audits to verify alignment between machine specifications, material limits, and geometric assets.</li>
+        </ul>
+
+        <h3>6.5 Profile Generation Templates</h3>
+        <p>Generate default template configurations for printer hardware and materials.</p>
         <ul>
           <li><strong><code>generate-printer-profile</code></strong>: Exports a conformant printer profile template JSON payload. Supports output redirection via <code>-o, --output</code>. Note: this command always emits JSON and does not accept the <code>--format</code> option.</li>
           <li><strong><code>generate-material-profile</code></strong>: Exports a conformant material profile template JSON payload. Supports output redirection via <code>-o, --output</code>. Note: this command always emits JSON and does not accept the <code>--format</code> option.</li>
+        </ul>
+
+        <h3>6.6 Directory Validation</h3>
+        <p>Validate all profile JSON files inside a target directory.</p>
+        <ul>
           <li><strong><code>validate-profile-directory</code></strong>: Iterates through files in a target directory to ensure all profile structures parse and validate correctly. Exits <code>0</code> on success, <code>1</code> if any file is invalid.</li>
         </ul>
       </section>
@@ -512,8 +604,8 @@ macro_rules! export_validation_plugin {
         <p>The Axum REST server binds on port <code>3000</code> and routes requests. Existing endpoints maintain full backward compatibility.</p>
         <ul>
           <li><strong><code>GET /</code></strong>: Serves the interactive browser validation dashboard (HTML, unauthenticated). <em>Note: This is an intentional release behavior change from the plain text status response.</em></li>
-          <li><strong><code>GET /profiles/printers</code></strong>: Lists available printer profiles (unauthenticated).</li>
-          <li><strong><code>GET /profiles/materials</code></strong>: Lists available material profiles (unauthenticated).</li>
+          <li><strong><code>GET /profiles/printers</code></strong>: Lists names of available printer profiles (unauthenticated).</li>
+          <li><strong><code>GET /profiles/materials</code></strong>: Lists details of available material profiles (unauthenticated).</li>
           <li><strong><code>POST /validate/model</code></strong>: Validates uploaded STL files (Bearer token authenticated).</li>
           <li><strong><code>POST /validate/gcode</code></strong>: Validates uploaded G-code files (Bearer token authenticated).</li>
           <li><strong><code>POST /profiles/inspect</code></strong>: Inspects a printer or material profile (Bearer token authenticated).</li>
