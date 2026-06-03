@@ -90,6 +90,41 @@ fn cross_product(u: [f32; 3], v: [f32; 3]) -> [f32; 3] {
     ]
 }
 
+/// Tolerance (mm) for build-volume bounds checks. A model resting on the bed (Z min ~= 0), placed
+/// flush in a corner, or exactly filling the volume must not be failed by sub-millimeter float /
+/// placement noise. Matches the tolerance the dedicated below-bed check already uses.
+const BUILD_VOLUME_TOL: f32 = 0.05;
+
+/// The facet's effective surface normal for geometry checks (overhang / bridge / bed contact).
+/// Prefers the STL file's stored normal when it is usable, but falls back to the geometric normal
+/// computed from the vertex winding when the stored normal is missing or degenerate (zero-length).
+/// Many exporters — and most binary STLs — write `0 0 0` normals and leave the slicer to derive
+/// them from winding; trusting the stored normal there silently disables overhang / bridge / bed
+/// detection (the report flips to a false "pass"). Returns `[0,0,0]` only for a genuinely
+/// degenerate (zero-area) triangle, which the callers already skip.
+fn effective_facet_normal(facet: &StlFacet) -> [f32; 3] {
+    let stored = facet.normal;
+    if magnitude(stored) >= 1e-6 {
+        return stored;
+    }
+    let u = [
+        facet.vertices[1][0] - facet.vertices[0][0],
+        facet.vertices[1][1] - facet.vertices[0][1],
+        facet.vertices[1][2] - facet.vertices[0][2],
+    ];
+    let v = [
+        facet.vertices[2][0] - facet.vertices[0][0],
+        facet.vertices[2][1] - facet.vertices[0][1],
+        facet.vertices[2][2] - facet.vertices[0][2],
+    ];
+    let n = cross_product(u, v);
+    let len = magnitude(n);
+    if len < 1e-6 {
+        return [0.0, 0.0, 0.0];
+    }
+    [n[0] / len, n[1] / len, n[2] / len]
+}
+
 fn parse_binary_stl(bytes: &[u8]) -> Result<Vec<StlFacet>, String> {
     if bytes.len() < 84 {
         return Err("Binary STL too short".to_string());
@@ -353,22 +388,25 @@ impl ModelValidator for StlModelValidator {
         let mut out_of_bounds = false;
         match &printer.build_volume {
             BuildVolume::Rectangular { x, y, z } => {
-                if min_x < 0.0
-                    || max_x > *x
-                    || min_y < 0.0
-                    || max_y > *y
-                    || min_z < 0.0
-                    || max_z > *z
+                if min_x < -BUILD_VOLUME_TOL
+                    || max_x > *x + BUILD_VOLUME_TOL
+                    || min_y < -BUILD_VOLUME_TOL
+                    || max_y > *y + BUILD_VOLUME_TOL
+                    || min_z < -BUILD_VOLUME_TOL
+                    || max_z > *z + BUILD_VOLUME_TOL
                 {
                     out_of_bounds = true;
                 }
             }
             BuildVolume::Cylindrical { diameter, z } => {
-                let r_max = diameter / 2.0;
+                let r_max = diameter / 2.0 + BUILD_VOLUME_TOL;
                 for facet in &facets {
                     for v in &facet.vertices {
                         let r2 = v[0] * v[0] + v[1] * v[1];
-                        if r2 > r_max * r_max || v[2] < 0.0 || v[2] > *z {
+                        if r2 > r_max * r_max
+                            || v[2] < -BUILD_VOLUME_TOL
+                            || v[2] > *z + BUILD_VOLUME_TOL
+                        {
                             out_of_bounds = true;
                             break;
                         }
@@ -520,7 +558,9 @@ impl ModelValidator for StlModelValidator {
         let overhang_cos_thresh = (overhang_thresh_deg.to_radians()).cos();
 
         for facet in &facets {
-            let n = facet.normal;
+            // Use the geometric normal when the file normal is missing/degenerate, so a mesh with
+            // zeroed STL normals doesn't silently skip overhang/bridge detection.
+            let n = effective_facet_normal(facet);
             let len = magnitude(n);
             if len < 1e-6 {
                 continue;
@@ -592,7 +632,7 @@ impl ModelValidator for StlModelValidator {
         let mut bed_contact_area = 0.0f32;
         for facet in &facets {
             let on_bed = facet.vertices.iter().all(|v| v[2] < 0.05);
-            let facing_down = facet.normal[2] < -0.9;
+            let facing_down = effective_facet_normal(facet)[2] < -0.9;
             if on_bed && facing_down {
                 let u = [
                     facet.vertices[1][0] - facet.vertices[0][0],
@@ -1392,6 +1432,117 @@ mod tests {
             .issues
             .iter()
             .any(|issue| issue.id == "BELOW_BED_GEOMETRY"));
+    }
+
+    #[test]
+    fn test_effective_facet_normal_falls_back_to_geometry() {
+        // A downward-facing triangle whose stored normal is zeroed: the helper must return the
+        // geometric normal (pointing -Z), not a useless [0,0,0].
+        let zeroed = StlFacet {
+            normal: [0.0, 0.0, 0.0],
+            vertices: [[0.0, 0.0, 5.0], [0.0, 10.0, 5.0], [10.0, 0.0, 5.0]],
+        };
+        let n = effective_facet_normal(&zeroed);
+        assert!(magnitude(n) > 0.99, "expected a unit geometric normal, got {:?}", n);
+        assert!(n[2] < -0.99, "expected the geometric normal to point down (-Z), got {:?}", n);
+
+        // A facet with a usable stored normal is returned unchanged (no regression for good files).
+        let good = StlFacet {
+            normal: [0.0, 0.0, 1.0],
+            vertices: [[0.0, 0.0, 5.0], [10.0, 0.0, 5.0], [0.0, 10.0, 5.0]],
+        };
+        assert_eq!(effective_facet_normal(&good), [0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_overhang_detected_with_zeroed_stl_normals() {
+        // Regression: an overhang must still be found when the STL's stored normals are zeroed
+        // (common from many exporters / binary STLs). The overhang loop previously trusted the
+        // stored normal and silently skipped these facets, flipping a real warning to a false pass.
+        let (fixtures_dir, printer, material) = get_fixtures_and_profiles();
+        let src = std::fs::read_to_string(fixtures_dir.join("overhang_flange.stl")).unwrap();
+        let zeroed: String = src
+            .lines()
+            .map(|line| {
+                if line.trim_start().to_lowercase().starts_with("facet normal") {
+                    "facet normal 0 0 0".to_string()
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let temp_path = std::env::temp_dir().join("ppd_zeroed_overhang.stl");
+        std::fs::write(&temp_path, zeroed).unwrap();
+
+        let validator = StlModelValidator;
+        let report = validator.validate_mesh(&temp_path, &printer, &material).unwrap();
+        std::fs::remove_file(&temp_path).ok();
+
+        assert!(
+            report.issues.iter().any(|i| i.id == "OVERHANG_UNSUPPORTED"),
+            "overhang must be detected even with zeroed STL normals; got: {:?}",
+            report.issues.iter().map(|i| &i.id).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_model_resting_on_bed_within_tolerance_is_not_out_of_bounds() {
+        // Regression: a model resting on the bed with sub-tolerance float/placement noise (Z min a
+        // few hundredths of a mm below 0, well inside the below-bed tolerance) must NOT be flagged
+        // out-of-bounds — while a model genuinely below the bed still must be.
+        fn cube_stl(zmin: f32) -> String {
+            let (x0, x1, y0, y1, z0, z1) = (10.0f32, 20.0, 10.0, 20.0, zmin, zmin + 10.0);
+            let c = [
+                [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],
+                [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1],
+            ];
+            let faces: [([usize; 3], [usize; 3], [f32; 3]); 6] = [
+                ([0, 3, 2], [0, 2, 1], [0.0, 0.0, -1.0]),
+                ([4, 5, 6], [4, 6, 7], [0.0, 0.0, 1.0]),
+                ([0, 1, 5], [0, 5, 4], [0.0, -1.0, 0.0]),
+                ([2, 3, 7], [2, 7, 6], [0.0, 1.0, 0.0]),
+                ([1, 2, 6], [1, 6, 5], [1.0, 0.0, 0.0]),
+                ([0, 4, 7], [0, 7, 3], [-1.0, 0.0, 0.0]),
+            ];
+            let mut s = String::from("solid cube\n");
+            for (a, b, n) in faces.iter() {
+                for tri in [a, b] {
+                    s.push_str(&format!(" facet normal {} {} {}\n  outer loop\n", n[0], n[1], n[2]));
+                    for &idx in tri.iter() {
+                        s.push_str(&format!(
+                            "   vertex {:.4} {:.4} {:.4}\n",
+                            c[idx][0], c[idx][1], c[idx][2]
+                        ));
+                    }
+                    s.push_str("  endloop\n endfacet\n");
+                }
+            }
+            s.push_str("endsolid cube\n");
+            s
+        }
+
+        let (_fixtures, printer, material) = get_fixtures_and_profiles();
+        let validator = StlModelValidator;
+
+        let near = std::env::temp_dir().join("ppd_bed_within_tol.stl");
+        std::fs::write(&near, cube_stl(-0.03)).unwrap();
+        let r = validator.validate_mesh(&near, &printer, &material).unwrap();
+        std::fs::remove_file(&near).ok();
+        assert!(
+            !r.issues.iter().any(|i| i.id == "MODEL_OUT_OF_BOUNDS"),
+            "a model resting on the bed within tolerance must not be out-of-bounds; got: {:?}",
+            r.issues.iter().map(|i| &i.id).collect::<Vec<_>>()
+        );
+
+        let below = std::env::temp_dir().join("ppd_bed_below.stl");
+        std::fs::write(&below, cube_stl(-1.0)).unwrap();
+        let r2 = validator.validate_mesh(&below, &printer, &material).unwrap();
+        std::fs::remove_file(&below).ok();
+        assert!(
+            r2.issues.iter().any(|i| i.id == "MODEL_OUT_OF_BOUNDS"),
+            "a model 1mm below the bed must still be out-of-bounds"
+        );
     }
 
     #[test]

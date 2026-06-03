@@ -4,6 +4,25 @@ All notable changes to the PrintProof3D project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Overhang/bridge/bed-contact detection no longer trusts STL file normals.** The mesh validator
+  read each facet's normal straight from the STL file for its downward-facing checks and *skipped*
+  any facet whose stored normal was zero-length. Many exporters (and most binary STLs) write
+  `0 0 0` normals and leave the slicer to derive them from winding — so a model with zeroed/garbage
+  normals silently produced **no** `OVERHANG_UNSUPPORTED`/`BRIDGE_UNSUPPORTED` findings (and a false
+  `POOR_BED_ADHESION`), flipping a real `warning` to a `pass`. The checks now fall back to the
+  geometric normal computed from the vertex winding when the stored normal is missing/degenerate
+  (files with valid normals are unchanged). New `effective_facet_normal` helper + tests.
+- **`MODEL_OUT_OF_BOUNDS` no longer false-fails a model resting on the bed.** The build-volume
+  bounds check used a hard `< 0.0` lower bound with no tolerance, contradicting the dedicated
+  below-bed check's `-0.05 mm` tolerance — so a model sitting on the bed (or placed flush in a
+  corner) with sub-millimeter float/placement noise (e.g. `Z min = -0.03`) was reported as a
+  `Critical` out-of-bounds `fail`. The rectangular and cylindrical bounds checks now apply a
+  `BUILD_VOLUME_TOL` (0.05 mm, matching the below-bed check) to both lower and upper bounds; a model
+  genuinely outside the volume still fails. New tests.
+
 ## [0.5.0-rc2] - 2026-06-02
 
 ### Added
