@@ -94,17 +94,31 @@ impl PrusaLinkAdapter {
             }
             Ok((username, password))
         } else {
-            let username = self
-                .config
-                .username
-                .clone()
-                .unwrap_or_else(|| "maker".to_string());
-            let env_var = self
-                .config
-                .password_env_var
-                .as_deref()
-                .unwrap_or("PRUSALINK_PASSWORD");
-            let password = std::env::var(env_var).unwrap_or_else(|_| "makerpass".to_string());
+            let username = self.config.username.clone().ok_or_else(|| {
+                AdapterError::AuthenticationFailed("Username is not configured".to_string())
+            })?;
+            if username.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(
+                    "Username is empty".to_string(),
+                ));
+            }
+            let env_var = self.config.password_env_var.as_deref().ok_or_else(|| {
+                AdapterError::AuthenticationFailed(
+                    "Password environment variable name is not configured".to_string(),
+                )
+            })?;
+            let password = std::env::var(env_var).map_err(|_| {
+                AdapterError::AuthenticationFailed(format!(
+                    "Environment variable {} is not set",
+                    env_var
+                ))
+            })?;
+            if password.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(format!(
+                    "Environment variable {} is empty",
+                    env_var
+                )));
+            }
             Ok((username, password))
         }
     }

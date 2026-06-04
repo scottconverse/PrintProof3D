@@ -237,4 +237,54 @@ mod tests {
             "Expected Auth failure when password env var is empty"
         );
     }
+
+    #[tokio::test]
+    async fn test_prusalink_credentials_hardening_default_branch() {
+        let profile = dummy_profile(ProtocolFamily::PrusaLink);
+        let mut config = dummy_config(ProtocolFamily::PrusaLink, DispatchPolicy::AllowStart);
+        config.auth_type = AuthType::None;
+        config.username = None;
+        config.password_env_var = None;
+
+        let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
+        assert!(
+            matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
+            "Expected Auth failure when username is None under default auth branch"
+        );
+
+        config.username = Some("maker".to_string());
+        config.password_env_var = None;
+        let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
+        assert!(
+            matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
+            "Expected Auth failure when password_env_var is None under default auth branch"
+        );
+
+        config.password_env_var = Some("TEST_PRUSALINK_DEFAULT_PASSWORD_UNSET".to_string());
+        let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
+        assert!(
+            matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
+            "Expected Auth failure when password env var is unset under default auth branch"
+        );
+
+        std::env::set_var("TEST_PRUSALINK_DEFAULT_PASSWORD_EMPTY", "");
+        config.password_env_var = Some("TEST_PRUSALINK_DEFAULT_PASSWORD_EMPTY".to_string());
+        let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
+        assert!(
+            matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
+            "Expected Auth failure when password env var is empty under default auth branch"
+        );
+    }
 }

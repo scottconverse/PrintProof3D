@@ -1,18 +1,18 @@
 # PrintProof3D Release Checklist & Guide (v0.6.0)
 
-This checklist and guide outlines the packaging, platform compatibility, and verification steps necessary to declare a Release Candidate for **PrintProof3D**.
+This checklist and guide outlines the packaging, platform compatibility, and verification steps necessary to declare a stable standalone release for **PrintProof3D**.
 
 ---
 
 ## 1. Supported Platforms & Requirements
 
 ### Supported & Verified Platforms
-The following platforms are fully verified and tested via local smoke tests and GitHub Actions CI runs for this Release Candidate:
+The following platforms are fully verified and tested via local smoke tests and GitHub Actions CI runs for this stable release:
 * **Windows**: Windows 10 / 11 (verified locally on Windows PowerShell & cmd.exe).
 * **Linux**: Ubuntu 22.04+ (verified on GitHub Actions CI; requires `libudev-dev` for serial connection adapter compiling).
 
-### Intended Platform Compatibility (Not Verified for this RC)
-* **macOS**: macOS 12+ (Apple Silicon & Intel). macOS-specific compilation and runtime behaviors are designed for cross-platform compatibility but have not been natively verified for this Release Candidate due to environment availability.
+### Intended Platform Compatibility (Not Verified for this Stable Release)
+* **macOS**: macOS 12+ (Apple Silicon & Intel). macOS-specific compilation and runtime behaviors are designed for cross-platform compatibility but have not been natively verified for this stable release due to environment availability.
 
 ### Build & Run Prerequisites
 * **Rust Toolchain**: `stable` (v1.75+ or newer recommended).
@@ -94,7 +94,7 @@ python devtools/agent_health_check.py
 
 ## 5. Pre-Release Verification Gates
 
-Before tagging or shipping any release candidate, the following steps must be completed:
+Before tagging or shipping the stable standalone release, the following steps must be completed:
 1. [ ] **Fmt**: `cargo fmt --all -- --check` completes successfully.
 2. [ ] **Clippy**: `cargo clippy --workspace --all-targets -- -D warnings` returns zero lints/warnings.
 3. [ ] **Tests**: `cargo test --workspace` passes all tests.
