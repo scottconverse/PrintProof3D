@@ -32,9 +32,10 @@ The following platforms are fully verified and tested via local smoke tests and 
 > - All remote printer protocol adapters (Bambu Lab MQTT/FTP, Moonraker/Klipper, OctoPrint, PrusaLink, RepRapFirmware, Marlin Serial) are validated against simulated twin mocks only. 
 > - Users must manually verify physical safety rules and follow printer manufacturer safety instructions before starting prints.
 > 
+> 
 > **Note on KimCAD & Safety Boundaries**
 > KimCAD handles outer access control, telemetry, and integration guardrails.
-> Standalone PrintProof3D (either bundled or standalone) provides **no physical-printer or hardware safety guarantees**. It is a software-limits static checker only.
+> Standalone PrintProof3D (either bundled or standalone) provides **no safety guarantees for physical printers or hardware**. It is a software-limits static checker only.
 
 ---
 

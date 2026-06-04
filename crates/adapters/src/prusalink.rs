@@ -67,37 +67,54 @@ impl PrusaLinkAdapter {
         if self.config.auth_type == printproof3d_core::connection::AuthType::Digest
             || self.config.auth_type == printproof3d_core::connection::AuthType::Password
         {
+            let username = self.config.username.clone().ok_or_else(|| {
+                AdapterError::AuthenticationFailed("Username is not configured".to_string())
+            })?;
+            if username.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(
+                    "Username is empty".to_string(),
+                ));
+            }
+            let env_var = self.config.password_env_var.as_deref().ok_or_else(|| {
+                AdapterError::AuthenticationFailed(
+                    "Password environment variable name is not configured".to_string(),
+                )
+            })?;
+            let password = std::env::var(env_var).map_err(|_| {
+                AdapterError::AuthenticationFailed(format!(
+                    "Environment variable {} is not set",
+                    env_var
+                ))
+            })?;
+            if password.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(format!(
+                    "Environment variable {} is empty",
+                    env_var
+                )));
+            }
+            Ok((username, password))
+        } else {
             let username = self
                 .config
                 .username
                 .clone()
-                .ok_or_else(|| AdapterError::AuthenticationFailed("Username is not configured".to_string()))?;
-            if username.trim().is_empty() {
-                return Err(AdapterError::AuthenticationFailed("Username is empty".to_string()));
-            }
+                .unwrap_or_else(|| "maker".to_string());
             let env_var = self
                 .config
                 .password_env_var
                 .as_deref()
-                .ok_or_else(|| AdapterError::AuthenticationFailed("Password environment variable name is not configured".to_string()))?;
-            let password = std::env::var(env_var).map_err(|_| {
-                AdapterError::AuthenticationFailed(format!("Environment variable {} is not set", env_var))
-            })?;
-            if password.trim().is_empty() {
-                return Err(AdapterError::AuthenticationFailed(format!("Environment variable {} is empty", env_var)));
-            }
-            Ok((username, password))
-        } else {
-            let username = self.config.username.clone().unwrap_or_else(|| "maker".to_string());
-            let env_var = self.config.password_env_var.as_deref().unwrap_or("PRUSALINK_PASSWORD");
+                .unwrap_or("PRUSALINK_PASSWORD");
             let password = std::env::var(env_var).unwrap_or_else(|_| "makerpass".to_string());
             Ok((username, password))
         }
     }
 
     fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
-        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
-            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly
+        {
+            return Err(AdapterError::UploadFailed(
+                "Operation disallowed by DispatchPolicy::DryRunOnly".to_string(),
+            ));
         }
         Ok(())
     }
@@ -105,10 +122,14 @@ impl PrusaLinkAdapter {
     fn check_dispatch_control(&self) -> Result<(), AdapterError> {
         match self.config.dispatch_policy {
             printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
-                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+                Err(AdapterError::CommandFailed(
+                    "Operation disallowed by DispatchPolicy::DryRunOnly".to_string(),
+                ))
             }
             printproof3d_core::connection::DispatchPolicy::UploadOnly => {
-                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+                Err(AdapterError::CommandFailed(
+                    "Operation disallowed by DispatchPolicy::UploadOnly".to_string(),
+                ))
             }
             printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
         }

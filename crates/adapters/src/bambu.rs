@@ -33,8 +33,11 @@ impl BambuAdapter {
     }
 
     fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
-        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
-            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly
+        {
+            return Err(AdapterError::UploadFailed(
+                "Operation disallowed by DispatchPolicy::DryRunOnly".to_string(),
+            ));
         }
         Ok(())
     }
@@ -42,10 +45,14 @@ impl BambuAdapter {
     fn check_dispatch_control(&self) -> Result<(), AdapterError> {
         match self.config.dispatch_policy {
             printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
-                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+                Err(AdapterError::CommandFailed(
+                    "Operation disallowed by DispatchPolicy::DryRunOnly".to_string(),
+                ))
             }
             printproof3d_core::connection::DispatchPolicy::UploadOnly => {
-                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+                Err(AdapterError::CommandFailed(
+                    "Operation disallowed by DispatchPolicy::UploadOnly".to_string(),
+                ))
             }
             printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
         }

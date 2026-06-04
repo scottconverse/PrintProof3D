@@ -22,16 +22,22 @@ impl MoonrakerAdapter {
 
     fn get_api_key(&self) -> Result<Option<String>, AdapterError> {
         if self.config.auth_type == printproof3d_core::connection::AuthType::ApiKey {
-            let env_var = self
-                .config
-                .api_key_env_var
-                .as_deref()
-                .ok_or_else(|| AdapterError::AuthenticationFailed("API key environment variable name is not configured".to_string()))?;
+            let env_var = self.config.api_key_env_var.as_deref().ok_or_else(|| {
+                AdapterError::AuthenticationFailed(
+                    "API key environment variable name is not configured".to_string(),
+                )
+            })?;
             let api_key = std::env::var(env_var).map_err(|_| {
-                AdapterError::AuthenticationFailed(format!("Environment variable {} is not set", env_var))
+                AdapterError::AuthenticationFailed(format!(
+                    "Environment variable {} is not set",
+                    env_var
+                ))
             })?;
             if api_key.trim().is_empty() {
-                return Err(AdapterError::AuthenticationFailed(format!("Environment variable {} is empty", env_var)));
+                return Err(AdapterError::AuthenticationFailed(format!(
+                    "Environment variable {} is empty",
+                    env_var
+                )));
             }
             Ok(Some(api_key))
         } else {
@@ -40,8 +46,11 @@ impl MoonrakerAdapter {
     }
 
     fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
-        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
-            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly
+        {
+            return Err(AdapterError::UploadFailed(
+                "Operation disallowed by DispatchPolicy::DryRunOnly".to_string(),
+            ));
         }
         Ok(())
     }
@@ -49,10 +58,14 @@ impl MoonrakerAdapter {
     fn check_dispatch_control(&self) -> Result<(), AdapterError> {
         match self.config.dispatch_policy {
             printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
-                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+                Err(AdapterError::CommandFailed(
+                    "Operation disallowed by DispatchPolicy::DryRunOnly".to_string(),
+                ))
             }
             printproof3d_core::connection::DispatchPolicy::UploadOnly => {
-                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+                Err(AdapterError::CommandFailed(
+                    "Operation disallowed by DispatchPolicy::UploadOnly".to_string(),
+                ))
             }
             printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
         }

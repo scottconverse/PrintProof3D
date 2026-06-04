@@ -53,11 +53,7 @@ mod tests {
             } else {
                 None
             },
-            serial_baud_rate: if is_serial {
-                Some(115200)
-            } else {
-                None
-            },
+            serial_baud_rate: if is_serial { Some(115200) } else { None },
             auth_type: AuthType::None,
             api_key_env_var: None,
             username: None,
@@ -142,7 +138,9 @@ mod tests {
         // Env var configured but not set in environment
         config.api_key_env_var = Some("TEST_MOONRAKER_API_KEY_UNSET".to_string());
         let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
-        let upload_res = adapter.upload_file(Path::new("test.gcode"), "test.gcode").await;
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
         assert!(
             matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
             "Expected Auth failure when env var is unset"
@@ -152,7 +150,9 @@ mod tests {
         std::env::set_var("TEST_MOONRAKER_API_KEY_EMPTY", "  ");
         config.api_key_env_var = Some("TEST_MOONRAKER_API_KEY_EMPTY".to_string());
         let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
-        let upload_res = adapter.upload_file(Path::new("test.gcode"), "test.gcode").await;
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
         assert!(
             matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
             "Expected Auth failure when env var is empty whitespace"
@@ -174,7 +174,9 @@ mod tests {
 
         config.api_key_env_var = Some("TEST_OCTOPRINT_API_KEY_UNSET".to_string());
         let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
-        let upload_res = adapter.upload_file(Path::new("test.gcode"), "test.gcode").await;
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
         assert!(
             matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
             "Expected Auth failure when env var is unset"
@@ -183,7 +185,9 @@ mod tests {
         std::env::set_var("TEST_OCTOPRINT_API_KEY_EMPTY", "  ");
         config.api_key_env_var = Some("TEST_OCTOPRINT_API_KEY_EMPTY".to_string());
         let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
-        let upload_res = adapter.upload_file(Path::new("test.gcode"), "test.gcode").await;
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
         assert!(
             matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
             "Expected Auth failure when env var is empty"
@@ -214,7 +218,9 @@ mod tests {
         config.username = Some("maker".to_string());
         config.password_env_var = Some("TEST_PRUSALINK_PASSWORD_UNSET".to_string());
         let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
-        let upload_res = adapter.upload_file(Path::new("test.gcode"), "test.gcode").await;
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
         assert!(
             matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
             "Expected Auth failure when password env var is unset"
@@ -223,7 +229,9 @@ mod tests {
         std::env::set_var("TEST_PRUSALINK_PASSWORD_EMPTY", "");
         config.password_env_var = Some("TEST_PRUSALINK_PASSWORD_EMPTY".to_string());
         let adapter = PrinterAdapterFactory::build(&profile, &config).unwrap();
-        let upload_res = adapter.upload_file(Path::new("test.gcode"), "test.gcode").await;
+        let upload_res = adapter
+            .upload_file(Path::new("test.gcode"), "test.gcode")
+            .await;
         assert!(
             matches!(upload_res, Err(AdapterError::AuthenticationFailed(_))),
             "Expected Auth failure when password env var is empty"
