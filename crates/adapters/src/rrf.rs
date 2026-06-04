@@ -20,6 +20,25 @@ impl RrfAdapter {
         }
     }
 
+    fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
+            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        }
+        Ok(())
+    }
+
+    fn check_dispatch_control(&self) -> Result<(), AdapterError> {
+        match self.config.dispatch_policy {
+            printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::UploadOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
+        }
+    }
+
     async fn send_gcode(&self, gcode: &str) -> Result<(), AdapterError> {
         let base_url = self
             .config
@@ -151,6 +170,7 @@ impl PrinterAdapter for RrfAdapter {
         local_path: &Path,
         remote_name: &str,
     ) -> Result<String, AdapterError> {
+        self.check_dispatch_upload()?;
         let base_url = self
             .config
             .base_url
@@ -181,22 +201,27 @@ impl PrinterAdapter for RrfAdapter {
     }
 
     async fn start_job(&self, file_id: &str) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.send_gcode(&format!("M32 {}", file_id)).await
     }
 
     async fn pause_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.send_gcode("M25").await
     }
 
     async fn resume_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.send_gcode("M24").await
     }
 
     async fn cancel_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.send_gcode("M0").await
     }
 
     async fn emergency_stop(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.send_gcode("M112").await
     }
 }

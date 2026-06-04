@@ -24,6 +24,9 @@ jobs:
     - name: Run Documentation Policy Scan
       run: python devtools/docs_policy_check.py
 
+    - name: Run Documentation Drift Check
+      run: python devtools/docs_drift_check.py
+
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:

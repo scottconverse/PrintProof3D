@@ -30,6 +30,17 @@ Defines the physical boundaries, capacities, kinematics, and communication capab
 * **`max_bed_temp: f32`**: Physical heating limit of the bed. Must be positive and $\le 200^\circ\text{C}$ for safety.
 * **`has_enclosure: bool`**: Indicates if the machine is fully enclosed.
 * **`supports_mmu: bool`**: Indicates multi-material capabilities.
+* **`firmware_flavor: FirmwareFlavor`**: Internal firmware parser flavor (`rep_rap`, `klipper`, `marlin`, `bambu`, `prusa`).
+* **`supported_file_types: Vec<String>`**: List of file extensions supported for direct execution (e.g. `["gcode"]`).
+* **`supports_direct_upload: bool`**: Indicates direct remote print upload connectivity support.
+* **`supports_pause_resume: bool`**: Indicates job pause and resume state control support.
+* **`supports_cancel: bool`**: Indicates active job cancellation support.
+* **`supports_job_progress: bool`**: Indicates live print percentage and telemetry reporting support.
+* **`supports_webcam: bool`**: Indicates webcam remote monitoring streaming availability.
+* **`supports_chamber_temp: bool`**: Indicates active chamber temperature monitoring availability.
+* **`known_quirks: Vec<String>`**: Known configuration or driver bugs to bypass.
+* **`unsafe_commands: Vec<String>`**: Slicer blacklisted G-code instructions.
+* **`filename_restrictions: Option<String>`**: Target file name constraints regular expression pattern.
 
 ---
 
@@ -37,14 +48,20 @@ Defines the physical boundaries, capacities, kinematics, and communication capab
 Defines the chemical limits, temperature envelopes, and printing characteristics of a target filament.
 
 #### Fields:
-* **`name: String`**: Material name (e.g. `"PLA"`, `"PETG"`). Must be non-empty.
-* **`min_hotend_temp: f32`**: Minimum extrusion temperature. Must be positive.
-* **`max_hotend_temp: f32`**: Maximum extrusion temperature. Must be $\ge \text{min\_hotend\_temp}$.
-* **`min_bed_temp: f32`**: Minimum bed temperature for plate adhesion.
-* **`max_bed_temp: f32`**: Maximum bed temperature for plate adhesion. Must be $\ge \text{min\_bed\_temp}$.
-* **`max_volumetric_speed: f32`**: Maximum flow speed (in $\text{mm}^3/\text{s}$). Must be $> 0.0$.
-* **`warp_risk: WarpRisk`**: Warp risk classification (`Low`, `Medium`, `High`). High warp risks flag warnings on small bed adhesion contact areas.
-* **`requires_enclosure: bool`**: High-temperature warping prevention requirement.
+* **`name: String`**: Readable name of the material (e.g. `"Polylactic Acid"`). Must be non-empty.
+* **`abbreviations: Vec<String>`**: Known abbreviations (e.g. `["PLA", "PLA+"]`).
+* **`min_nozzle_temp: f32`**: Minimum recommended nozzle temperature in Celsius. Must be positive.
+* **`max_nozzle_temp: f32`**: Maximum recommended nozzle temperature in Celsius. Must be $\ge \text{min\_nozzle\_temp}$.
+* **`min_bed_temp: f32`**: Minimum recommended bed temperature in Celsius. Must be non-negative.
+* **`max_bed_temp: f32`**: Maximum recommended bed temperature in Celsius. Must be $\ge \text{min\_bed\_temp}$.
+* **`cooling_fan_speed_pct: f32`**: Extruder cooling fan speed percentage (0.0 to 100.0).
+* **`warp_risk: RiskLevel`**: Relative warp risk under standard airflow conditions (`Low`, `Medium`, or `High`).
+* **`bridge_difficulty: RiskLevel`**: Bridge print extrusion difficulty (`Low`, `Medium`, or `High`).
+* **`overhang_difficulty: RiskLevel`**: Overhang print angle cooling difficulty (`Low`, `Medium`, or `High`).
+* **`enclosure_recommended: bool`**: True if an enclosure is recommended for this material.
+* **`dryness_sensitive: bool`**: True if the raw material absorbs ambient moisture easily (hygroscopic).
+* **`bed_adhesion_notes: Option<String>`**: Help descriptions for bed preparation.
+* **`min_feature_size_mm: f32`**: Smallest resolvable detailed dimension in mm.
 
 ---
 

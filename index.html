@@ -446,7 +446,7 @@
     }
 
     .issue-code {
-      font-family: var(--font-display);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-weight: 700;
       font-size: 0.95rem;
     }
@@ -600,7 +600,7 @@
     <a href="index.html" class="logo-link" style="text-decoration: none; color: inherit;">
       <div class="logo-container">
         <h1 class="logo">PrintProof3D</h1>
-        <div class="status-badge">v0.5.0</div>
+        <div class="status-badge">v0.6.0</div>
       </div>
     </a>
     <div class="nav-links">
@@ -679,7 +679,7 @@
     <!-- Results Display & Visualizer -->
     <div class="results-panel">
       <!-- Embedded Banner Alert Panel -->
-      <div id="alert-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 1rem; color: #ef4444; font-family: var(--font-body); font-size: 0.95rem; align-items: center; justify-content: space-between; gap: 1rem;">
+      <div id="alert-banner" role="alert" aria-live="assertive" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 1rem; color: #ef4444; font-family: var(--font-body); font-size: 0.95rem; align-items: center; justify-content: space-between; gap: 1rem;">
         <span id="alert-banner-text"></span>
         <button onclick="hideAlert()" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1; padding: 0.25rem;">&times;</button>
       </div>
@@ -723,7 +723,7 @@
 
       <!-- Collapsible Raw JSON -->
       <div>
-        <div class="collapsible-header" onclick="toggleJSONBlock()">
+        <div id="json-collapsible-header" class="collapsible-header" onclick="toggleJSONBlock()" onkeydown="if(event.key === 'Enter' || event.key === ' '){ event.preventDefault(); toggleJSONBlock(); }" role="button" tabindex="0" aria-expanded="false" aria-controls="json-block-content">
           <span style="font-weight: 600; font-size: 0.95rem;">Raw JSON ValidationReport</span>
           <span id="collapsible-arrow">▼</span>
         </div>
@@ -1578,12 +1578,15 @@
     function toggleJSONBlock() {
       const content = document.getElementById("json-block-content");
       const arrow = document.getElementById("collapsible-arrow");
+      const header = document.getElementById("json-collapsible-header");
       if (content.style.display === "block") {
         content.style.display = "none";
         arrow.textContent = "▼";
+        if (header) header.setAttribute("aria-expanded", "false");
       } else {
         content.style.display = "block";
         arrow.textContent = "▲";
+        if (header) header.setAttribute("aria-expanded", "true");
       }
     }
 

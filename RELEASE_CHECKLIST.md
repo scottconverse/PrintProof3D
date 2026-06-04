@@ -1,4 +1,4 @@
-# PrintProof3D Release Checklist & Guide (v0.5.0)
+# PrintProof3D Release Checklist & Guide (v0.6.0)
 
 This checklist and guide outlines the packaging, platform compatibility, and verification steps necessary to declare a Release Candidate for **PrintProof3D**.
 
@@ -22,15 +22,19 @@ The following platforms are fully verified and tested via local smoke tests and 
 
 ---
 
-## 2. Simulator-Only Limitations (Disclaimer)
+## 2. Simulator-Only Limitations & KimCAD Safety Boundaries (Disclaimer)
 
 > [!WARNING]
-> **Hard Limit: Simulator-Verification Only**
+> **Hard Limit: Simulator-Verification Only & KimCAD Safety Boundaries**
 > PrintProof3D is a software-limits static checker and interface conformance test harness.
 > - A "pass" status indicates only that the sliced files or printer profiles pass PrintProof3D's static rules and schema validations.
 > - **It does NOT certify physical printer operation, prevent heater or motion faults, prevent mechanical collisions, or guarantee completed prints on physical 3D printers.**
 > - All remote printer protocol adapters (Bambu Lab MQTT/FTP, Moonraker/Klipper, OctoPrint, PrusaLink, RepRapFirmware, Marlin Serial) are validated against simulated twin mocks only. 
 > - Users must manually verify physical safety rules and follow printer manufacturer safety instructions before starting prints.
+> 
+> **Note on KimCAD & Safety Boundaries**
+> KimCAD handles outer access control, telemetry, and integration guardrails.
+> Standalone PrintProof3D (either bundled or standalone) provides **no physical-printer or hardware safety guarantees**. It is a software-limits static checker only.
 
 ---
 

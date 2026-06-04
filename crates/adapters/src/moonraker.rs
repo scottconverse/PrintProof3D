@@ -20,16 +20,57 @@ impl MoonrakerAdapter {
         }
     }
 
+    fn get_api_key(&self) -> Result<Option<String>, AdapterError> {
+        if self.config.auth_type == printproof3d_core::connection::AuthType::ApiKey {
+            let env_var = self
+                .config
+                .api_key_env_var
+                .as_deref()
+                .ok_or_else(|| AdapterError::AuthenticationFailed("API key environment variable name is not configured".to_string()))?;
+            let api_key = std::env::var(env_var).map_err(|_| {
+                AdapterError::AuthenticationFailed(format!("Environment variable {} is not set", env_var))
+            })?;
+            if api_key.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(format!("Environment variable {} is empty", env_var)));
+            }
+            Ok(Some(api_key))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
+            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        }
+        Ok(())
+    }
+
+    fn check_dispatch_control(&self) -> Result<(), AdapterError> {
+        match self.config.dispatch_policy {
+            printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::UploadOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
+        }
+    }
+
     async fn post_json(&self, path: &str, body: serde_json::Value) -> Result<(), AdapterError> {
+        let key = self.get_api_key()?;
         let base_url = self
             .config
             .base_url
             .as_ref()
             .ok_or_else(|| AdapterError::CommandFailed("Base URL is missing".to_string()))?;
         let url = format!("{}{}", base_url, path);
-        let resp = self
-            .client
-            .post(&url)
+        let mut builder = self.client.post(&url);
+        if let Some(ref k) = key {
+            builder = builder.header("X-Api-Key", k);
+        }
+        let resp = builder
             .json(&body)
             .send()
             .await
@@ -50,6 +91,7 @@ impl MoonrakerAdapter {
 #[async_trait]
 impl PrinterAdapter for MoonrakerAdapter {
     async fn connect(&mut self) -> Result<(), AdapterError> {
+        let key = self.get_api_key()?;
         let base_url = self
             .config
             .base_url
@@ -58,9 +100,11 @@ impl PrinterAdapter for MoonrakerAdapter {
 
         // 1. Check REST API
         let info_url = format!("{}/printer/info", base_url);
-        let resp = self
-            .client
-            .get(&info_url)
+        let mut builder = self.client.get(&info_url);
+        if let Some(ref k) = key {
+            builder = builder.header("X-Api-Key", k);
+        }
+        let resp = builder
             .send()
             .await
             .map_err(|e| AdapterError::ConnectionFailed(e.to_string()))?;
@@ -83,6 +127,9 @@ impl PrinterAdapter for MoonrakerAdapter {
             .set_scheme(scheme)
             .map_err(|_| AdapterError::ConnectionFailed("Failed to set scheme".to_string()))?;
         ws_url.set_path("/websocket");
+        if let Some(ref k) = key {
+            ws_url.query_pairs_mut().append_pair("token", k);
+        }
 
         let (mut ws_stream, _) = tokio_tungstenite::connect_async(ws_url.as_str())
             .await
@@ -98,6 +145,7 @@ impl PrinterAdapter for MoonrakerAdapter {
     }
 
     async fn get_status(&self) -> Result<PrinterTelemetry, AdapterError> {
+        let key = self.get_api_key()?;
         let base_url = self
             .config
             .base_url
@@ -107,9 +155,11 @@ impl PrinterAdapter for MoonrakerAdapter {
             "{}/printer/objects/query?print_stats&extruder&heater_bed",
             base_url
         );
-        let resp = self
-            .client
-            .get(&query_url)
+        let mut builder = self.client.get(&query_url);
+        if let Some(ref k) = key {
+            builder = builder.header("X-Api-Key", k);
+        }
+        let resp = builder
             .send()
             .await
             .map_err(|e| AdapterError::CommandFailed(e.to_string()))?;
@@ -180,6 +230,8 @@ impl PrinterAdapter for MoonrakerAdapter {
         local_path: &Path,
         remote_name: &str,
     ) -> Result<String, AdapterError> {
+        self.check_dispatch_upload()?;
+        let key = self.get_api_key()?;
         let base_url = self
             .config
             .base_url
@@ -194,9 +246,11 @@ impl PrinterAdapter for MoonrakerAdapter {
         let part = reqwest::multipart::Part::bytes(file_content).file_name(remote_name.to_string());
         let form = reqwest::multipart::Form::new().part("file", part);
 
-        let resp = self
-            .client
-            .post(&url)
+        let mut builder = self.client.post(&url);
+        if let Some(ref k) = key {
+            builder = builder.header("X-Api-Key", k);
+        }
+        let resp = builder
             .multipart(form)
             .send()
             .await
@@ -213,15 +267,19 @@ impl PrinterAdapter for MoonrakerAdapter {
     }
 
     async fn start_job(&self, file_id: &str) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
+        let key = self.get_api_key()?;
         let base_url = self
             .config
             .base_url
             .as_ref()
             .ok_or_else(|| AdapterError::CommandFailed("Base URL is missing".to_string()))?;
         let url = format!("{}/printer/print/start?filename={}", base_url, file_id);
-        let resp = self
-            .client
-            .post(&url)
+        let mut builder = self.client.post(&url);
+        if let Some(ref k) = key {
+            builder = builder.header("X-Api-Key", k);
+        }
+        let resp = builder
             .send()
             .await
             .map_err(|e| AdapterError::CommandFailed(e.to_string()))?;
@@ -237,21 +295,25 @@ impl PrinterAdapter for MoonrakerAdapter {
     }
 
     async fn pause_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json("/printer/print/pause", serde_json::json!({}))
             .await
     }
 
     async fn resume_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json("/printer/print/resume", serde_json::json!({}))
             .await
     }
 
     async fn cancel_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json("/printer/print/cancel", serde_json::json!({}))
             .await
     }
 
     async fn emergency_stop(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json(
             "/printer/gcode/script",
             serde_json::json!({

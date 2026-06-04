@@ -1,6 +1,6 @@
 [package]
 name = "printproof3d-rest"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "REST API server for PrintProof3D."
 license = "MIT"
@@ -15,4 +15,6 @@ serde_json = "1.0"
 tower-http = { version = "0.5", features = ["cors"] }
 tower = { version = "0.4", features = ["util"] }
 tempfile = "3"
+rand = "0.8"
+
 

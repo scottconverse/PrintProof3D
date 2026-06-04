@@ -20,13 +20,13 @@ def main():
     cli_bin = os.path.normpath(os.path.join("target", "release", "printproof3d.exe" if os.name == 'nt' else "printproof3d"))
 
     checks = [
+        ("Git Cleanliness Gate", [sys.executable, os.path.normpath(os.path.join("devtools", "git_clean_check.py"))], 120),
         ("Documentation Policy Scan", [sys.executable, os.path.normpath(os.path.join("devtools", "docs_policy_check.py"))], 120),
         ("Documentation Drift Check", [sys.executable, os.path.normpath(os.path.join("devtools", "docs_drift_check.py"))], 120),
         ("Cargo Format Check", ["cargo", "fmt", "--all", "--", "--check"], 120),
         ("Cargo Clippy Lints", ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"], 600),
         ("Workspace Unit Tests", ["cargo", "test", "--workspace"], 600),
         ("Cargo Dependency Audit", ["cargo", "audit"], 120),
-        ("Git Parity Status", ["git", "status", "--short", "--branch"], 120),
         ("Build CLI Binary", ["cargo", "build", "--release", "--bin", "printproof3d"], 300),
         ("Model Validation Smoke Test", [
             cli_bin, "validate-model",

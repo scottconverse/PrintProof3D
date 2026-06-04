@@ -117,6 +117,25 @@ impl MarlinSerialAdapter {
         }
     }
 
+    fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
+            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        }
+        Ok(())
+    }
+
+    fn check_dispatch_control(&self) -> Result<(), AdapterError> {
+        match self.config.dispatch_policy {
+            printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::UploadOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
+        }
+    }
+
     fn send_command_sync(stream: &mut MarlinStream, cmd: &str) -> Result<String, AdapterError> {
         stream
             .write_all(cmd.as_bytes())
@@ -246,6 +265,7 @@ impl PrinterAdapter for MarlinSerialAdapter {
         local_path: &Path,
         remote_name: &str,
     ) -> Result<String, AdapterError> {
+        self.check_dispatch_upload()?;
         let content = tokio::fs::read_to_string(local_path)
             .await
             .map_err(|e| AdapterError::UploadFailed(e.to_string()))?;
@@ -270,6 +290,7 @@ impl PrinterAdapter for MarlinSerialAdapter {
     }
 
     async fn start_job(&self, _file_id: &str) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let port_lock = self.port.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = port_lock.lock().unwrap();
@@ -284,6 +305,7 @@ impl PrinterAdapter for MarlinSerialAdapter {
     }
 
     async fn pause_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let port_lock = self.port.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = port_lock.lock().unwrap();
@@ -298,6 +320,7 @@ impl PrinterAdapter for MarlinSerialAdapter {
     }
 
     async fn resume_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let port_lock = self.port.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = port_lock.lock().unwrap();
@@ -312,6 +335,7 @@ impl PrinterAdapter for MarlinSerialAdapter {
     }
 
     async fn cancel_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let port_lock = self.port.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = port_lock.lock().unwrap();
@@ -326,6 +350,7 @@ impl PrinterAdapter for MarlinSerialAdapter {
     }
 
     async fn emergency_stop(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let port_lock = self.port.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = port_lock.lock().unwrap();

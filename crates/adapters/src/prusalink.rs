@@ -64,18 +64,54 @@ impl PrusaLinkAdapter {
     }
 
     fn get_credentials(&self) -> Result<(String, String), AdapterError> {
-        let username = self
-            .config
-            .username
-            .clone()
-            .unwrap_or_else(|| "maker".to_string());
-        let env_var = self
-            .config
-            .password_env_var
-            .as_deref()
-            .unwrap_or("PRUSALINK_PASSWORD");
-        let password = std::env::var(env_var).unwrap_or_else(|_| "makerpass".to_string());
-        Ok((username, password))
+        if self.config.auth_type == printproof3d_core::connection::AuthType::Digest
+            || self.config.auth_type == printproof3d_core::connection::AuthType::Password
+        {
+            let username = self
+                .config
+                .username
+                .clone()
+                .ok_or_else(|| AdapterError::AuthenticationFailed("Username is not configured".to_string()))?;
+            if username.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed("Username is empty".to_string()));
+            }
+            let env_var = self
+                .config
+                .password_env_var
+                .as_deref()
+                .ok_or_else(|| AdapterError::AuthenticationFailed("Password environment variable name is not configured".to_string()))?;
+            let password = std::env::var(env_var).map_err(|_| {
+                AdapterError::AuthenticationFailed(format!("Environment variable {} is not set", env_var))
+            })?;
+            if password.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(format!("Environment variable {} is empty", env_var)));
+            }
+            Ok((username, password))
+        } else {
+            let username = self.config.username.clone().unwrap_or_else(|| "maker".to_string());
+            let env_var = self.config.password_env_var.as_deref().unwrap_or("PRUSALINK_PASSWORD");
+            let password = std::env::var(env_var).unwrap_or_else(|_| "makerpass".to_string());
+            Ok((username, password))
+        }
+    }
+
+    fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
+            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        }
+        Ok(())
+    }
+
+    fn check_dispatch_control(&self) -> Result<(), AdapterError> {
+        match self.config.dispatch_policy {
+            printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::UploadOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
+        }
     }
 
     async fn send_request(
@@ -84,6 +120,7 @@ impl PrusaLinkAdapter {
         path: &str,
         body: Option<serde_json::Value>,
     ) -> Result<reqwest::Response, AdapterError> {
+        let _ = self.get_credentials()?;
         let base_url = self
             .config
             .base_url
@@ -247,6 +284,8 @@ impl PrinterAdapter for PrusaLinkAdapter {
         local_path: &Path,
         remote_name: &str,
     ) -> Result<String, AdapterError> {
+        self.check_dispatch_upload()?;
+        let _ = self.get_credentials()?;
         let base_url = self
             .config
             .base_url
@@ -337,6 +376,7 @@ impl PrinterAdapter for PrusaLinkAdapter {
     }
 
     async fn start_job(&self, file_id: &str) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let path = format!("/api/v1/files/local/{}", file_id);
         let resp = self
             .send_request(
@@ -359,6 +399,7 @@ impl PrinterAdapter for PrusaLinkAdapter {
     }
 
     async fn pause_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let resp = self
             .send_request(
                 reqwest::Method::POST,
@@ -380,6 +421,7 @@ impl PrinterAdapter for PrusaLinkAdapter {
     }
 
     async fn resume_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let resp = self
             .send_request(
                 reqwest::Method::POST,
@@ -401,6 +443,7 @@ impl PrinterAdapter for PrusaLinkAdapter {
     }
 
     async fn cancel_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let resp = self
             .send_request(
                 reqwest::Method::POST,
@@ -422,6 +465,7 @@ impl PrinterAdapter for PrusaLinkAdapter {
     }
 
     async fn emergency_stop(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let resp = self
             .send_request(
                 reqwest::Method::POST,

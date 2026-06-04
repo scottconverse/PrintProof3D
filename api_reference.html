@@ -341,20 +341,42 @@
           <li><strong><code>bed_shape: BedShape</code></strong>: Physical bed layout: <code>Rectangular</code>, <code>Circular</code>, or <code>Custom(String)</code>.</li>
           <li><strong><code>nozzle_diameters: Vec&lt;f32&gt;</code></strong>: List of nozzle diameters supported (in mm). Every value must be greater than 0.0.</li>
           <li><strong><code>default_nozzle_diameter: f32</code></strong>: Nozzle size loaded on the machine by default. Must exist within nozzle list.</li>
+          <li><strong><code>min_layer_height: f32</code></strong>: Minimal practical layer thickness. Must be greater than 0.0.</li>
+          <li><strong><code>max_layer_height: f32</code></strong>: Maximum practical layer thickness. Must be &ge; <code>min_layer_height</code>.</li>
           <li><strong><code>max_hotend_temp: f32</code></strong>: Physical heating limit of the hotend. Must be positive and less than or equal to 500°C for safety.</li>
           <li><strong><code>max_bed_temp: f32</code></strong>: Physical heating limit of the bed. Must be positive and less than or equal to 200°C for safety.</li>
-          <li><strong><code>unsafe_commands: Vec&lt;String&gt;</code></strong>: Blacklisted G-code instructions.</li>
+          <li><strong><code>has_enclosure: bool</code></strong>: Indicates if the machine is fully enclosed.</li>
+          <li><strong><code>supports_mmu: bool</code></strong>: Indicates multi-material capabilities.</li>
+          <li><strong><code>firmware_flavor: FirmwareFlavor</code></strong>: Internal firmware parser flavor (<code>rep_rap</code>, <code>klipper</code>, <code>marlin</code>, <code>bambu</code>, <code>prusa</code>).</li>
+          <li><strong><code>supported_file_types: Vec&lt;String&gt;</code></strong>: List of file extensions supported for direct execution (e.g. <code>["gcode"]</code>).</li>
+          <li><strong><code>supports_direct_upload: bool</code></strong>: Indicates direct remote print upload connectivity support.</li>
+          <li><strong><code>supports_pause_resume: bool</code></strong>: Indicates job pause and resume state control support.</li>
+          <li><strong><code>supports_cancel: bool</code></strong>: Indicates active job cancellation support.</li>
+          <li><strong><code>supports_job_progress: bool</code></strong>: Indicates live print percentage and telemetry reporting support.</li>
+          <li><strong><code>supports_webcam: bool</code></strong>: Indicates webcam remote monitoring streaming availability.</li>
+          <li><strong><code>supports_chamber_temp: bool</code></strong>: Indicates active chamber temperature monitoring availability.</li>
+          <li><strong><code>known_quirks: Vec&lt;String&gt;</code></strong>: Known configuration or driver bugs to bypass.</li>
+          <li><strong><code>unsafe_commands: Vec&lt;String&gt;</code></strong>: Slicer blacklisted G-code instructions.</li>
+          <li><strong><code>filename_restrictions: Option&lt;String&gt;</code></strong>: Target file name constraints regular expression pattern.</li>
         </ul>
 
         <h3 id="material-profile">1.2 <code>MaterialProfile</code> (Struct)</h3>
         <p>Defines the filament properties and thermal processing ranges.</p>
         <ul>
-          <li><strong><code>name: String</code></strong>: Chemical or branding name (e.g. <code>"Polylactic Acid"</code>). Must be non-empty.</li>
-          <li><strong><code>abbreviations: Vec&lt;String&gt;</code></strong>: Abbreviated identifiers (e.g., <code>["PLA", "PLA+"]</code>).</li>
-          <li><strong><code>min_nozzle_temp: f32</code></strong> / <strong><code>max_nozzle_temp: f32</code></strong>: extrusion temperature bounds.</li>
-          <li><strong><code>min_bed_temp: f32</code></strong> / <strong><code>max_bed_temp: f32</code></strong>: bed temperature bounds.</li>
-          <li><strong><code>warp_risk: RiskLevel</code></strong>: Relative warping risk: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
-          <li><strong><code>overhang_difficulty: RiskLevel</code></strong>: Difficulty cooling steep overhang slopes: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
+          <li><strong><code>name: String</code></strong>: Readable name of the material (e.g. <code>"Polylactic Acid"</code>). Must be non-empty.</li>
+          <li><strong><code>abbreviations: Vec&lt;String&gt;</code></strong>: Known abbreviations (e.g., <code>["PLA", "PLA+"]</code>).</li>
+          <li><strong><code>min_nozzle_temp: f32</code></strong>: Minimum recommended nozzle temperature in Celsius. Must be positive.</li>
+          <li><strong><code>max_nozzle_temp: f32</code></strong>: Maximum recommended nozzle temperature in Celsius. Must be &gt;= <code>min_nozzle_temp</code>.</li>
+          <li><strong><code>min_bed_temp: f32</code></strong>: Minimum recommended bed temperature in Celsius. Must be non-negative.</li>
+          <li><strong><code>max_bed_temp: f32</code></strong>: Maximum recommended bed temperature in Celsius. Must be &gt;= <code>min_bed_temp</code>.</li>
+          <li><strong><code>cooling_fan_speed_pct: f32</code></strong>: Extruder cooling fan speed percentage (0.0 to 100.0).</li>
+          <li><strong><code>warp_risk: RiskLevel</code></strong>: Relative warp risk under standard airflow conditions: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
+          <li><strong><code>bridge_difficulty: RiskLevel</code></strong>: Bridge print extrusion difficulty: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
+          <li><strong><code>overhang_difficulty: RiskLevel</code></strong>: Overhang print angle cooling difficulty: <code>Low</code>, <code>Medium</code>, or <code>High</code>.</li>
+          <li><strong><code>enclosure_recommended: bool</code></strong>: True if an enclosure is recommended for this material.</li>
+          <li><strong><code>dryness_sensitive: bool</code></strong>: True if the raw material absorbs ambient moisture easily (hygroscopic).</li>
+          <li><strong><code>bed_adhesion_notes: Option&lt;String&gt;</code></strong>: Help descriptions for bed preparation.</li>
+          <li><strong><code>min_feature_size_mm: f32</code></strong>: Smallest resolvable detailed dimension in mm.</li>
         </ul>
 
         <h3 id="validation-report">1.3 <code>ValidationReport</code> (Struct)</h3>
@@ -366,6 +388,7 @@
           <li><strong><code>model: ModelMetadata</code></strong>: Bounding box size and filename metadata.</li>
           <li><strong><code>issues: Vec&lt;ValidationIssue&gt;</code></strong>: List of compatibility warnings or failures.</li>
           <li><strong><code>confidence_level: String</code></strong>: Analysis confidence ranking: <code>"high"</code>, <code>"medium"</code>, or <code>"low"</code>.</li>
+          <li><strong><code>sliced_settings_assumed: Option&lt;serde_json::Value&gt;</code></strong>: Decoded parameters extracted from G-code or simulation runs.</li>
         </ul>
 
         <h3 id="connection-config">1.4 <code>PrinterConnectionConfig</code> (Struct)</h3>

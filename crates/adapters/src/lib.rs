@@ -78,3 +78,6 @@ pub mod octoprint;
 pub mod prusalink;
 pub mod rrf;
 pub mod serial;
+
+#[cfg(test)]
+mod tests_dispatch_policy;

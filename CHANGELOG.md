@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-04
+
+### Security
+- **Hardened REST fallback bearer-token generation**: Upgraded default ephemeral fallback tokens to use a cryptographically strong 32-byte CSPRNG hex string from `rand::thread_rng()`, surfacing it only via the stdout console path.
+- **Enforced concrete adapter `DispatchPolicy` validation**: Concrete adapters (Bambu MQTT, Moonraker/Klipper, OctoPrint, PrusaLink, RepRapFirmware, and Marlin Serial) now explicitly validate and block disallowed upload and control actions directly at their side-effect boundaries.
+- **Hardened client credential checks**: Credentials evaluation logic fail-closes immediately if required environment variable values or connection config username fields are empty or missing.
+
+### Added
+- **Adapter-level negative test suites**: Created rigorous unit tests validating `DispatchPolicy` limits and fail-closed authentication parameters across all adapter families.
+- **Workspace-wide Git Cleanliness health check**: Hardened the pre-release local agent health check to run a git cleanliness check, rejecting untracked or dirty files outside of a strict whitelist.
+- **CI Documentation Drift checking**: Configured automated markdown-to-html documentation parity checking in GitHub Actions workflow.
+
+### Fixed
+- Fixed global typography styles to prevent proportional font leaking into monospace code blocks.
+- Fixed document responsive queries to collapse sidebars automatically on viewports < 1024px.
+- Polished Web dashboard user accessibility landmarks, including `role="alert"` regions and raw JSON collapsible block disclosure semantics.
+- Locked jsDelivr CDN version and added Subresource Integrity (SRI) validation to the Mermaid rendering library inside documentation.
+
+
 ## [0.5.0] - 2026-06-03
 
 ### Fixed

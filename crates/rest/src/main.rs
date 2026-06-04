@@ -35,20 +35,13 @@ const PLA_JSON: &str = include_str!("../../../profiles/pla.json");
 static API_TOKEN: OnceLock<String> = OnceLock::new();
 
 fn generate_random_token() -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::time::SystemTime;
-
-    let mut hasher = DefaultHasher::new();
-    SystemTime::now().hash(&mut hasher);
-    std::process::id().hash(&mut hasher);
-    let val1 = hasher.finish();
-
-    let mut hasher2 = DefaultHasher::new();
-    val1.hash(&mut hasher2);
-    let val2 = hasher2.finish();
-
-    format!("{:016x}{:016x}", val1, val2)
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let token_bytes = rng.gen::<[u8; 32]>();
+    token_bytes
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>()
 }
 
 fn get_api_token() -> &'static str {

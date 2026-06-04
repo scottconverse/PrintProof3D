@@ -31,6 +31,25 @@ impl BambuAdapter {
             })),
         }
     }
+
+    fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
+            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        }
+        Ok(())
+    }
+
+    fn check_dispatch_control(&self) -> Result<(), AdapterError> {
+        match self.config.dispatch_policy {
+            printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::UploadOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
+        }
+    }
 }
 
 #[async_trait]
@@ -120,6 +139,7 @@ impl PrinterAdapter for BambuAdapter {
         local_path: &Path,
         remote_name: &str,
     ) -> Result<String, AdapterError> {
+        self.check_dispatch_upload()?;
         let base_url = self.config.base_url.as_deref().unwrap_or("127.0.0.1");
         let parts: Vec<&str> = base_url.split(':').collect();
         let host = parts.first().copied().unwrap_or("127.0.0.1").to_string();
@@ -155,22 +175,27 @@ impl PrinterAdapter for BambuAdapter {
     }
 
     async fn start_job(&self, _file_id: &str) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         Ok(())
     }
 
     async fn pause_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         Ok(())
     }
 
     async fn resume_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         Ok(())
     }
 
     async fn cancel_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         Ok(())
     }
 
     async fn emergency_stop(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         Ok(())
     }
 }

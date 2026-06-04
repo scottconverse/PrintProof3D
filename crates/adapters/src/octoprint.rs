@@ -21,13 +21,41 @@ impl OctoPrintAdapter {
     }
 
     fn get_client_and_key(&self) -> Result<(reqwest::Client, String), AdapterError> {
-        let env_var = self
-            .config
-            .api_key_env_var
-            .as_deref()
-            .unwrap_or("OCTOPRINT_API_KEY");
-        let api_key = std::env::var(env_var).unwrap_or_default();
-        Ok((self.client.clone(), api_key))
+        if self.config.auth_type == printproof3d_core::connection::AuthType::ApiKey {
+            let env_var = self
+                .config
+                .api_key_env_var
+                .as_deref()
+                .ok_or_else(|| AdapterError::AuthenticationFailed("API key environment variable name is not configured".to_string()))?;
+            let api_key = std::env::var(env_var).map_err(|_| {
+                AdapterError::AuthenticationFailed(format!("Environment variable {} is not set", env_var))
+            })?;
+            if api_key.trim().is_empty() {
+                return Err(AdapterError::AuthenticationFailed(format!("Environment variable {} is empty", env_var)));
+            }
+            Ok((self.client.clone(), api_key))
+        } else {
+            Ok((self.client.clone(), String::new()))
+        }
+    }
+
+    fn check_dispatch_upload(&self) -> Result<(), AdapterError> {
+        if self.config.dispatch_policy == printproof3d_core::connection::DispatchPolicy::DryRunOnly {
+            return Err(AdapterError::UploadFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()));
+        }
+        Ok(())
+    }
+
+    fn check_dispatch_control(&self) -> Result<(), AdapterError> {
+        match self.config.dispatch_policy {
+            printproof3d_core::connection::DispatchPolicy::DryRunOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::DryRunOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::UploadOnly => {
+                Err(AdapterError::CommandFailed("Operation disallowed by DispatchPolicy::UploadOnly".to_string()))
+            }
+            printproof3d_core::connection::DispatchPolicy::AllowStart => Ok(()),
+        }
     }
 
     async fn post_json(&self, path: &str, body: serde_json::Value) -> Result<(), AdapterError> {
@@ -189,6 +217,7 @@ impl PrinterAdapter for OctoPrintAdapter {
         local_path: &Path,
         remote_name: &str,
     ) -> Result<String, AdapterError> {
+        self.check_dispatch_upload()?;
         let base_url = self
             .config
             .base_url
@@ -223,6 +252,7 @@ impl PrinterAdapter for OctoPrintAdapter {
     }
 
     async fn start_job(&self, file_id: &str) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         let path = format!("/api/files/local/{}", file_id);
         self.post_json(
             &path,
@@ -235,6 +265,7 @@ impl PrinterAdapter for OctoPrintAdapter {
     }
 
     async fn pause_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json(
             "/api/job",
             serde_json::json!({
@@ -246,6 +277,7 @@ impl PrinterAdapter for OctoPrintAdapter {
     }
 
     async fn resume_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json(
             "/api/job",
             serde_json::json!({
@@ -257,6 +289,7 @@ impl PrinterAdapter for OctoPrintAdapter {
     }
 
     async fn cancel_job(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json(
             "/api/job",
             serde_json::json!({
@@ -267,6 +300,7 @@ impl PrinterAdapter for OctoPrintAdapter {
     }
 
     async fn emergency_stop(&self) -> Result<(), AdapterError> {
+        self.check_dispatch_control()?;
         self.post_json(
             "/api/printer/command",
             serde_json::json!({
