@@ -372,6 +372,13 @@
       color: rgb(248, 113, 113);
     }
 
+    .status-card.error {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.1);
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.25);
+      color: rgb(248, 113, 113);
+    }
+
     .report-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -634,6 +641,8 @@
       <div class="panel-card" style="flex: 1;">
         <h2>Validation</h2>
         
+        <div id="profile-load-error" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 0.75rem; color: #fbbf24; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.4;"></div>
+
         <div class="form-group">
           <label for="input-file" id="dropzone-label">File Upload (.STL or .GCODE)</label>
           <div class="dropzone-container" id="dropzone" onclick="document.getElementById('input-file').click()" aria-labelledby="dropzone-label" tabindex="0" role="button" aria-label="Upload print files, drag and drop or press enter to browse">
@@ -648,31 +657,32 @@
 
         <div class="form-group">
           <label for="select-printer">Printer Profile</label>
-          <select id="select-printer" class="form-control" onchange="toggleCustomPrinter(); handlePrinterProfileChange();">
+          <select id="select-printer" class="form-control" onchange="toggleCustomPrinter(); handlePrinterProfileChange(); checkInputsReady();">
             <option value="">-- Load predefined profiles --</option>
             <option value="custom">Upload custom profile JSON...</option>
           </select>
           <div class="custom-file-upload" id="custom-printer-upload">
             <label for="input-custom-printer" style="font-size: 0.75rem; margin-top: 0.5rem;">Upload Custom Profile JSON</label>
-            <input type="file" id="input-custom-printer" class="form-control" accept=".json" onchange="handlePrinterProfileChange()">
+            <input type="file" id="input-custom-printer" class="form-control" accept=".json" onchange="handlePrinterProfileChange(); checkInputsReady();">
           </div>
         </div>
 
         <div class="form-group">
           <label for="select-material">Material Profile</label>
-          <select id="select-material" class="form-control" onchange="toggleCustomMaterial()">
+          <select id="select-material" class="form-control" onchange="toggleCustomMaterial(); checkInputsReady();">
             <option value="">-- Load predefined profiles --</option>
             <option value="custom">Upload custom profile JSON...</option>
           </select>
           <div class="custom-file-upload" id="custom-material-upload">
             <label for="input-custom-material" style="font-size: 0.75rem; margin-top: 0.5rem;">Upload Custom Profile JSON</label>
-            <input type="file" id="input-custom-material" class="form-control" accept=".json">
+            <input type="file" id="input-custom-material" class="form-control" accept=".json" onchange="checkInputsReady();">
           </div>
         </div>
 
         <button class="btn btn-primary" id="btn-validate" onclick="runValidation()" disabled>
           <span>🚀</span> Validate Print Job
         </button>
+        <p id="validate-helper-text" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem; text-align: center;">Please upload an STL or G-code file.</p>
       </div>
     </div>
 
@@ -843,8 +853,69 @@
 
     function checkInputsReady() {
       const btn = document.getElementById("btn-validate");
+      const helper = document.getElementById("validate-helper-text");
+      if (!btn) return;
+
       const hasFile = selectedFile !== null;
-      btn.disabled = !hasFile;
+      if (!hasFile) {
+        btn.disabled = true;
+        if (helper) helper.textContent = "Please upload an STL or G-code file.";
+        return;
+      }
+
+      const isStl = selectedFile.name.toLowerCase().endsWith('.stl');
+      const isGcode = selectedFile.name.toLowerCase().endsWith('.gcode') || selectedFile.name.toLowerCase().endsWith('.gco') || selectedFile.name.toLowerCase().endsWith('.g');
+
+      // Check printer profile readiness
+      const pSelect = document.getElementById("select-printer");
+      let hasPrinter = false;
+      if (pSelect) {
+        if (pSelect.value === "custom") {
+          const pFile = document.getElementById("input-custom-printer").files[0];
+          hasPrinter = !!pFile;
+        } else if (pSelect.value !== "") {
+          hasPrinter = true;
+        }
+      }
+
+      // Check material profile readiness
+      const mSelect = document.getElementById("select-material");
+      let hasMaterial = false;
+      if (mSelect) {
+        if (mSelect.value === "custom") {
+          const mFile = document.getElementById("input-custom-material").files[0];
+          hasMaterial = !!mFile;
+        } else if (mSelect.value !== "") {
+          hasMaterial = true;
+        }
+      }
+
+      if (isStl) {
+        if (!hasPrinter && !hasMaterial) {
+          btn.disabled = true;
+          if (helper) helper.textContent = "STL validation requires printer and material profiles.";
+        } else if (!hasPrinter) {
+          btn.disabled = true;
+          if (helper) helper.textContent = "STL validation requires a printer profile.";
+        } else if (!hasMaterial) {
+          btn.disabled = true;
+          if (helper) helper.textContent = "STL validation requires a material profile.";
+        } else {
+          btn.disabled = false;
+          if (helper) helper.textContent = "Ready to validate.";
+        }
+      } else if (isGcode) {
+        if (!hasPrinter) {
+          btn.disabled = true;
+          if (helper) helper.textContent = "G-code validation requires a printer profile.";
+        } else {
+          btn.disabled = false;
+          if (helper) helper.textContent = "Ready to validate (material profile is optional).";
+        }
+      } else {
+        btn.disabled = true;
+        if (helper) helper.textContent = "Unsupported file format. Please upload .STL or .GCODE.";
+      }
     }
 
     function toggleCustomPrinter() {
@@ -868,21 +939,54 @@
     }
 
     async function fetchPredefinedProfiles() {
+      const pSelect = document.getElementById("select-printer");
+      const mSelect = document.getElementById("select-material");
+      const errorDiv = document.getElementById("profile-load-error");
+
+      if (pSelect) pSelect.innerHTML = `<option value="">⌛ Loading printer profiles...</option>`;
+      if (mSelect) mSelect.innerHTML = `<option value="">⌛ Loading material profiles...</option>`;
+      if (errorDiv) errorDiv.style.display = "none";
+
       try {
         const apiBase = document.getElementById("input-api-url").value;
-        const pResp = await fetch(`${apiBase}/profiles/printers`);
-        const mResp = await fetch(`${apiBase}/profiles/materials`);
+        const pResp = await fetch(`${apiBase}/profiles/printers?_=${Date.now()}`, { cache: "no-store" });
+        const mResp = await fetch(`${apiBase}/profiles/materials?_=${Date.now()}`, { cache: "no-store" });
 
-        if (pResp.ok) {
-          printersList = await pResp.json();
-          populateDropdown("select-printer", printersList, true);
+        if (!pResp.ok || !mResp.ok) {
+          throw new Error(`Server returned status: ${pResp.status} (printer) / ${mResp.status} (material)`);
         }
-        if (mResp.ok) {
-          materialsList = await mResp.json();
-          populateDropdown("select-material", materialsList, false);
-        }
+
+        printersList = await pResp.json();
+        materialsList = await mResp.json();
+
+        populateDropdown("select-printer", printersList, true);
+        populateDropdown("select-material", materialsList, false);
+
+        if (errorDiv) errorDiv.style.display = "none";
       } catch (err) {
         console.error("Failed to fetch predefined profiles, routing local default configs:", err);
+
+        // Fallback dropdowns
+        if (pSelect) {
+          pSelect.innerHTML = `
+            <option value="">⚠️ Load failed (use custom fallback)</option>
+            <option value="custom">Upload custom profile JSON...</option>
+          `;
+        }
+        if (mSelect) {
+          mSelect.innerHTML = `
+            <option value="">⚠️ Load failed (use custom fallback)</option>
+            <option value="custom">Upload custom profile JSON...</option>
+          `;
+        }
+
+        if (errorDiv) {
+          errorDiv.style.display = "block";
+          errorDiv.innerHTML = `
+            <span>⚠️ Failed to load predefined profiles. Fallback to custom file upload or </span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-retry-profiles" onclick="fetchPredefinedProfiles()" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border: 1px solid rgba(245,158,11,0.4); background: rgba(245,158,11,0.1); color: #fbbf24; cursor: pointer; border-radius: 4px; font-weight: bold; margin-left: 0.5rem;">🔄 Retry</button>
+          `;
+        }
       }
     }
 
@@ -1456,7 +1560,15 @@
 
         if (resp.status === 401) {
           showAlert("Unauthorized access. Verification fails: Check authorization credentials.");
-          updateStatusUI({ status: "fail", issues: [{ id: "UNAUTHORIZED_ACCESS", severity: "critical", message: "API authentication failed. ephemerality validation token missing or rejected.", location: null }] });
+          const statusDisplay = document.getElementById("status-display");
+          if (statusDisplay) {
+            statusDisplay.className = "status-card error";
+            statusDisplay.textContent = "Error";
+          }
+          const issuesList = document.getElementById("issues-list");
+          if (issuesList) {
+            issuesList.innerHTML = `<p style="color: #f87171; font-size: 0.95rem; font-weight: 600;">⚠️ Request failed: Unauthorized access.</p>`;
+          }
           return;
         }
 
@@ -1478,15 +1590,15 @@
       } catch (err) {
         console.error(err);
         showAlert(`Validation request failed: ${err.message}`);
-        updateStatusUI({
-          status: "fail",
-          issues: [{
-            id: "VALIDATION_REQUEST_FAILED",
-            severity: "critical",
-            message: `Validation request failed: ${err.message}`,
-            suggested_fixes: ["Check network connectivity or backend API server status."]
-          }]
-        });
+        const statusDisplay = document.getElementById("status-display");
+        if (statusDisplay) {
+          statusDisplay.className = "status-card error";
+          statusDisplay.textContent = "Error";
+        }
+        const issuesList = document.getElementById("issues-list");
+        if (issuesList) {
+          issuesList.innerHTML = `<p style="color: #f87171; font-size: 0.95rem; font-weight: 600;">⚠️ Request failed: ${err.message}</p>`;
+        }
       } finally {
         validateBtn.disabled = false;
         validateBtn.innerHTML = "<span>🚀</span> Validate Print Job";

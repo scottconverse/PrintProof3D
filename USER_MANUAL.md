@@ -310,7 +310,7 @@ cargo run --package printproof3d-rest
 * `POST /profiles/validate/material` — Validates a material JSON profile against safety boundaries.
 * `POST /validate/model` (Multipart) — Performs static STL mesh geometry audit. Accepts `model` (STL file), `printer` (JSON profile), and `material` (JSON profile).
 * `POST /validate/gcode` (Multipart) — Performs stateful G-code toolpath audit. Accepts `gcode` (file), `printer` (JSON profile), and optional `material` (JSON profile).
-* `POST /validate/compatibility` (Multipart) — Performs multi-dimensional alignment audits. Accepts optional `printer`, `material`, `model`, and `gcode` fields.
+* `POST /validate/compatibility` (Multipart) — Performs multi-dimensional alignment audits. Requires `printer` (JSON profile) and accepts optional `material` (JSON profile), `model` (STL file), and `gcode` (G-code file) fields.
 
 ### 3.2 Model Context Protocol (MCP) Server
 Integrate validation directly into AI agents (like Claude Desktop or Cursor) over standard I/O:

@@ -462,28 +462,123 @@ The Axum REST server (binds to port `3000` by default) exposes the following end
 * **Auth**: Bearer Token
 * **Request**: Multipart form data with fields `model` (STL file), `printer` (JSON profile), `material` (JSON profile).
 * **Description**: Analyzes mesh geometry against profiles.
+* **Headers**:
+  * `X-Validation-Status`: Overall status of validation (`pass`, `warning`, or `fail`).
+* **Status Codes**:
+  * `200 OK`: Validation completed successfully (returns validation report).
+  * `400 Bad Request`: Missing fields or malformed file/profile payloads.
+  * `401 Unauthorized`: API token is missing or incorrect.
+  * `500 Internal Server Error`: Validation thread panicked.
+* **Response Shape (200 OK)**:
+  ```json
+  {
+    "status": "pass",
+    "target_printer_profile": "Prusa_MK4",
+    "target_material_profile": "PLA",
+    "model": {
+      "file_name": "tetrahedron.stl",
+      "units": "mm",
+      "bounding_box": {
+        "min_x": -5.0,
+        "min_y": -5.0,
+        "min_z": 0.0,
+        "max_x": 5.0,
+        "max_y": 5.0,
+        "max_z": 8.66
+      }
+    },
+    "issues": [],
+    "confidence_level": "high"
+  }
+  ```
+* **Error Payload (400 / 401 / 500)**:
+  ```json
+  {
+    "error": "Error description message"
+  }
+  ```
 
 ### POST `/validate/gcode`
 * **Auth**: Bearer Token
 * **Request**: Multipart form data with fields `gcode` (G-code file), `printer` (JSON profile), and optional `material` (JSON profile).
 * **Description**: Analyzes toolpath kinematics and temperature targets.
+* **Headers**:
+  * `X-Validation-Status`: Overall status of validation (`pass`, `warning`, or `fail`).
+* **Status Codes**:
+  * `200 OK`: Validation completed successfully (returns validation report).
+  * `400 Bad Request`: Missing fields or malformed file/profile payloads.
+  * `401 Unauthorized`: API token is missing or incorrect.
+  * `500 Internal Server Error`: Validation thread panicked.
+* **Response Shape (200 OK)**:
+  ```json
+  {
+    "status": "pass",
+    "target_printer_profile": "Prusa_MK4",
+    "target_material_profile": "PLA",
+    "model": null,
+    "issues": [],
+    "confidence_level": "high"
+  }
+  ```
+* **Error Payload (400 / 401 / 500)**:
+  ```json
+  {
+    "error": "Error description message"
+  }
+  ```
 
 ### POST `/profiles/inspect`
 * **Auth**: Bearer Token
 * **Request**: Multipart form data with field `profile` (JSON profile file).
 * **Description**: Decodes and inspects printer or material profile.
+* **Status Codes**:
+  * `200 OK`: Inspection successful.
+  * `400 Bad Request`: Malformed JSON or missing parameter.
+  * `401 Unauthorized`: API token is missing or incorrect.
 
 ### POST `/profiles/validate/printer`
 * **Auth**: Bearer Token
 * **Request**: Multipart form data with field `printer` (JSON profile file).
 * **Description**: Validates printer profile against structural schemas.
+* **Status Codes**:
+  * `200 OK`: Validation run complete (response indicates validity).
+  * `400 Bad Request`: Missing file field.
+  * `401 Unauthorized`: API token is missing or incorrect.
 
 ### POST `/profiles/validate/material`
 * **Auth**: Bearer Token
 * **Request**: Multipart form data with field `material` (JSON profile file).
 * **Description**: Validates material profile against structural schemas.
+* **Status Codes**:
+  * `200 OK`: Validation run complete (response indicates validity).
+  * `400 Bad Request`: Missing file field.
+  * `401 Unauthorized`: API token is missing or incorrect.
 
 ### POST `/validate/compatibility`
 * **Auth**: Bearer Token
 * **Request**: Multipart form data with fields `printer` (JSON profile, required), and optional `material` (JSON profile), `model` (STL file), and `gcode` (G-code file).
 * **Description**: Audits multi-dimensional alignment and returns status (`pass`, `warning`, `fail`).
+* **Headers**:
+  * `X-Validation-Status`: Overall status of validation (`pass`, `warning`, or `fail`).
+* **Status Codes**:
+  * `200 OK`: Audit completed successfully (returns validation report).
+  * `400 Bad Request`: Missing required `printer` profile, or invalid file payloads.
+  * `401 Unauthorized`: API token is missing or incorrect.
+  * `500 Internal Server Error`: Validation thread panicked.
+* **Response Shape (200 OK)**:
+  ```json
+  {
+    "status": "pass",
+    "target_printer_profile": "Prusa_MK4",
+    "target_material_profile": "PLA",
+    "model": null,
+    "issues": [],
+    "confidence_level": "medium"
+  }
+  ```
+* **Error Payload (400 / 401 / 500)**:
+  ```json
+  {
+    "error": "Error description message"
+  }
+  ```

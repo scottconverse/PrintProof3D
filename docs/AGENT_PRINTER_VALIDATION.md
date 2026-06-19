@@ -140,7 +140,7 @@ Validation commands output a report structured as follows:
 
 ```json
 {
-  "status": "Pass",
+  "status": "pass",
   "target_printer_profile": "Prusa_MK4",
   "target_material_profile": "PLA",
   "model": {
@@ -177,7 +177,7 @@ Validation commands output a report structured as follows:
 ### How to Surface Errors back to KimCad
 If `issues` contains alerts, parse the list:
 - `id`: Unique error ID.
-- `severity`: `Info`, `Minor`, `Major`, `Critical`, or `Blocker`.
+- `severity`: `blocker`, `critical`, `major`, `minor`, `nit`.
 - `message`: Detailed description of the safety violation.
 - `suggested_fixes`: Array of corrective steps (e.g., "Reduce printing speed", "Reduce bed temperature").
 

@@ -245,8 +245,11 @@ fn run_validation_plugin(
         .execute_validation(&report_json)
         .map_err(|e| format!("Failed to run plugin validation: {}", e))?;
 
-    let modified_report: printproof3d_core::ValidationReport = serde_json::from_str(&modified_json)
-        .map_err(|e| format!("Failed to deserialize modified report: {}", e))?;
+    let mut modified_report: printproof3d_core::ValidationReport =
+        serde_json::from_str(&modified_json)
+            .map_err(|e| format!("Failed to deserialize modified report: {}", e))?;
+
+    modified_report.enforce_invariants();
 
     Ok(modified_report)
 }

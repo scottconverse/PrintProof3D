@@ -8,7 +8,19 @@ fn check_rules(report: &mut ValidationReport) {
 
     let volume = (bbox.max_x - bbox.min_x) * (bbox.max_y - bbox.min_y) * (bbox.max_z - bbox.min_z);
 
-    if volume < 1000.0 {
+    if volume < 5.0 {
+        report.issues.push(ValidationIssue {
+            id: "VOLUME_CRITICAL".to_string(),
+            severity: IssueSeverity::Critical,
+            message: format!(
+                "Model bounding box volume is critically small ({:.2} mm³).",
+                volume
+            ),
+            location: None,
+            suggested_fixes: vec![],
+        });
+        // Purposely do not update status here to test host-side invariant re-eval
+    } else if volume < 1000.0 {
         report.issues.push(ValidationIssue {
             id: "VOLUME_TOO_SMALL".to_string(),
             severity: IssueSeverity::Minor,
