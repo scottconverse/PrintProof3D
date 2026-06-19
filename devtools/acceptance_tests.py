@@ -4,6 +4,7 @@ import socket
 import subprocess
 import time
 import json
+import re
 from playwright.sync_api import sync_playwright
 
 def find_free_port():
@@ -170,12 +171,19 @@ def main():
                 page.click("#btn-validate")
                 page.wait_for_timeout(1000)
                 
-                # Assert status displays "fail" and issues contains UNAUTHORIZED
+                # Assert status displays "error" and issues does NOT contain UNAUTHORIZED_ACCESS
                 status_text = page.locator("#status-display").inner_text().strip().lower()
-                assert status_text == "fail", f"Expected status 'fail' on auth rejection, got '{status_text}'"
+                assert status_text == "error", f"Expected status 'error' on auth rejection, got '{status_text}'"
                 
                 issues_text = page.locator("#issues-list").inner_text().strip()
-                assert "UNAUTHORIZED_ACCESS" in issues_text, "Auth rejection error not rendered in issues list"
+                assert "UNAUTHORIZED_ACCESS" not in issues_text, "Auth rejection error should not be rendered in issues list"
+
+                # Check alert banner is visible and has message
+                assert page.locator("#alert-banner").is_visible(), "Alert banner should be visible for auth rejection"
+                alert_text = page.locator("#alert-banner").inner_text().strip()
+                assert "Unauthorized access" in alert_text, f"Unexpected alert text: {alert_text}"
+                
+                page.click("#alert-banner button") # Dismiss alert
 
                 # Test 2: Authentication Success & STL Upload
                 print("Testing auth success and model validation...")
@@ -390,6 +398,86 @@ def main():
                 
                 os.remove(tiny_cyl_path)
                 page.click("#alert-banner button") # Dismiss alert
+
+                # Test 12: Validate Button Input Readiness Checks
+                print("Testing validate button input readiness checks...")
+                page.goto(f"{base_url}/")
+                page.wait_for_load_state("domcontentloaded")
+
+                # Initially no file, validate button disabled
+                validate_btn = page.locator("#btn-validate")
+                helper_text = page.locator("#validate-helper-text")
+                assert validate_btn.is_disabled(), "Validate button should be disabled initially"
+                assert "Please upload" in helper_text.inner_text(), f"Unexpected helper text: {helper_text.inner_text()}"
+
+                # Upload STL file, select printer but no material (should remain disabled)
+                page.set_input_files("#input-file", tetra_path)
+                page.select_option("#select-printer", label="Prusa MK4")
+                page.select_option("#select-material", value="")
+                assert validate_btn.is_disabled(), "Validate button should be disabled for STL without material"
+                assert "material profile" in helper_text.inner_text(), f"Unexpected helper text: {helper_text.inner_text()}"
+
+                # Upload STL file, select printer + select material (should become enabled)
+                page.select_option("#select-material", label="Polylactic Acid")
+                assert not validate_btn.is_disabled(), "Validate button should be enabled for STL with printer and material"
+                assert "Ready to validate" in helper_text.inner_text()
+
+                # Upload G-code file, no printer selected (should be disabled)
+                gcode_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fixtures", "safe_print.gcode"))
+                page.set_input_files("#input-file", gcode_path)
+                page.select_option("#select-printer", value="")
+                assert validate_btn.is_disabled(), "Validate button should be disabled for G-code without printer"
+                assert "printer profile" in helper_text.inner_text(), f"Unexpected helper text: {helper_text.inner_text()}"
+
+                # Upload G-code file + printer selected (should be enabled, material is optional)
+                page.select_option("#select-printer", label="Prusa MK4")
+                assert not validate_btn.is_disabled(), "Validate button should be enabled for G-code with printer"
+                assert "optional" in helper_text.inner_text(), f"Unexpected helper text: {helper_text.inner_text()}"
+
+                # Test 13: Profile Loading Failure and Retry
+                print("Testing predefined profile loading failure & retry recovery...")
+                retry_context = browser.new_context(viewport={"width": 1280, "height": 800})
+                retry_page = retry_context.new_page()
+
+                # Load local profiles to return on success mock
+                profiles_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
+                with open(os.path.join(profiles_dir, "prusa_mk4.json"), "r") as f:
+                    printer_data = [json.load(f)]
+                with open(os.path.join(profiles_dir, "pla.json"), "r") as f:
+                    material_data = [json.load(f)]
+
+                # Intercept profile fetch with dynamic mock state using local files on success
+                should_fail = [True]
+                retry_page.route(re.compile(r".*/profiles/printers.*"), lambda r: r.fulfill(status=500, body="Internal Error") if should_fail[0] else r.fulfill(status=200, content_type="application/json", body=json.dumps(printer_data)))
+                retry_page.route(re.compile(r".*/profiles/materials.*"), lambda r: r.fulfill(status=500, body="Internal Error") if should_fail[0] else r.fulfill(status=200, content_type="application/json", body=json.dumps(material_data)))
+
+                retry_page.goto(f"{base_url}/")
+                retry_page.wait_for_selector("#profile-load-error", state="visible", timeout=5000)
+                
+                # Check error text is visible and retry button exists
+                error_text = retry_page.locator("#profile-load-error").inner_text()
+                assert "Failed to load predefined profiles" in error_text, f"Unexpected error text: {error_text}"
+                assert retry_page.locator("#btn-retry-profiles").is_visible(), "Retry profiles button not visible"
+
+                # Check dropdowns show fallback custom option
+                printer_opts = retry_page.locator("#select-printer option").all()
+                assert len(printer_opts) == 2, "Fallback select-printer options count mismatch"
+                assert "Load failed" in printer_opts[0].inner_text(), f"Unexpected text: {printer_opts[0].inner_text()}"
+
+                # Allow success on next retry request
+                should_fail[0] = False
+
+                # Click retry
+                retry_page.click("#btn-retry-profiles")
+                retry_page.wait_for_function("document.querySelectorAll('#select-printer option').length > 2", timeout=5000)
+                
+                # Check dropdowns populated successfully
+                printer_opts_after = retry_page.locator("#select-printer option").all()
+                assert len(printer_opts_after) > 2, "Predefined printers not reloaded after retry"
+                assert not retry_page.locator("#profile-load-error").is_visible(), "Error div should be hidden after success"
+                
+                retry_page.close()
+                retry_context.close()
 
                 # Test 7: Horizontal Overflow Layout Checks
                 viewports = [

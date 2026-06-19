@@ -386,6 +386,16 @@ impl ValidationReport {
         }
         Ok(())
     }
+
+    /// Automatically recomputes the aggregate status based on safety invariants.
+    pub fn enforce_invariants(&mut self) {
+        let has_critical_or_blocker = self.issues.iter().any(|issue| {
+            issue.severity == IssueSeverity::Blocker || issue.severity == IssueSeverity::Critical
+        });
+        if has_critical_or_blocker && self.status != ValidationStatus::Fail {
+            self.status = ValidationStatus::Fail;
+        }
+    }
 }
 
 #[cfg(test)]

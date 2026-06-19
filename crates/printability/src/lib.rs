@@ -773,6 +773,34 @@ fn update_bbox(
     }
 }
 
+fn is_angle_on_arc(angle: f64, start: f64, end: f64, is_cw: bool) -> bool {
+    let normalize = |a: f64| {
+        let mut normalized = a % (2.0 * std::f64::consts::PI);
+        if normalized < 0.0 {
+            normalized += 2.0 * std::f64::consts::PI;
+        }
+        normalized
+    };
+
+    let s = normalize(start);
+    let e = normalize(end);
+    let target = normalize(angle);
+
+    if is_cw {
+        if s >= e {
+            target <= s && target >= e
+        } else {
+            target <= s || target >= e
+        }
+    } else {
+        if s <= e {
+            target >= s && target <= e
+        } else {
+            target >= s || target <= e
+        }
+    }
+}
+
 impl GcodeValidator for StandardGcodeValidator {
     fn validate_gcode(
         &self,
@@ -1001,6 +1029,10 @@ impl GcodeValidator for StandardGcodeValidator {
                         }
                     }
 
+                    let start_x = current_x;
+                    let start_y = current_y;
+                    let start_z = current_z;
+
                     let dx = get_gcode_param(&words, 'X');
                     let dy = get_gcode_param(&words, 'Y');
                     let dz = get_gcode_param(&words, 'Z');
@@ -1033,6 +1065,174 @@ impl GcodeValidator for StandardGcodeValidator {
                     );
 
                     let mut out_of_bounds = false;
+                    let mut arc_out_of_bounds = false;
+
+                    if cmd == "G2" || cmd == "G3" {
+                        let i_param = get_gcode_param(&words, 'I');
+                        let j_param = get_gcode_param(&words, 'J');
+                        let r_param = get_gcode_param(&words, 'R');
+
+                        let center_and_radius = if let Some(r) = r_param {
+                            let dx = (current_x - start_x) as f64;
+                            let dy = (current_y - start_y) as f64;
+                            let d2 = dx * dx + dy * dy;
+                            let d = d2.sqrt();
+                            if d > 0.0 {
+                                let r_abs = r.abs() as f64;
+                                let radius = if d > 2.0 * r_abs { d / 2.0 } else { r_abs };
+                                let h2 = radius * radius - d2 / 4.0;
+                                let h = if h2 > 0.0 { h2.sqrt() } else { 0.0 };
+
+                                let mx = (start_x + current_x) as f64 / 2.0;
+                                let my = (start_y + current_y) as f64 / 2.0;
+
+                                let is_g2 = cmd == "G2";
+                                let r_pos = r > 0.0;
+                                let on_right = is_g2 == r_pos;
+                                let factor = if on_right { 1.0 } else { -1.0 };
+
+                                Some((
+                                    mx + factor * h * (dy / d),
+                                    my - factor * h * (dx / d),
+                                    radius,
+                                ))
+                            } else {
+                                None
+                            }
+                        } else if i_param.is_some() || j_param.is_some() {
+                            let i_val = i_param.unwrap_or(0.0) as f64;
+                            let j_val = j_param.unwrap_or(0.0) as f64;
+                            let cx = start_x as f64 + i_val;
+                            let cy = start_y as f64 + j_val;
+                            let radius = ((start_x as f64 - cx).powi(2)
+                                + (start_y as f64 - cy).powi(2))
+                            .sqrt();
+                            Some((cx, cy, radius))
+                        } else {
+                            None
+                        };
+
+                        if let Some((cx, cy, r)) = center_and_radius {
+                            let start_angle = (start_y as f64 - cy).atan2(start_x as f64 - cx);
+                            let end_angle = (current_y as f64 - cy).atan2(current_x as f64 - cx);
+                            let is_cw = cmd == "G2";
+                            let is_full_circle = (start_x - current_x).abs() < 1e-5
+                                && (start_y - current_y).abs() < 1e-5;
+
+                            let mut swept_min_x = (start_x as f64).min(current_x as f64);
+                            let mut swept_max_x = (start_x as f64).max(current_x as f64);
+                            let mut swept_min_y = (start_y as f64).min(current_y as f64);
+                            let mut swept_max_y = (start_y as f64).max(current_y as f64);
+
+                            if is_full_circle || is_angle_on_arc(0.0, start_angle, end_angle, is_cw)
+                            {
+                                swept_max_x = swept_max_x.max(cx + r);
+                            }
+                            if is_full_circle
+                                || is_angle_on_arc(
+                                    std::f64::consts::PI / 2.0,
+                                    start_angle,
+                                    end_angle,
+                                    is_cw,
+                                )
+                            {
+                                swept_max_y = swept_max_y.max(cy + r);
+                            }
+                            if is_full_circle
+                                || is_angle_on_arc(
+                                    std::f64::consts::PI,
+                                    start_angle,
+                                    end_angle,
+                                    is_cw,
+                                )
+                            {
+                                swept_min_x = swept_min_x.min(cx - r);
+                            }
+                            if is_full_circle
+                                || is_angle_on_arc(
+                                    3.0 * std::f64::consts::PI / 2.0,
+                                    start_angle,
+                                    end_angle,
+                                    is_cw,
+                                )
+                            {
+                                swept_min_y = swept_min_y.min(cy - r);
+                            }
+
+                            // Update bounding box using swept extrema
+                            update_bbox(
+                                swept_min_x as f32,
+                                swept_min_y as f32,
+                                start_z.min(current_z),
+                                &mut min_x,
+                                &mut max_x,
+                                &mut min_y,
+                                &mut max_y,
+                                &mut min_z,
+                                &mut max_z,
+                            );
+                            update_bbox(
+                                swept_max_x as f32,
+                                swept_max_y as f32,
+                                start_z.max(current_z),
+                                &mut min_x,
+                                &mut max_x,
+                                &mut min_y,
+                                &mut max_y,
+                                &mut min_z,
+                                &mut max_z,
+                            );
+
+                            match &printer.build_volume {
+                                BuildVolume::Rectangular {
+                                    x: bx,
+                                    y: by,
+                                    z: bz,
+                                } => {
+                                    if swept_min_x < 0.0
+                                        || swept_max_x > *bx as f64
+                                        || swept_min_y < 0.0
+                                        || swept_max_y > *by as f64
+                                        || start_z < 0.0
+                                        || start_z > *bz
+                                        || current_z < 0.0
+                                        || current_z > *bz
+                                    {
+                                        arc_out_of_bounds = true;
+                                    }
+                                }
+                                BuildVolume::Cylindrical { diameter, z: bz } => {
+                                    let r_max = diameter / 2.0;
+                                    let center_dist = (cx * cx + cy * cy).sqrt();
+                                    let max_angle = cy.atan2(cx);
+                                    let mut max_dist = ((start_x * start_x + start_y * start_y)
+                                        as f64)
+                                        .sqrt()
+                                        .max(
+                                            ((current_x * current_x + current_y * current_y)
+                                                as f64)
+                                                .sqrt(),
+                                        );
+
+                                    if is_full_circle
+                                        || is_angle_on_arc(max_angle, start_angle, end_angle, is_cw)
+                                    {
+                                        max_dist = max_dist.max(center_dist + r);
+                                    }
+
+                                    if max_dist > r_max as f64
+                                        || start_z < 0.0
+                                        || start_z > *bz
+                                        || current_z < 0.0
+                                        || current_z > *bz
+                                    {
+                                        arc_out_of_bounds = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     match &printer.build_volume {
                         BuildVolume::Rectangular { x, y, z } => {
                             if current_x < 0.0
@@ -1052,6 +1252,10 @@ impl GcodeValidator for StandardGcodeValidator {
                                 out_of_bounds = true;
                             }
                         }
+                    }
+
+                    if arc_out_of_bounds {
+                        out_of_bounds = true;
                     }
 
                     if out_of_bounds && !alert_gcode_out_of_bounds {
@@ -1226,6 +1430,7 @@ impl GcodeValidator for StandardGcodeValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use printproof3d_core::BedShape;
     use std::path::PathBuf;
 
     fn get_fixtures_and_profiles() -> (PathBuf, PrinterProfile, MaterialProfile) {
@@ -1675,5 +1880,87 @@ mod tests {
 
         assert_eq!(report.status, ValidationStatus::Pass);
         assert!(report.issues.is_empty());
+    }
+
+    #[test]
+    fn test_validate_gcode_arc_swept_path_bounds() {
+        let (_, mut printer, material) = get_fixtures_and_profiles();
+        printer.build_volume = BuildVolume::Rectangular {
+            x: 200.0,
+            y: 200.0,
+            z: 200.0,
+        };
+        printer.bed_shape = BedShape::Rectangular;
+
+        let dir = tempfile::tempdir().unwrap();
+
+        // Arc move that is out of bounds on rectangular bed
+        let path_rect_out = dir.path().join("arc_rect_out.gcode");
+        let gcode_rect_out = "G28\n\
+                              G90\n\
+                              G0 X10 Y10 Z10\n\
+                              G2 X10 Y20 I-15 J5\n";
+        std::fs::write(&path_rect_out, gcode_rect_out).unwrap();
+
+        let validator = StandardGcodeValidator;
+        let report_rect_out = validator
+            .validate_gcode(&path_rect_out, &printer, &material)
+            .unwrap();
+        println!("Test rect out issues: {:#?}", report_rect_out.issues);
+        assert_eq!(report_rect_out.status, ValidationStatus::Fail);
+        assert!(report_rect_out
+            .issues
+            .iter()
+            .any(|issue| issue.id == "GCODE_OUT_OF_BOUNDS"));
+
+        // Arc move that is in-bounds on rectangular bed
+        let path_rect_in = dir.path().join("arc_rect_in.gcode");
+        let gcode_rect_in = "G28\n\
+                             G90\n\
+                             G0 X50 Y50 Z10\n\
+                             G2 X50 Y60 I-10 J5\n";
+        std::fs::write(&path_rect_in, gcode_rect_in).unwrap();
+        let report_rect_in = validator
+            .validate_gcode(&path_rect_in, &printer, &material)
+            .unwrap();
+        assert_eq!(report_rect_in.status, ValidationStatus::Pass);
+        assert!(report_rect_in.issues.is_empty());
+
+        // Cylindrical bed
+        printer.build_volume = BuildVolume::Cylindrical {
+            diameter: 200.0,
+            z: 200.0,
+        };
+        printer.bed_shape = BedShape::Circular;
+
+        // Cylindrical out-of-bounds test
+        let path_cyl_out = dir.path().join("arc_cyl_out.gcode");
+        let gcode_cyl_out = "G28\n\
+                             G90\n\
+                             G0 X80 Y0 Z10\n\
+                             G3 X0 Y80 I0 J80\n";
+        std::fs::write(&path_cyl_out, gcode_cyl_out).unwrap();
+        let report_cyl_out = validator
+            .validate_gcode(&path_cyl_out, &printer, &material)
+            .unwrap();
+        println!("Test cyl out issues: {:#?}", report_cyl_out.issues);
+        assert_eq!(report_cyl_out.status, ValidationStatus::Fail);
+        assert!(report_cyl_out
+            .issues
+            .iter()
+            .any(|issue| issue.id == "GCODE_OUT_OF_BOUNDS"));
+
+        // Cylindrical in-bounds test
+        let path_cyl_in = dir.path().join("arc_cyl_in.gcode");
+        let gcode_cyl_in = "G28\n\
+                            G90\n\
+                            G0 X50 Y0 Z10\n\
+                            G3 X0 Y50 I-50 J0\n";
+        std::fs::write(&path_cyl_in, gcode_cyl_in).unwrap();
+        let report_cyl_in = validator
+            .validate_gcode(&path_cyl_in, &printer, &material)
+            .unwrap();
+        assert_eq!(report_cyl_in.status, ValidationStatus::Pass);
+        assert!(report_cyl_in.issues.is_empty());
     }
 }

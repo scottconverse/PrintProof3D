@@ -487,7 +487,7 @@
           <li><code>POST /profiles/validate/material</code> — Validates a material JSON profile against safety boundaries.</li>
           <li><code>POST /validate/model</code> (Multipart) — Performs static STL mesh geometry audit. Accepts <code>model</code> (STL file), <code>printer</code> (JSON profile), and <code>material</code> (JSON profile).</li>
           <li><code>POST /validate/gcode</code> (Multipart) — Performs stateful G-code toolpath audit. Accepts <code>gcode</code> (file), <code>printer</code> (JSON profile), and optional <code>material</code> (JSON profile).</li>
-          <li><code>POST /validate/compatibility</code> (Multipart) — Performs multi-dimensional alignment audits. Accepts optional <code>printer</code>, <code>material</code>, <code>model</code>, and <code>gcode</code> fields.</li>
+          <li><code>POST /validate/compatibility</code> (Multipart) — Performs multi-dimensional alignment audits. Requires <code>printer</code> (JSON profile) and accepts optional <code>material</code> (JSON profile), <code>model</code> (STL file), and <code>gcode</code> (G-code file) fields.</li>
         </ul>
 
         <h4>3.2 Model Context Protocol (MCP) Server</h4>

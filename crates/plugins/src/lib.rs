@@ -433,7 +433,7 @@ mod tests {
         // Load the plugin engine
         let engine = PluginEngine::new();
 
-        let report = ValidationReport {
+        let report_warning = ValidationReport {
             status: ValidationStatus::Pass,
             target_printer_profile: "test".to_string(),
             target_material_profile: "test".to_string(),
@@ -444,7 +444,28 @@ mod tests {
                     min_x: 0.0,
                     min_y: 0.0,
                     min_z: 0.0,
-                    max_x: 1.0, // extremely small volume (< 1000)
+                    max_x: 2.0, // volume = 8.0 (> 5.0, < 1000.0) -> Warning
+                    max_y: 2.0,
+                    max_z: 2.0,
+                },
+            },
+            issues: vec![],
+            confidence_level: "high".to_string(),
+            sliced_settings_assumed: None,
+        };
+
+        let report_critical = ValidationReport {
+            status: ValidationStatus::Pass,
+            target_printer_profile: "test".to_string(),
+            target_material_profile: "test".to_string(),
+            model: printproof3d_core::ModelMetadata {
+                file_name: "test.stl".to_string(),
+                units: "mm".to_string(),
+                bounding_box: printproof3d_core::BoundingBox {
+                    min_x: 0.0,
+                    min_y: 0.0,
+                    min_z: 0.0,
+                    max_x: 1.0, // volume = 1.0 (< 5.0) -> Critical
                     max_y: 1.0,
                     max_z: 1.0,
                 },
@@ -458,16 +479,34 @@ mod tests {
         let mut loaded = engine
             .load_plugin(&wasm_bytes)
             .expect("Failed to load plugin");
-        let input_json = serde_json::to_string(&report).unwrap();
-        let output_json = loaded
-            .execute_validation(&input_json)
-            .expect("Failed to execute validation");
-        let final_report: ValidationReport = serde_json::from_str(&output_json).unwrap();
 
-        // The example-plugin checks volume. Volume is 1.0 * 1.0 * 1.0 = 1.0 < 1000.0.
-        // It must append the warning and change status to Warning!
-        assert_eq!(final_report.status, ValidationStatus::Warning);
-        assert!(!final_report.issues.is_empty());
-        assert_eq!(final_report.issues[0].id, "VOLUME_TOO_SMALL");
+        // 1. Check warning case
+        let input_warning_json = serde_json::to_string(&report_warning).unwrap();
+        let output_warning_json = loaded
+            .execute_validation(&input_warning_json)
+            .expect("Failed to execute validation");
+        let mut final_warning: ValidationReport =
+            serde_json::from_str(&output_warning_json).unwrap();
+        final_warning.enforce_invariants();
+        assert_eq!(final_warning.status, ValidationStatus::Warning);
+        assert!(!final_warning.issues.is_empty());
+        assert_eq!(final_warning.issues[0].id, "VOLUME_TOO_SMALL");
+
+        // 2. Check critical case (invariant revalidation regression test)
+        let input_critical_json = serde_json::to_string(&report_critical).unwrap();
+        let output_critical_json = loaded
+            .execute_validation(&input_critical_json)
+            .expect("Failed to execute validation");
+        let mut final_critical: ValidationReport =
+            serde_json::from_str(&output_critical_json).unwrap();
+
+        // Before enforcing, status is still Pass
+        assert_eq!(final_critical.status, ValidationStatus::Pass);
+        assert!(!final_critical.issues.is_empty());
+        assert_eq!(final_critical.issues[0].id, "VOLUME_CRITICAL");
+
+        // After enforcing, status must be Fail
+        final_critical.enforce_invariants();
+        assert_eq!(final_critical.status, ValidationStatus::Fail);
     }
 }

@@ -629,12 +629,51 @@ macro_rules! export_validation_plugin {
           <li><strong><code>GET /</code></strong>: Serves the interactive browser validation dashboard (HTML, unauthenticated). <em>Note: This is an intentional release behavior change from the plain text status response.</em></li>
           <li><strong><code>GET /profiles/printers</code></strong>: Lists names of available printer profiles (unauthenticated).</li>
           <li><strong><code>GET /profiles/materials</code></strong>: Lists details of available material profiles (unauthenticated).</li>
-          <li><strong><code>POST /validate/model</code></strong>: Validates uploaded STL files (Bearer token authenticated).</li>
-          <li><strong><code>POST /validate/gcode</code></strong>: Validates uploaded G-code files (Bearer token authenticated).</li>
-          <li><strong><code>POST /profiles/inspect</code></strong>: Inspects a printer or material profile (Bearer token authenticated).</li>
-          <li><strong><code>POST /profiles/validate/printer</code></strong>: Validates a printer profile schema (Bearer token authenticated).</li>
-          <li><strong><code>POST /profiles/validate/material</code></strong>: Validates a material profile schema (Bearer token authenticated).</li>
-          <li><strong><code>POST /validate/compatibility</code></strong>: Checks multi-dimensional compatibility (Bearer token authenticated).</li>
+          <li>
+            <strong><code>POST /validate/model</code></strong>: Validates uploaded STL files (Bearer token authenticated).
+            <ul>
+              <li><strong>Request</strong>: Multipart form data with fields <code>model</code> (STL file), <code>printer</code> (JSON profile), <code>material</code> (JSON profile).</li>
+              <li><strong>Response Header</strong>: <code>X-Validation-Status</code> returns overall status of validation (<code>pass</code>, <code>warning</code>, or <code>fail</code>).</li>
+              <li><strong>Status Codes</strong>: 200 OK (completed), 400 Bad Request (missing fields/invalid profiles), 401 Unauthorized (missing/invalid token), 500 Internal Server Error.</li>
+            </ul>
+          </li>
+          <li>
+            <strong><code>POST /validate/gcode</code></strong>: Validates uploaded G-code files (Bearer token authenticated).
+            <ul>
+              <li><strong>Request</strong>: Multipart form data with fields <code>gcode</code> (G-code file), <code>printer</code> (JSON profile), and optional <code>material</code> (JSON profile).</li>
+              <li><strong>Response Header</strong>: <code>X-Validation-Status</code> returns overall status of validation (<code>pass</code>, <code>warning</code>, or <code>fail</code>).</li>
+              <li><strong>Status Codes</strong>: 200 OK (completed), 400 Bad Request (missing fields/invalid profiles), 401 Unauthorized (missing/invalid token), 500 Internal Server Error.</li>
+            </ul>
+          </li>
+          <li>
+            <strong><code>POST /profiles/inspect</code></strong>: Inspects a printer or material profile (Bearer token authenticated).
+            <ul>
+              <li><strong>Request</strong>: Multipart form data with field <code>profile</code> (JSON profile file).</li>
+              <li><strong>Status Codes</strong>: 200 OK, 400 Bad Request, 401 Unauthorized.</li>
+            </ul>
+          </li>
+          <li>
+            <strong><code>POST /profiles/validate/printer</code></strong>: Validates a printer profile schema (Bearer token authenticated).
+            <ul>
+              <li><strong>Request</strong>: Multipart form data with field <code>printer</code> (JSON profile file).</li>
+              <li><strong>Status Codes</strong>: 200 OK, 400 Bad Request, 401 Unauthorized.</li>
+            </ul>
+          </li>
+          <li>
+            <strong><code>POST /profiles/validate/material</code></strong>: Validates a material profile schema (Bearer token authenticated).
+            <ul>
+              <li><strong>Request</strong>: Multipart form data with field <code>material</code> (JSON profile file).</li>
+              <li><strong>Status Codes</strong>: 200 OK, 400 Bad Request, 401 Unauthorized.</li>
+            </ul>
+          </li>
+          <li>
+            <strong><code>POST /validate/compatibility</code></strong>: Checks multi-dimensional compatibility (Bearer token authenticated).
+            <ul>
+              <li><strong>Request</strong>: Multipart form data with fields <code>printer</code> (JSON profile, required), and optional <code>material</code> (JSON profile), <code>model</code> (STL file), and <code>gcode</code> (G-code file).</li>
+              <li><strong>Response Header</strong>: <code>X-Validation-Status</code> returns overall status of validation (<code>pass</code>, <code>warning</code>, or <code>fail</code>).</li>
+              <li><strong>Status Codes</strong>: 200 OK, 400 Bad Request, 401 Unauthorized, 500 Internal Server Error.</li>
+            </ul>
+          </li>
         </ul>
       </section>
     </main>
