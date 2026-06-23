@@ -102,7 +102,7 @@
       ]
     },
     "tls_enabled": {
-      "description": "Secure socket TLS state.",
+      "description": "When `true`, require the connection transport to be encrypted: for the HTTP-based protocols (Klipper/Moonraker, OctoPrint, PrusaLink, RepRapFirmware) the `base_url` must be an `https://` endpoint, and configuration validation fails closed otherwise. Defaults to `false`, in which case the transport simply follows the `base_url` scheme.",
       "default": false,
       "type": "boolean"
     },

@@ -10,3 +10,7 @@ members = [
     "crates/plugins",
     "crates/example-plugin",
 ]
+
+# The fuzz crate is a standalone workspace (nightly + sanitizer only); keep it out of the main
+# workspace so stable `cargo build` / `cargo test --workspace` never touches it.
+exclude = ["fuzz"]

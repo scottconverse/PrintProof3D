@@ -1,0 +1,68 @@
+name: Fuzz
+
+# Coverage-guided fuzzing of the STL and G-code parsers. Kept off the per-PR path (it needs a
+# nightly toolchain + a cargo-fuzz install, which is slow) and instead runs on a weekly schedule
+# and on demand. The fast regression guard for the same code lives in the `proptest` smoke tests in
+# crates/printability, which run in the normal Rust CI on every push/PR.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: 'Seconds to run each fuzz target'
+        required: false
+        default: '120'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: cargo-fuzz
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [fuzz_stl, fuzz_gcode]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
+
+      - name: Cache cargo-fuzz binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: ${{ runner.os }}-cargo-fuzz-bin
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked || true
+
+      - name: Build fuzz target
+        run: cargo +nightly fuzz build ${{ matrix.target }}
+
+      - name: Run fuzz target (time-boxed)
+        run: |
+          BUDGET="${{ github.event.inputs.max_total_time || '120' }}"
+          cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time="$BUDGET" -rss_limit_mb=4096
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/
+          if-no-files-found: ignore

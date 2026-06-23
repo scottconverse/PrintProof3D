@@ -6,7 +6,7 @@ use printproof3d_core::{
 };
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Cursor};
 use std::path::Path;
 
 pub trait ModelValidator {
@@ -238,21 +238,29 @@ fn parse_binary_stl(bytes: &[u8]) -> Result<Vec<StlFacet>, String> {
 fn parse_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
     let bytes = std::fs::read(file_path)
         .map_err(|e| format!("Failed to read file {:?}: {}", file_path, e))?;
+    parse_stl_bytes(&bytes)
+}
+
+/// Parses STL geometry directly from an in-memory byte buffer. The binary STL layout is tried
+/// first — the declared facet count is checked against the actual buffer length using checked
+/// arithmetic so a hostile header (e.g. a huge count) cannot overflow `usize` on 32-bit targets —
+/// then ASCII parsing is used as a fallback. This is safe to call on arbitrary, untrusted input
+/// (it returns `Err` rather than panicking) and is the entry point exercised by the fuzz harness.
+pub fn parse_stl_bytes(bytes: &[u8]) -> Result<Vec<StlFacet>, String> {
     if bytes.len() >= 84 {
         let face_count = u32::from_le_bytes([bytes[80], bytes[81], bytes[82], bytes[83]]) as usize;
-        if bytes.len() >= 84 + face_count * 50 {
-            if let Ok(facets) = parse_binary_stl(&bytes) {
-                return Ok(facets);
+        if let Some(expected_len) = face_count.checked_mul(50).and_then(|n| n.checked_add(84)) {
+            if bytes.len() >= expected_len {
+                if let Ok(facets) = parse_binary_stl(bytes) {
+                    return Ok(facets);
+                }
             }
         }
     }
-    parse_ascii_stl(file_path)
+    parse_ascii_stl_reader(Cursor::new(bytes))
 }
 
-fn parse_ascii_stl(file_path: &Path) -> Result<Vec<StlFacet>, String> {
-    let file =
-        File::open(file_path).map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
-    let reader = BufReader::new(file);
+fn parse_ascii_stl_reader<R: BufRead>(reader: R) -> Result<Vec<StlFacet>, String> {
     let mut facets = Vec::new();
     let mut current_normal = [0.0f32; 3];
     let mut current_vertices = Vec::new();
@@ -1445,6 +1453,57 @@ mod tests {
         let material: MaterialProfile = serde_json::from_str(&material_json).unwrap();
 
         (fixtures_dir, printer, material)
+    }
+
+    #[test]
+    fn test_parse_stl_bytes_matches_file() {
+        let (fixtures_dir, _printer, _material) = get_fixtures_and_profiles();
+        let path = fixtures_dir.join("tetrahedron.stl");
+        let bytes = std::fs::read(&path).unwrap();
+        // The byte-based and file-based entry points must agree.
+        let from_bytes = parse_stl_bytes(&bytes).unwrap();
+        let from_file = parse_stl(&path).unwrap();
+        assert!(!from_bytes.is_empty());
+        assert_eq!(from_bytes.len(), from_file.len());
+    }
+
+    /// Property smoke tests: the untrusted-input parsers must never panic — only return Ok/Err.
+    /// These mirror the dedicated `cargo-fuzz` targets (`fuzz/`) but run on stable in normal CI.
+    mod fuzz_smoke {
+        use super::get_fixtures_and_profiles;
+        use crate::{parse_stl_bytes, GcodeValidator, StandardGcodeValidator};
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn parse_stl_bytes_never_panics(data in prop::collection::vec(any::<u8>(), 0..4096)) {
+                let _ = parse_stl_bytes(&data);
+            }
+
+            // Exercise the binary-STL path specifically: a well-formed 80-byte header + a declared
+            // facet count (which may wildly exceed the real body) + arbitrary trailing bytes. This
+            // is where the offset arithmetic and capacity guard live.
+            #[test]
+            fn parse_stl_binary_header_never_panics(
+                declared_count in any::<u32>(),
+                body in prop::collection::vec(any::<u8>(), 0..4096),
+            ) {
+                let mut buf = vec![0u8; 80];
+                buf.extend_from_slice(&declared_count.to_le_bytes());
+                buf.extend_from_slice(&body);
+                let _ = parse_stl_bytes(&buf);
+            }
+
+            // The G-code validator reads arbitrary uploaded file contents; it must not panic.
+            #[test]
+            fn validate_gcode_never_panics(data in prop::collection::vec(any::<u8>(), 0..4096)) {
+                use std::io::Write;
+                let (_fixtures, printer, material) = get_fixtures_and_profiles();
+                let mut tmp = tempfile::Builder::new().suffix(".gcode").tempfile().unwrap();
+                tmp.write_all(&data).unwrap();
+                let _ = StandardGcodeValidator.validate_gcode(tmp.path(), &printer, &material);
+            }
+        }
     }
 
     #[test]

@@ -265,6 +265,13 @@ Run all unit, integration, and conformance tests across the workspace crates:
 cargo test --workspace
 ```
 
+### Fuzzing
+
+The STL and G-code parsers ingest arbitrary, untrusted file bytes, so they are exercised by
+coverage-guided `cargo-fuzz` targets in [`fuzz/`](fuzz/) (nightly + Linux/macOS). The same
+never-panic contract is guarded on stable in normal CI by `proptest` smoke tests in
+`crates/printability`. See [`fuzz/README.md`](fuzz/README.md) for how to run the fuzzers locally.
+
 ---
 
 ## Documentation Links

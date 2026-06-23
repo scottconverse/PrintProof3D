@@ -1,0 +1,35 @@
+[package]
+name = "printproof3d-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1.0"
+tempfile = "3"
+printproof3d-core = { path = "../crates/core" }
+printproof3d-printability = { path = "../crates/printability" }
+
+[[bin]]
+name = "fuzz_stl"
+path = "fuzz_targets/fuzz_stl.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_gcode"
+path = "fuzz_targets/fuzz_gcode.rs"
+test = false
+doc = false
+bench = false
+
+# Detach this crate from the parent Cargo workspace so a normal `cargo build`/`cargo test
+# --workspace` on a stable toolchain never tries to compile the fuzz targets (which require a
+# nightly toolchain + the sanitizer runtime).
+[workspace]
