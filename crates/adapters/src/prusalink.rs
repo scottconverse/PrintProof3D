@@ -30,6 +30,23 @@ fn md5_hex(data: &str) -> String {
     format!("{:x}", md5::compute(data))
 }
 
+/// Generates a unique client nonce (`cnonce`) for each digest-auth request. RFC 7616 requires the
+/// cnonce to be unguessable and to vary per request; a hardcoded constant defeats the client's
+/// contribution to the challenge and weakens replay resistance. This derives uniqueness from a
+/// monotonic process counter plus the current time (md5-folded to hex). It is not a CSPRNG, but it
+/// guarantees per-request uniqueness without pulling in an extra dependency.
+fn generate_cnonce() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    md5_hex(&format!("{nanos}:{seq}"))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn calculate_digest_response(
     username: &str,
@@ -59,7 +76,7 @@ impl PrusaLinkAdapter {
         Self {
             profile,
             config,
-            client: reqwest::Client::new(),
+            client: crate::http_client(),
         }
     }
 
@@ -188,7 +205,8 @@ impl PrusaLinkAdapter {
 
                 let (username, password) = self.get_credentials()?;
                 let nc = "00000001";
-                let cnonce = "clientnonce";
+                let cnonce = generate_cnonce();
+                let cnonce = cnonce.as_str();
 
                 let digest_response = calculate_digest_response(
                     &username,
@@ -355,7 +373,8 @@ impl PrinterAdapter for PrusaLinkAdapter {
 
                 let (username, password) = self.get_credentials()?;
                 let nc = "00000001";
-                let cnonce = "clientnonce";
+                let cnonce = generate_cnonce();
+                let cnonce = cnonce.as_str();
 
                 let digest_response = calculate_digest_response(
                     &username,

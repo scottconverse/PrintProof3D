@@ -16,7 +16,7 @@ impl MoonrakerAdapter {
         Self {
             profile,
             config,
-            client: reqwest::Client::new(),
+            client: crate::http_client(),
         }
     }
 

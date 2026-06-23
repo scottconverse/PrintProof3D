@@ -146,6 +146,18 @@ impl LoadedPlugin {
             return Err("WASM validation returned null pointer or zero length".to_string());
         }
 
+        // The guest fully controls `output_len`. Its linear memory is capped at 16 MB, so any
+        // larger length is necessarily invalid — reject it before allocating host memory rather
+        // than letting a malicious/buggy plugin trigger a multi-gigabyte host allocation that only
+        // fails afterwards at the bounds-checked read below.
+        const MAX_PLUGIN_OUTPUT_LEN: u32 = 16 * 1024 * 1024;
+        if output_len > MAX_PLUGIN_OUTPUT_LEN {
+            return Err(format!(
+                "WASM validation returned implausible output length {} (exceeds {} byte ceiling)",
+                output_len, MAX_PLUGIN_OUTPUT_LEN
+            ));
+        }
+
         // 6. Read output JSON bytes from WASM memory
         let mut output_bytes = vec![0u8; output_len as usize];
         self.memory
@@ -401,6 +413,23 @@ mod tests {
     fn test_wasm_macro_compile_and_run() {
         use std::path::Path;
         use std::process::Command;
+
+        // This test compiles a real plugin to `wasm32-unknown-unknown`. That target is optional and
+        // is NOT present on a stock toolchain, so skip (rather than fail) when it is absent —
+        // `cargo test --workspace` must stay green out of the box. CI installs the target explicitly
+        // (see .github/workflows/ci.yml), so coverage is preserved there.
+        let wasm_target_installed = Command::new("rustup")
+            .args(["target", "list", "--installed"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains("wasm32-unknown-unknown"))
+            .unwrap_or(false);
+        if !wasm_target_installed {
+            eprintln!(
+                "skipping test_wasm_macro_compile_and_run: wasm32-unknown-unknown not installed \
+                 (run `rustup target add wasm32-unknown-unknown` to enable this test)"
+            );
+            return;
+        }
 
         // Run cargo build for example-plugin targeting wasm32
         let status = Command::new("cargo")

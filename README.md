@@ -212,7 +212,7 @@ Commands output a unified machine-readable JSON report. External applications sh
 - `status`: String enum. Value can be `"pass"` (passes PrintProof3D profile and file validation checks), `"warning"` (non-blocking safety suggestions), or `"fail"` (critical hardware/extrusion issues detected).
 - `issues`: Array of validation issues.
   - `id`: Unique upper-case machine identifier (e.g. `MESH_NOT_MANIFOLD`, `GCODE_OUT_OF_BOUNDS`, `HOTEND_TEMP_EXCEEDS_MAX`).
-  - `severity`: String enum (`info`, `minor`, `major`, `critical`, `blocker`).
+  - `severity`: String enum (`blocker`, `critical`, `major`, `minor`, `nit`).
   - `message`: User-facing description.
   - `suggested_fixes`: Actionable suggestions for slicers or CAD correction.
 

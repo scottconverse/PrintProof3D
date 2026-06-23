@@ -35,10 +35,7 @@ SEMANTIC_OVERCLAIMS = [
 ]
 
 # Whitelist rules: (file_path_substring, line_number_1_indexed, phrase)
-# Whitelisting "Deferred by Director" in docs/process/5-lens-self-audit.md
-WHITELIST = [
-    ("5-lens-self-audit.md", 29, "Deferred by Director")
-]
+WHITELIST = []
 
 def is_whitelisted(file_path, line_no, content):
     for wl_file, wl_line, wl_phrase in WHITELIST:

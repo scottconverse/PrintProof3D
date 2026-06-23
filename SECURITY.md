@@ -33,7 +33,7 @@ All dynamic third-party validation plugins run inside a sandboxed WebAssembly ex
 
 ### Axum REST API Security
 - **Authentication**: All endpoints that accept model/G-code validation data or perform profile introspection require bearer token authentication.
-- **Bearer Tokens**: Start empty by default. Ephemeral startup tokens are dynamically generated using PID and time entropy if `PRINTPROOF3D_API_TOKEN` is not set in the environment. Tokens are never stored by the UI unless explicitly checked by the user.
+- **Bearer Tokens**: Start empty by default. If `PRINTPROOF3D_API_TOKEN` is not set in the environment, the daemon generates an ephemeral startup token from a 32-byte cryptographically secure random value (CSPRNG via `rand::thread_rng`), rendered as hex, and prints it once to the server console. Tokens are never stored by the UI unless explicitly checked by the user.
 - **CORS Configuration**: Restricts access to localhost and loopback domains (`127.0.0.1`, `localhost`).
 - **Static Assets Compilation**: All static dashboard components and loaders are compiled directly into the binary using `include_str!` or `include_bytes!`, mitigating path traversal exploits.
 
