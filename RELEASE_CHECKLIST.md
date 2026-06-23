@@ -1,4 +1,4 @@
-# PrintProof3D Release Checklist & Guide (v0.6.1)
+# PrintProof3D Release Checklist & Guide (v0.6.2)
 
 This checklist and guide outlines the packaging, platform compatibility, and verification steps necessary to declare a stable standalone release for **PrintProof3D**.
 

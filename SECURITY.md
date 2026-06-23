@@ -8,8 +8,8 @@ Only the latest release (including release candidates) is supported with securit
 
 | Version | Supported |
 | --- | --- |
-| `0.6.1` | :white_check_mark: Yes |
-| < `0.6.1` | :x: No |
+| `0.6.2` | :white_check_mark: Yes |
+| < `0.6.2` | :x: No |
 
 ## Reporting a Vulnerability
 

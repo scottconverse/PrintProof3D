@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "example-plugin"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "printproof3d-core",
  "printproof3d-plugins",
@@ -1300,7 +1300,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "clap",
  "printproof3d-adapters",
@@ -1316,7 +1316,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d-adapters"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -1335,7 +1335,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d-core"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "schemars",
  "serde",
@@ -1344,7 +1344,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d-plugins"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "printproof3d-core",
  "serde",
@@ -1355,7 +1355,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d-printability"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "printproof3d-core",
  "proptest",
@@ -1366,7 +1366,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d-rest"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "axum",
  "printproof3d-core",
@@ -1382,7 +1382,7 @@ dependencies = [
 
 [[package]]
 name = "printproof3d-sdk"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "async-trait",
  "axum",
