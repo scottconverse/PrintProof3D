@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-23
+
+### Security
+- **WASM plugin output bounds**: The plugin host now rejects an implausible guest-returned output length (greater than the 16 MB linear-memory ceiling) before allocating host memory, preventing a malicious or buggy plugin from triggering an oversized host allocation that only fails afterward at the bounds-checked read.
+- **PrusaLink digest `cnonce`**: Digest authentication now generates a unique per-request client nonce instead of a fixed `"clientnonce"` constant, aligning with RFC 7616 intent and improving replay resistance.
+
+### Added
+- **HTTP adapter timeouts**: The HTTP printer adapters (Moonraker/Klipper, OctoPrint, PrusaLink, RepRapFirmware) now share a client configured with a 10s connect / 30s request timeout, so an unresponsive or black-holed printer can no longer hang an adapter indefinitely. This brings them in line with the serial adapter's existing read timeout.
+
+### Fixed
+- **`cargo test --workspace` is green on a stock toolchain**: `test_wasm_macro_compile_and_run` now skips cleanly when the optional `wasm32-unknown-unknown` target is not installed, rather than panicking. CI continues to install the target and exercise the full plugin-compilation path.
+- **Documentation drift**: The validation report `severity` field is now documented consistently as `blocker`/`critical`/`major`/`minor`/`nit` in `README.md` and `docs/preflight_guide.md` (the previously documented `info` value never existed in the model). `SECURITY.md` now correctly describes the ephemeral REST token as a 32-byte CSPRNG value rather than "PID and time entropy."
+
+### Removed
+- **Internal process artifacts**: Removed development-process documents from the published tree (`audit-team-stage-1/`, `docs/process/`, `PUNCH_LIST.md`, `HANDOFF.md`, `DISCUSSION_SEEDS.md`, `AUDIT_PLAYWRIGHT_INTERFACE_WIRING.md`, and the dated audit-lite note), along with the now-unused tooling whitelist entries that referenced them.
+
 ## [0.6.0] - 2026-06-04
 
 ### Security

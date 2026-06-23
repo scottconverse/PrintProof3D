@@ -2,3 +2,11 @@
 /target/
 **/*.rs.bk
 .DS_Store
+
+# Runtime working dir created by the REST daemon for uploaded model/G-code files
+temp_uploads/
+**/temp_uploads/
+
+# Python bytecode from devtools/
+__pycache__/
+*.pyc

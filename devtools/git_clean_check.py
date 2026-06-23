@@ -13,7 +13,7 @@ def main():
     lines = res.stdout.strip().split("\n")
     unexpected_files = []
 
-    whitelist = ["HANDOFF.md", "AUDIT_PLAYWRIGHT_INTERFACE_WIRING.md"]
+    whitelist = []
 
     for line in lines:
         if not line:

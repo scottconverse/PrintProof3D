@@ -97,7 +97,7 @@ The output JSON report contains the following fields:
 * `model`: Object detailing the validated file's bounding box and units.
 * `issues`: Array of detected anomalies. Each issue has:
   * `id`: Code string (e.g. `MESH_NOT_MANIFOLD`, `PRINTER_CONNECTION_FAILED`).
-  * `severity`: Severity level (`info`, `minor`, `major`, `critical`, `blocker`).
+  * `severity`: Severity level (`blocker`, `critical`, `major`, `minor`, `nit`).
   * `message`: Human-readable description.
   * `suggested_fixes`: Actionable suggestions.
 * `confidence_level`: Level of validation certainty (`low`, `medium`, `high`).

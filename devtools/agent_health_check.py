@@ -63,9 +63,6 @@ def main():
     print("Please read the integration guide for details on REST, MCP, and SDK validation interfaces:")
     print("docs/AGENT_PRINTER_VALIDATION.md")
 
-    print("\n[GIT STATUS REMINDER]")
-    print("Note: HANDOFF.md is an untracked local handoff document and may remain untracked in the git tree.")
-
     # Run git status output directly to show user
     print("\nCurrent git branch status:")
     subprocess.run(["git", "status", "--short", "--branch"])

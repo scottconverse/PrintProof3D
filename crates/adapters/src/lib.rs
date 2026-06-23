@@ -71,6 +71,24 @@ pub trait PrinterAdapter: Send + Sync {
     async fn emergency_stop(&self) -> Result<(), AdapterError>;
 }
 
+/// Connection (handshake) timeout for HTTP-based printer adapters.
+const HTTP_CONNECT_TIMEOUT_SECS: u64 = 10;
+/// Overall per-request timeout so an unresponsive or black-holed printer cannot hang an adapter
+/// indefinitely. The serial adapter already enforces its own read timeout; this brings the HTTP
+/// adapters (Moonraker, OctoPrint, PrusaLink, RepRapFirmware) in line.
+const HTTP_REQUEST_TIMEOUT_SECS: u64 = 30;
+
+/// Builds a `reqwest::Client` with sane connect/request timeouts shared by all HTTP adapters.
+/// Falls back to a default client if the builder fails (e.g. TLS backend init), preserving the
+/// previous best-effort construction behavior rather than panicking at adapter creation.
+pub(crate) fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(HTTP_CONNECT_TIMEOUT_SECS))
+        .timeout(std::time::Duration::from_secs(HTTP_REQUEST_TIMEOUT_SECS))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
 pub mod bambu;
 pub mod factory;
 pub mod moonraker;

@@ -1,6 +1,6 @@
 [package]
 name = "printproof3d-rest"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 description = "REST API server for PrintProof3D."
 license = "MIT"
