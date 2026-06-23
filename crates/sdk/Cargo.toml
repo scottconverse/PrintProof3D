@@ -1,6 +1,6 @@
 [package]
 name = "printproof3d-sdk"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 description = "Developer SDK for PrintProof3D."
 license = "MIT"

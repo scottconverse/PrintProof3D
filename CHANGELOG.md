@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-23
+
 ### Added
 - **Coverage-guided fuzzing**: New standalone `fuzz/` crate with `cargo-fuzz` targets for the STL parser (`parse_stl_bytes`) and the G-code validator, plus a scheduled `Fuzz` CI workflow. The same never-panic contract is guarded on stable in normal CI by `proptest` smoke tests in `crates/printability`.
 - **`tls_enabled` enforcement**: Setting `tls_enabled` on an HTTP-based connection (Klipper/Moonraker, OctoPrint, PrusaLink, RepRapFirmware) now requires an `https://` `base_url`; configuration validation fails closed otherwise. The field was previously unused.
