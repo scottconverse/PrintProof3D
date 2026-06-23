@@ -80,7 +80,10 @@ pub struct PrinterConnectionConfig {
     /// Environment variable storing the client password.
     #[serde(default)]
     pub password_env_var: Option<String>,
-    /// Secure socket TLS state.
+    /// When `true`, require the connection transport to be encrypted: for the HTTP-based protocols
+    /// (Klipper/Moonraker, OctoPrint, PrusaLink, RepRapFirmware) the `base_url` must be an
+    /// `https://` endpoint, and configuration validation fails closed otherwise. Defaults to
+    /// `false`, in which case the transport simply follows the `base_url` scheme.
     #[serde(default)]
     pub tls_enabled: bool,
     /// Pre-flight print execution policy.
@@ -150,6 +153,29 @@ impl PrinterConnectionConfig {
                     "Validation Error: For network target '{}' (protocol: {:?}), 'base_url' must be specified.",
                     self.name, self.protocol_family
                 ));
+            }
+
+            // `tls_enabled` is a fail-closed assertion that the transport must be encrypted. The
+            // HTTP adapters derive TLS from the base_url scheme, so requiring TLS while pointing at
+            // a plaintext `http://` endpoint is a misconfiguration that would send credentials in
+            // the clear. Enforce it only for the HTTP-based families; Bambu (MQTT/FTP) uses a
+            // scheme-less host and is out of scope.
+            if self.tls_enabled
+                && matches!(
+                    self.protocol_family,
+                    ProtocolFamily::Klipper
+                        | ProtocolFamily::OctoPrint
+                        | ProtocolFamily::PrusaLink
+                        | ProtocolFamily::RepRapFirmware
+                )
+            {
+                let url = self.base_url.as_deref().unwrap_or("").trim();
+                if !url.to_ascii_lowercase().starts_with("https://") {
+                    return Err(format!(
+                        "Validation Error: For network target '{}' (protocol: {:?}), 'tls_enabled' is set but 'base_url' ('{}') is not an https:// endpoint. Use an https:// URL or set tls_enabled = false.",
+                        self.name, self.protocol_family, url
+                    ));
+                }
             }
         }
 
@@ -339,6 +365,65 @@ mod tests {
         let res = config.validate();
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("Unsupported protocol family"));
+    }
+
+    #[test]
+    fn test_tls_enabled_requires_https() {
+        let mut config = PrinterConnectionConfig {
+            name: "Klipper TLS".to_string(),
+            mode: ConnectionMode::Physical,
+            protocol_family: ProtocolFamily::Klipper,
+            base_url: Some("http://printer.local".to_string()),
+            serial_path: None,
+            serial_baud_rate: None,
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: true,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+
+        // tls_enabled + plaintext http:// base_url must fail closed.
+        let res = config.validate();
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("https://"));
+
+        // An https:// endpoint satisfies the requirement.
+        config.base_url = Some("https://printer.local".to_string());
+        assert!(config.validate().is_ok());
+
+        // Case-insensitive scheme is accepted.
+        config.base_url = Some("HTTPS://printer.local".to_string());
+        assert!(config.validate().is_ok());
+
+        // With tls_enabled = false the plaintext endpoint is allowed again (default behavior).
+        config.tls_enabled = false;
+        config.base_url = Some("http://printer.local".to_string());
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_tls_enabled_not_enforced_for_bambu() {
+        // Bambu uses MQTT/FTP with a scheme-less host, so tls_enabled must not impose an https://
+        // requirement on it.
+        let config = PrinterConnectionConfig {
+            name: "Bambu TLS".to_string(),
+            mode: ConnectionMode::Physical,
+            protocol_family: ProtocolFamily::BambuMqtt,
+            base_url: Some("192.168.1.50".to_string()),
+            serial_path: None,
+            serial_baud_rate: None,
+            auth_type: AuthType::None,
+            api_key_env_var: None,
+            username: None,
+            password_env_var: None,
+            tls_enabled: true,
+            dispatch_policy: DispatchPolicy::AllowStart,
+            simulator_scenario: None,
+        };
+        assert!(config.validate().is_ok());
     }
 
     #[test]
